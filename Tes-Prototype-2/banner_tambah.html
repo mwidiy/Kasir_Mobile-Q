@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tambah Banner Baru - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --primary-blue: #1e3a5f;
+            --primary-yellow: #fdd85d;
+            --bg-gray: #f8f9fa;
+            --white: #ffffff;
+            --text-dark: #1a2b48;
+            --text-gray: #888888;
+            --border-color: #eeeeee;
+            --input-border: #d1d5db;
+            
+            /* Card Colors */
+            --card-dark-bg: #2d3e50;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #fff;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: #fff;
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 90px; /* Space for bottom button */
+        }
+
+        /* --- HEADER --- */
+        .header {
+            padding: 15px 20px;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        /* --- CONTENT SCROLL --- */
+        .content {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .section-label {
+            font-size: 13px;
+            color: var(--text-gray);
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        /* --- PREVIEW CARD (Dark) --- */
+        .preview-card {
+            background-color: var(--card-dark-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(45, 62, 80, 0.2);
+        }
+
+        .preview-img-box {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .preview-img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none; /* Hidden by default */
+        }
+
+        .icon-placeholder {
+            width: 24px;
+            height: 24px;
+            fill: rgba(255,255,255,0.3);
+        }
+
+        .preview-info {
+            flex: 1;
+            color: white;
+        }
+
+        .preview-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .preview-desc {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        .preview-price {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-yellow);
+        }
+
+        /* --- FORM SECTION --- */
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed var(--input-border);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: #fcfcfc;
+        }
+
+        .upload-area:active {
+            background-color: #f0f0f0;
+            border-color: var(--primary-blue);
+        }
+
+        .upload-icon {
+            width: 32px;
+            height: 32px;
+            fill: #9ca3af;
+            margin-bottom: 8px;
+        }
+
+        .upload-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .upload-hint {
+            font-size: 11px;
+            color: var(--text-gray);
+        }
+
+        /* Input Fields */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-dark);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary-blue);
+        }
+
+        .input-field::placeholder {
+            color: #d1d5db;
+        }
+
+        /* --- BOTTOM BUTTON --- */
+        .bottom-action {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            max-width: 480px;
+            background: white;
+            padding: 15px 20px;
+            border-top: 1px solid var(--border-color);
+            z-index: 50;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--primary-blue);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:active {
+            opacity: 0.9;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div class="header">
+            <button class="back-btn" onclick="location.href='banner.html'">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" color="#1a2b48"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div class="header-title">Tambah Banner Baru</div>
+        </div>
+
+        <div class="content">
+            
+            <div class="section-label">Preview Tampilan</div>
+            
+            <div class="preview-card">
+                <div class="preview-img-box" id="previewBox">
+                    <svg class="icon-placeholder" id="iconPlaceholder" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    <img src="" alt="Preview" id="realImage">
+                </div>
+                <div class="preview-info">
+                    <div class="preview-title" id="prevTitle">Judul Promo</div>
+                    <div class="preview-desc" id="prevDesc">Keterangan singkat</div>
+                    <div class="preview-price" id="prevPromo">Info Diskon</div>
+                </div>
+            </div>
+
+            <div class="form-title">Detail Banner</div>
+
+            <div class="form-section">
+                <div class="input-group">
+                    <div class="input-label">Foto Banner</div>
+                    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                        <svg class="upload-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                        <div class="upload-text">Upload Foto Banner</div>
+                        <div class="upload-hint">PNG, JPG (Max 2MB)</div>
+                        <input type="file" id="fileInput" hidden accept="image/*" onchange="previewImage(this)">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Judul Utama</label>
+                    <input type="text" class="input-field" placeholder="Contoh: Paket Hemat" oninput="updateText('prevTitle', this.value, 'Judul Promo')">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Sub-judul</label>
+                    <input type="text" class="input-field" placeholder="Contoh: Nasi + Ayam" oninput="updateText('prevDesc', this.value, 'Keterangan singkat')">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Teks Promo (Highlight Kuning)</label>
+                    <input type="text" class="input-field" placeholder="Contoh: 20% OFF" oninput="updateText('prevPromo', this.value, 'Info Diskon')">
+                </div>
+            </div>
+
+        </div>
+
+        <div class="bottom-action">
+            <button class="btn-submit" onclick="location.href='banner.html'">Terbitkan Banner</button>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. Live Text Update
+        function updateText(elementId, value, defaultText) {
+            const element = document.getElementById(elementId);
+            if (value.trim() === "") {
+                element.innerText = defaultText;
+            } else {
+                element.innerText = value;
+            }
+        }
+
+        // 2. Image Upload Preview
+        function previewImage(input) {
+            const previewBox = document.getElementById('previewBox');
+            const icon = document.getElementById('iconPlaceholder');
+            const img = document.getElementById('realImage');
+
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                    icon.style.display = 'none';
+                }
+
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+
+</body>
+</html>

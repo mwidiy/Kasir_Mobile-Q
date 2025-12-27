@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manajemen Meja - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --primary-blue: #1e3a5f;
+            --primary-yellow: #fdd85d;
+            --active-green: #2ecc71;
+            --inactive-gray: #e0e0e0;
+            --bg-body: #f8f9fa;
+            --white: #ffffff;
+            --text-dark: #1f2937;
+            --text-muted: #9ca3af;
+            
+            --border-color: #eeeeee;
+            
+            /* Status Colors */
+            --status-open-bg: #ffffff;
+            --status-open-border: #bbf7d0;
+            --status-closed-bg: #ffffff;
+            --status-closed-border: #fecaca;
+            --alert-red-bg: #fef2f2;
+            --alert-red-text: #b91c1c;
+            --alert-red-border: #fecaca;
+            
+            /* FAB & UI Colors */
+            --fab-menu-bg: #2d3e50;
+            --fab-text: #ffffff;
+            
+            /* Action Sheet */
+            --sheet-bg-icon-edit: #2d3e50;
+            --sheet-bg-icon-delete: #fee2e2;
+            --sheet-text-delete: #ef4444;
+            --modal-btn-cancel: #2d3e50;
+            --modal-btn-delete: #ef4444;
+
+            /* Nav specific vars */
+            --text-main: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg-body);
+            min-height: 100vh;
+            position: relative;
+            /* UPDATED: Extra space for the new floating nav */
+            padding-bottom: 100px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            background-color: var(--fab-menu-bg);
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* --- CONTENT AREA --- */
+        .content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- STATUS CARD --- */
+        .status-card {
+            background: var(--status-open-bg);
+            border: 2px solid var(--status-open-border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        .status-card.closed {
+            border-color: var(--alert-red-border);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15);
+        }
+
+        .status-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+        }
+        .status-title h3 { font-size: 16px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px; }
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+        .status-badge.open { color: var(--active-green); }
+        .status-badge.closed { color: #ef4444; }
+
+        .info-box {
+            background-color: #f0fdf4; color: #166534; padding: 12px;
+            border-radius: 8px; font-size: 12px; line-height: 1.5;
+            display: flex; gap: 12px; align-items: flex-start;
+            border: 1px solid #bbf7d0; cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .info-box:active { transform: scale(0.98); }
+        
+        .info-box.closed {
+            background-color: var(--alert-red-bg); color: var(--alert-red-text); border-color: var(--alert-red-border);
+        }
+
+        /* Icon Pulse Animation */
+        .info-icon-wrapper {
+            position: relative;
+            width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px;
+        }
+        .info-icon-svg {
+            width: 100%; height: 100%; fill: currentColor; position: relative; z-index: 2;
+        }
+        .info-pulse {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 100%; height: 100%; border-radius: 50%;
+            background-color: currentColor; opacity: 0.3;
+            animation: pulseRing 2s infinite;
+        }
+        
+        @keyframes pulseRing {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+
+        .off-label { font-size: 12px; color: #999; font-weight: 600; margin-top: 4px; display: block; text-align: right; }
+
+        /* --- FILTER TABS --- */
+        .filter-scroll {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;
+        }
+        .filter-scroll::-webkit-scrollbar { display: none; }
+
+        .filter-pill {
+            padding: 8px 20px; border-radius: 50px; font-size: 13px; font-weight: 500;
+            white-space: nowrap; background: white; color: #666;
+            border: 1px solid transparent; cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative; overflow: hidden;
+            user-select: none;
+        }
+        .filter-pill:active { transform: scale(0.95); background-color: #f1f5f9; }
+        .filter-pill.active {
+            background-color: var(--fab-menu-bg); color: white;
+            box-shadow: 0 4px 10px rgba(45, 62, 80, 0.3);
+        }
+        .filter-pill.active:active { background-color: #1e293b; }
+
+        /* --- TABLE GRID --- */
+        .table-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+        }
+
+        .table-card {
+            background: white; border-radius: 16px; padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.3s ease;
+            position: relative; overflow: hidden; border: 1px solid transparent;
+        }
+
+        .table-card.locked { background-color: #f9fafb; border-color: #e5e7eb; opacity: 0.8; }
+        
+        .tc-header {
+            display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
+        }
+        .tc-title { font-size: 15px; font-weight: 700; color: var(--text-dark); }
+        .tc-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280; font-weight: 500; display: block; width: fit-content; margin-top: 4px; }
+
+        .more-options-btn {
+            padding: 8px; margin: -8px -8px 0 0; cursor: pointer; color: #9ca3af; z-index: 2;
+        }
+
+        .lock-overlay {
+            position: absolute; top: 10px; right: 10px; color: #9ca3af; display: none;
+        }
+        .table-card.locked .lock-overlay { display: block; }
+        .table-card.locked .more-options-btn { display: none; }
+
+        .qr-placeholder {
+            background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px;
+            height: 100px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 8px; margin-bottom: 16px;
+            color: var(--primary-blue); cursor: pointer; transition: background 0.2s;
+        }
+        .qr-placeholder:active { background-color: #e2e8f0; }
+        .table-card.locked .qr-placeholder { opacity: 0.5; pointer-events: none; }
+
+        .qr-icon { width: 32px; height: 32px; fill: currentColor; }
+        .qr-text { font-size: 11px; font-weight: 600; }
+
+        .tc-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-top: 12px; border-top: 1px solid #f3f4f6;
+        }
+        .tc-status-label { font-size: 11px; color: #888; font-weight: 500; }
+
+        /* SWITCH TOGGLE */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--inactive-gray); transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--active-green); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        
+        .switch.large { width: 52px; height: 28px; }
+        .switch.large .slider:before { height: 22px; width: 22px; left: 3px; bottom: 3px; }
+        .switch.large input:checked + .slider:before { transform: translateX(24px); }
+        
+        .table-card.locked .switch { pointer-events: none; opacity: 0.5; }
+
+        /* --- ACTION SHEET --- */
+        .action-sheet-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.5); z-index: 200;
+            display: flex; align-items: flex-end; justify-content: center;
+            opacity: 0; visibility: hidden; transition: all 0.3s;
+            backdrop-filter: blur(2px);
+        }
+        .action-sheet-overlay.active { opacity: 1; visibility: visible; }
+
+        .action-sheet {
+            background: white; width: 100%; max-width: 480px;
+            border-radius: 24px 24px 0 0; padding: 24px;
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            padding-bottom: 40px; 
+        }
+        .action-sheet-overlay.active .action-sheet { transform: translateY(0); }
+
+        .sheet-header-title { font-size: 16px; font-weight: 700; color: var(--text-dark); margin-bottom: 20px; text-align: center; }
+        .menu-options-container { display: flex; flex-direction: column; gap: 4px; }
+        .sheet-option { display: flex; align-items: center; gap: 16px; padding: 12px 0; cursor: pointer; }
+        .sheet-option:active { opacity: 0.7; }
+        .menu-divider { height: 1px; width: 100%; background-color: #f3f4f6; margin: 4px 0; }
+        
+        .option-icon-box { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .bg-edit { background-color: var(--sheet-bg-icon-edit); color: white; }
+        .bg-delete { background-color: var(--sheet-bg-icon-delete); color: var(--sheet-text-delete); }
+        .option-text { font-size: 15px; font-weight: 600; color: var(--text-dark); flex: 1; }
+        .text-delete { color: var(--sheet-text-delete); }
+
+        /* --- MODALS --- */
+        .modal-overlay-center {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.6); z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+            backdrop-filter: blur(2px); padding: 20px;
+        }
+        .modal-overlay-center.active { opacity: 1; visibility: visible; }
+
+        .modal-card {
+            background: white; width: 100%; max-width: 320px;
+            border-radius: 20px; padding: 24px;
+            transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .modal-overlay-center.active .modal-card { transform: scale(1); }
+
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 18px; font-weight: 700; color: var(--text-dark); }
+        .modal-close { cursor: pointer; color: #aaa; padding: 4px; }
+        .modal-label { font-size: 14px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px; display: block; }
+        .modal-input {
+            width: 100%; padding: 12px 16px; border-radius: 10px;
+            border: 1px solid #e5e7eb; background-color: #f9fafb;
+            font-size: 14px; outline: none; margin-bottom: 16px;
+        }
+        .modal-input:focus { border-color: var(--primary-blue); background-color: white; }
+        
+        select.modal-input {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 16px;
+        }
+
+        .modal-btn-save {
+            width: 100%; padding: 14px; background-color: var(--fab-menu-bg);
+            color: white; font-weight: 600; border: none; border-radius: 10px;
+            cursor: pointer; font-size: 14px; margin-top: 8px;
+        }
+
+        /* DELETE MODAL */
+        .modal-icon-header { display: flex; justify-content: center; margin-bottom: 20px; }
+        .icon-circle-bg { width: 72px; height: 72px; background-color: #1f2937; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .icon-trash-white { width: 32px; height: 32px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .modal-title-center { font-size: 20px; font-weight: 700; color: #1f2937; text-align: center; margin-bottom: 12px; }
+        .modal-desc-center { font-size: 14px; color: #6b7280; text-align: center; line-height: 1.5; margin-bottom: 28px; }
+        .modal-actions-row { display: flex; gap: 12px; }
+        .btn-modal-cancel { flex: 1; padding: 14px; background-color: var(--modal-btn-cancel); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; }
+        .btn-modal-delete { flex: 1; padding: 14px; background-color: var(--modal-btn-delete); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; }
+
+        /* QR DOWNLOAD MODAL */
+        .qr-preview-box {
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px;
+            padding: 30px; display: flex; justify-content: center; margin-bottom: 20px;
+        }
+        .qr-preview-img { width: 150px; height: 150px; }
+
+        /* FAB & OVERLAY */
+        .fab-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); z-index: 110; opacity: 0; visibility: hidden; transition: opacity 0.3s; }
+        .fab-overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+        .fab-main { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; background-color: var(--primary-yellow); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 120; transition: transform 0.3s; }
+        .fab-main.active svg { transform: rotate(45deg); }
+        .fab-main svg { width: 28px; height: 28px; fill: #1a2b48; transition: transform 0.3s; }
+        .fab-menu-items { position: fixed; bottom: 170px; right: 20px; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; z-index: 120; pointer-events: none; }
+        .fab-action-btn { background-color: var(--fab-menu-bg); color: var(--fab-text); padding: 10px 16px 10px 12px; border-radius: 50px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; opacity: 0; transform: translateY(20px) scale(0.9); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .fab-menu-items.active .fab-action-btn { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .fab-menu-items.active .fab-action-btn:nth-child(1) { transition-delay: 0.1s; }
+        .fab-menu-items.active .fab-action-btn:nth-child(2) { transition-delay: 0.05s; }
+        .fab-action-text { font-size: 13px; font-weight: 500; }
+        .fab-action-icon { width: 20px; height: 20px; fill: white; }
+
+        @media (min-width: 480px) { .fab-main, .fab-menu-items { right: calc(50% - 240px + 20px); } }
+
+        /* --- BOTTOM NAV (REFINED & PROPORTIONAL) --- */
+        .bottom-nav {
+            position: fixed; 
+            bottom: 0; 
+            width: 100%; 
+            max-width: 480px;
+            background: white; 
+            border-top: 1px solid #e5e7eb;
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr);
+            /* FIXED HEIGHT & PADDING - KUNCI PROPORSIONALITAS */
+            height: 80px; 
+            padding-bottom: 10px; 
+            align-items: flex-end; /* Align items to bottom */
+            z-index: 100;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
+        }
+
+        .nav-item {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            justify-content: center; 
+            gap: 5px; 
+            color: #9ca3af;
+            cursor: pointer; 
+            height: 60px; /* Fixed height for click area */
+            padding-bottom: 8px;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .nav-item:active { transform: scale(0.95); }
+        
+        .nav-item.active { color: var(--text-main); }
+        .nav-item.active .nav-text { font-weight: 600; }
+        
+        .nav-icon { width: 24px; height: 24px; stroke-width: 2; transition: stroke 0.2s; }
+        .nav-text { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+
+        /* PROMINENT MIDDLE BUTTON (BAYAR) - ABSOLUTE FLOATING */
+        .nav-item.middle {
+            /* Make container static relative to grid, but content absolute */
+            justify-content: flex-end; 
+        }
+        
+        .nav-item.middle .icon-box {
+            width: 56px; height: 56px; 
+            /* Gradient Modern Dark */
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; color: white;
+            /* Soft Shadow & White Border */
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.3);
+            border: 4px solid white; 
+            
+            /* Absolute Positioning to Float */
+            position: absolute;
+            top: -28px; /* Floating offset */
+            left: 50%;
+            transform: translateX(-50%);
+            transition: transform 0.2s;
+        }
+        
+        .nav-item.middle:active .icon-box { transform: translateX(-50%) scale(0.95); }
+        
+        .nav-item.middle .nav-icon { width: 24px; height: 24px; stroke-width: 2; }
+        
+        /* Text stays in flow at bottom */
+        .nav-item.middle .nav-text { 
+            color: var(--text-main); font-weight: 600;
+            margin-top: 0; /* Reset margin */
+        }
+
+        /* --- NEW ANIMATION CSS --- */
+        .guide-animation-scene {
+            width: 100%; height: 140px;
+            background-color: #f3f4f6; border-radius: 12px;
+            position: relative; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* Demo Card */
+        .demo-card {
+            width: 180px; height: 80px; background: white;
+            border-radius: 12px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; justify-content: space-between;
+            position: relative; transition: filter 0.3s;
+        }
+        
+        /* Switch in demo */
+        .demo-header { display: flex; justify-content: space-between; align-items: center; }
+        .demo-status-text { width: 60px; height: 8px; background: #e0e0e0; border-radius: 4px; }
+        
+        .demo-switch {
+            width: 36px; height: 20px; background: #2ecc71; border-radius: 20px;
+            position: relative; transition: background 0.3s;
+        }
+        .demo-knob {
+            width: 16px; height: 16px; background: white; border-radius: 50%;
+            position: absolute; top: 2px; left: 18px; transition: left 0.3s;
+        }
+
+        /* Content below (table representation) */
+        .demo-content { display: flex; gap: 8px; }
+        .demo-table { flex: 1; height: 30px; background: #f0f0f0; border-radius: 6px; position: relative; display:flex; align-items:center; justify-content:center; }
+        .demo-lock { width: 12px; height: 12px; fill: #9ca3af; opacity: 0; transform: scale(0); transition: all 0.3s; }
+
+        /* Hand Cursor */
+        .demo-hand {
+            width: 32px; height: 32px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231e3a5f'%3E%3Cpath d='M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z'/%3E%3C/svg%3E");
+            position: absolute; top: 80%; left: 70%;
+            animation: demoAction 3s infinite;
+            z-index: 5;
+        }
+
+        /* ANIMATION KEYFRAMES */
+        @keyframes demoAction {
+            0% { top: 80%; left: 70%; transform: scale(1); }
+            20% { top: 25%; left: 75%; transform: scale(1); } /* Move to switch */
+            30% { transform: scale(0.8); } /* Click Press */
+            40% { transform: scale(1); } /* Release */
+            60% { top: 25%; left: 75%; opacity: 1; } /* Wait */
+            80% { top: 80%; left: 70%; opacity: 0; } /* Move away */
+            100% { opacity: 0; }
+        }
+
+        /* Toggle Switch Animation synced with hand */
+        @keyframes demoSwitchToggle {
+            0%, 30% { background: #2ecc71; } /* Green */
+            35%, 100% { background: #e0e0e0; } /* Gray (Off) */
+        }
+        
+        @keyframes demoKnobMove {
+            0%, 30% { left: 18px; }
+            35%, 100% { left: 2px; }
+        }
+
+        @keyframes demoLockAppear {
+            0%, 35% { opacity: 0; transform: scale(0); }
+            40%, 100% { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes demoCardBlur {
+            0%, 35% { filter: none; opacity: 1; }
+            40%, 100% { filter: grayscale(100%); opacity: 0.7; }
+        }
+
+        /* Assign animations */
+        .demo-switch { animation: demoSwitchToggle 3s infinite; }
+        .demo-knob { animation: demoKnobMove 3s infinite; }
+        .demo-lock { animation: demoLockAppear 3s infinite; }
+        .demo-table { animation: demoCardBlur 3s infinite; }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <header class="header">
+            <h2>Manajemen Meja & QR</h2>
+        </header>
+
+        <div class="content">
+            
+            <div class="status-card" id="globalStatusCard">
+                <div class="status-header">
+                    <div class="status-title">
+                        <h3>Status Operasional Kantin</h3>
+                        <div class="status-badge open" id="statusBadge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            <span>Buka</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                        <label class="switch large">
+                            <input type="checkbox" checked onchange="toggleGlobalStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="off-label" id="offLabel" style="display:none;">OFF</span>
+                    </div>
+                </div>
+                
+                <div class="info-box" id="infoBox" onclick="openStatusGuide()">
+                    <div class="info-icon-wrapper">
+                        <svg class="info-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        <div class="info-pulse"></div>
+                    </div>
+                    <span id="infoText">Semua QR code meja aktif. Matikan untuk menutup pesanan. (Klik info)</span>
+                </div>
+            </div>
+
+            <div class="filter-scroll" id="filterContainer">
+                <div class="filter-pill active" data-id="all" onclick="filterTables('all', this)">Semua</div>
+                <div class="filter-pill" data-id="lantai-1" onclick="filterTables('lantai-1', this)">Lantai 1</div>
+                <div class="filter-pill" data-id="outdoor" onclick="filterTables('outdoor', this)">Outdoor</div>
+                <div class="filter-pill" data-id="vip" onclick="filterTables('vip', this)">VIP</div>
+            </div>
+
+            <div class="table-grid" id="tableGrid">
+                
+                <div class="table-card" data-area="lantai-1">
+                    <div class="tc-header">
+                        <div>
+                            <div class="tc-title">Meja 01</div>
+                            <span class="tc-badge">Lantai 1</span>
+                        </div>
+                        <div class="more-options-btn" onclick="openTableOptions(this)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                        </div>
+                        <div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div>
+                    </div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 01')">
+                        <svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg>
+                        <span class="qr-text">Lihat QR</span>
+                    </div>
+                    <div class="tc-footer">
+                        <span class="tc-status-label">Aktif</span>
+                        <label class="switch">
+                            <input type="checkbox" checked onchange="toggleTableStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="table-card" data-area="lantai-1">
+                    <div class="tc-header">
+                        <div>
+                            <div class="tc-title">Meja 02</div>
+                            <span class="tc-badge">Lantai 1</span>
+                        </div>
+                        <div class="more-options-btn" onclick="openTableOptions(this)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                        </div>
+                        <div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div>
+                    </div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 02')">
+                        <svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg>
+                        <span class="qr-text">Lihat QR</span>
+                    </div>
+                    <div class="tc-footer">
+                        <span class="tc-status-label">Aktif</span>
+                        <label class="switch">
+                            <input type="checkbox" checked onchange="toggleTableStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="table-card" data-area="outdoor">
+                    <div class="tc-header"><div><div class="tc-title">Meja 03</div><span class="tc-badge">Outdoor</span></div><div class="more-options-btn" onclick="openTableOptions(this)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div><div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div></div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 03')"><svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg><span class="qr-text">Lihat QR</span></div>
+                    <div class="tc-footer"><span class="tc-status-label">Aktif</span><label class="switch"><input type="checkbox" checked onchange="toggleTableStatus(this)"><span class="slider"></span></label></div>
+                </div>
+
+                <div class="table-card" data-area="outdoor">
+                     <div class="tc-header"><div><div class="tc-title">Meja 04</div><span class="tc-badge">Outdoor</span></div><div class="more-options-btn" onclick="openTableOptions(this)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div><div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div></div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 04')"><svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg><span class="qr-text">Lihat QR</span></div>
+                    <div class="tc-footer"><span class="tc-status-label">Aktif</span><label class="switch"><input type="checkbox" checked onchange="toggleTableStatus(this)"><span class="slider"></span></label></div>
+                </div>
+
+                <div class="table-card" data-area="vip">
+                     <div class="tc-header"><div><div class="tc-title">Meja 05</div><span class="tc-badge">VIP</span></div><div class="more-options-btn" onclick="openTableOptions(this)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div><div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div></div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 05')"><svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg><span class="qr-text">Lihat QR</span></div>
+                    <div class="tc-footer"><span class="tc-status-label">Aktif</span><label class="switch"><input type="checkbox" checked onchange="toggleTableStatus(this)"><span class="slider"></span></label></div>
+                </div>
+
+                <div class="table-card" data-area="vip">
+                     <div class="tc-header"><div><div class="tc-title">Meja 06</div><span class="tc-badge">VIP</span></div><div class="more-options-btn" onclick="openTableOptions(this)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div><div class="lock-overlay"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div></div>
+                    <div class="qr-placeholder" onclick="openQrModal('Meja 06')"><svg class="qr-icon" viewBox="0 0 24 24"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg><span class="qr-text">Lihat QR</span></div>
+                    <div class="tc-footer"><span class="tc-status-label">Aktif</span><label class="switch"><input type="checkbox" checked onchange="toggleTableStatus(this)"><span class="slider"></span></label></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="fab-overlay" id="fabOverlay" onclick="toggleFab()"></div>
+        
+        <div class="fab-menu-items" id="fabMenu">
+            <div class="fab-action-btn" onclick="openLocationModal()">
+                <svg class="fab-action-icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                <span class="fab-action-text">Tambah Lokasi</span>
+            </div>
+            <div class="fab-action-btn" onclick="openAddTableModal()">
+                <svg class="fab-action-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                <span class="fab-action-text">Tambah Meja</span>
+            </div>
+        </div>
+
+        <div class="fab-main" id="fabMain" onclick="toggleFab()">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </div>
+
+        <nav class="bottom-nav">
+            <div class="nav-item" onclick="location.href='dasboard.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                <span class="nav-text">Dasbor</span>
+            </div>
+            
+            <div class="nav-item" onclick="location.href='riwayat.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span class="nav-text">Riwayat</span>
+            </div>
+
+            <div class="nav-item middle" onclick="location.href='bayar.html'">
+                <div class="icon-box">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                        <line x1="5" y1="12" x2="19" y2="12"></line> </svg>
+                </div>
+                <span class="nav-text">Bayar</span>
+            </div>
+
+            <div class="nav-item" onclick="location.href='menu.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path><path d="M17 2v20"></path></svg>
+                <span class="nav-text">Menu</span>
+            </div>
+
+            <div class="nav-item active" onclick="location.href='qr.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span class="nav-text">Meja</span>
+            </div>
+        </nav>
+
+        <div class="action-sheet-overlay" id="tableOptionsSheet" onclick="closeTableOptions()">
+            <div class="action-sheet">
+                <div class="sheet-header-title" id="tableOptionsTitle">Opsi Meja</div>
+                <div class="menu-options-container">
+                    <div class="sheet-option" onclick="openEditTableModal()">
+                        <div class="option-icon-box bg-edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></div>
+                        <span class="option-text">Edit Meja</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="sheet-option" onclick="openDeleteTableModal()">
+                        <div class="option-icon-box bg-delete"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></div>
+                        <span class="option-text text-delete">Hapus Meja</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-sheet-overlay" id="locationOptionsSheet" onclick="closeLocationOptions()">
+            <div class="action-sheet">
+                <div class="sheet-header-title">Opsi Lokasi: <span id="selectedLocationName"></span></div>
+                <div class="menu-options-container">
+                    <div class="sheet-option" onclick="openEditLocationModal()">
+                        <div class="option-icon-box bg-edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></div>
+                        <span class="option-text">Ubah Nama Lokasi</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="sheet-option" onclick="openDeleteLocationModal()">
+                        <div class="option-icon-box bg-delete"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></div>
+                        <span class="option-text text-delete">Hapus Lokasi</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="addTableModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title" id="tableModalTitle">Tambah Meja</div>
+                    <div class="modal-close" onclick="closeAddTableModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <label class="modal-label">Nomor Meja</label>
+                <input type="text" id="tableNumberInput" class="modal-input" placeholder="Contoh: Meja 12">
+                <label class="modal-label">Area</label>
+                <select id="tableAreaSelect" class="modal-input">
+                    </select>
+                <button class="modal-btn-save" onclick="saveTable()">Simpan Meja</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="deleteTableModal">
+            <div class="modal-card">
+                <div class="modal-icon-header">
+                    <div class="icon-circle-bg"><svg class="icon-trash-white" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></div>
+                </div>
+                <h3 class="modal-title-center">Hapus Meja Ini?</h3>
+                <p class="modal-desc-center">Menghapus meja akan menghilangkan QR code dan data terkait. Tindakan ini tidak dapat dibatalkan.</p>
+                <div class="modal-actions-row">
+                    <button class="btn-modal-cancel" onclick="closeDeleteTableModal()">Batal</button>
+                    <button class="btn-modal-delete" onclick="confirmDeleteTable()">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="deleteLocationModal">
+            <div class="modal-card">
+                <div class="modal-icon-header">
+                    <div class="icon-circle-bg" style="background-color: #7f1d1d;">
+                        <svg class="icon-trash-white" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </div>
+                </div>
+                <h3 class="modal-title-center" style="color:#991b1b;">Hapus Lokasi?</h3>
+                <p class="modal-desc-center">
+                    Hati-hati! Menghapus lokasi <b><span id="delLocName"></span></b> akan 
+                    <span style="color:#ef4444; font-weight:600;">menghapus SEMUA meja</span> 
+                    di area ini.
+                </p>
+                <div class="modal-actions-row">
+                    <button class="btn-modal-cancel" onclick="closeDeleteLocationModal()">Batal</button>
+                    <button class="btn-modal-delete" onclick="confirmDeleteLocation()">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="qrModal">
+            <div class="modal-card" style="text-align: center;">
+                <div class="modal-header">
+                    <div class="modal-title">QR Code Meja</div>
+                    <div class="modal-close" onclick="closeQrModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                
+                <h3 id="qrModalTitle" style="margin-bottom:20px; font-size:18px;">Meja 01</h3>
+                
+                <div class="qr-preview-box">
+                    <svg class="qr-preview-img" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h1v2h-1v-2zm-1 2h-2v1h2v-1zm-4-1h2v2h-2v-2zm1 3h1v1h-1v-1zm4 1h1v1h-1v-1zm-4 1h2v2h-2v-2zm-1-1h-2v2h2v-2zm4 2h1v1h-1v-1z"/></svg>
+                </div>
+
+                <button class="modal-btn-save" onclick="downloadQr()">Download / Print</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="addLocationModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Tambah Lokasi</div>
+                    <div class="modal-close" onclick="closeLocationModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <label class="modal-label">Nama Lokasi</label>
+                <input type="text" id="addLocationInput" class="modal-input" placeholder="Contoh: Rooftop, Teras">
+                <button class="modal-btn-save" onclick="saveLocation()">Simpan Lokasi</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="statusInfoModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Status Operasional</div>
+                    <div class="modal-close" onclick="closeStatusInfo()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                
+                <div class="guide-animation-scene">
+                    <div class="demo-card">
+                        <div class="demo-header">
+                            <div class="demo-status-text"></div>
+                            <div class="demo-switch">
+                                <div class="demo-knob"></div>
+                            </div>
+                        </div>
+                        <div class="demo-content">
+                            <div class="demo-table">
+                                <svg class="demo-lock" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                            </div>
+                        </div>
+                        <div class="demo-hand"></div>
+                    </div>
+                </div>
+
+                <p style="font-size:13px; color:#6b7280; text-align:center; line-height:1.5; margin-bottom:20px;">
+                    <b>Tombol Switch Utama</b> berfungsi untuk mematikan atau menghidupkan akses pemesanan pada seluruh meja sekaligus. <br><br>Saat dimatikan, semua meja akan terkunci (gembok) dan pelanggan tidak bisa scan QR.
+                </p>
+                <button class="modal-btn-save" onclick="closeStatusInfo()">Mengerti</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="editLocationModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Edit Lokasi</div>
+                    <div class="modal-close" onclick="closeEditLocationModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <label class="modal-label">Nama Lokasi</label>
+                <input type="text" id="editLocationInput" class="modal-input">
+                <button class="modal-btn-save" onclick="saveLocationEdit()">Simpan Perubahan</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. STATUS & INFO LOGIC ---
+        function toggleGlobalStatus(checkbox) {
+            const statusCard = document.getElementById('globalStatusCard');
+            const statusBadge = document.getElementById('statusBadge');
+            const infoBox = document.getElementById('infoBox');
+            const offLabel = document.getElementById('offLabel');
+            const allTableCards = document.querySelectorAll('.table-card');
+
+            if (checkbox.checked) {
+                statusCard.classList.remove('closed');
+                statusBadge.classList.remove('closed'); statusBadge.classList.add('open');
+                statusBadge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> <span>Buka</span>`;
+                infoBox.classList.remove('closed');
+                infoBox.innerHTML = `<div class="info-icon-wrapper"><svg class="info-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg><div class="info-pulse"></div></div><span>Semua QR code meja aktif. Matikan untuk menutup pesanan. (Klik info)</span>`;
+                offLabel.style.display = 'none';
+                allTableCards.forEach(card => card.classList.remove('locked'));
+            } else {
+                statusCard.classList.add('closed');
+                statusBadge.classList.remove('open'); statusBadge.classList.add('closed');
+                statusBadge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 13h-2v-2h2v2zm0-4h-2V7h2v4z"/></svg> <span>TUTUP (Semua QR Nonaktif)</span>`;
+                infoBox.classList.add('closed');
+                infoBox.innerHTML = `<div class="info-icon-wrapper"><svg class="info-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg><div class="info-pulse"></div></div><span>Master switch nonaktif. Semua meja dan QR code tidak dapat digunakan pelanggan.</span>`;
+                offLabel.style.display = 'block';
+                allTableCards.forEach(card => card.classList.add('locked'));
+            }
+        }
+
+        const statusInfoModal = document.getElementById('statusInfoModal');
+        function openStatusGuide() { statusInfoModal.classList.add('active'); }
+        function closeStatusInfo() { statusInfoModal.classList.remove('active'); }
+
+        function toggleTableStatus(checkbox) {
+            const card = checkbox.closest('.table-card');
+            if (card.classList.contains('locked')) {
+                checkbox.checked = !checkbox.checked; return;
+            }
+            if (checkbox.checked) card.classList.remove('inactive');
+            else card.classList.add('inactive');
+        }
+
+        // --- 2. FILTER & LONG PRESS LOGIC ---
+        const locationOptionsSheet = document.getElementById('locationOptionsSheet');
+        const selectedLocationName = document.getElementById('selectedLocationName');
+        let currentFilterPill = null;
+        let pressTimer;
+
+        function filterTables(area, pill) {
+            document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            const tables = document.querySelectorAll('.table-card');
+            tables.forEach(table => {
+                const tableArea = table.getAttribute('data-area');
+                if (area === 'all' || tableArea === area) table.style.display = 'block';
+                else table.style.display = 'none';
+            });
+        }
+
+        // Add Long Press Listeners
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            if(pill.getAttribute('data-id') !== 'all') {
+                pill.addEventListener('mousedown', startPress);
+                pill.addEventListener('touchstart', startPress);
+                pill.addEventListener('mouseup', cancelPress);
+                pill.addEventListener('touchend', cancelPress);
+                pill.addEventListener('contextmenu', e => { e.preventDefault(); return false; });
+            }
+        });
+
+        function startPress(e) {
+            currentFilterPill = this;
+            pressTimer = window.setTimeout(() => {
+                openLocationOptions(this.innerText);
+            }, 800);
+        }
+        function cancelPress() { clearTimeout(pressTimer); }
+
+        function openLocationOptions(name) {
+            selectedLocationName.innerText = name;
+            locationOptionsSheet.classList.add('active');
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+        function closeLocationOptions() { locationOptionsSheet.classList.remove('active'); }
+
+        // DELETE LOCATION
+        const deleteLocationModal = document.getElementById('deleteLocationModal');
+        const delLocName = document.getElementById('delLocName');
+
+        function openDeleteLocationModal() {
+            closeLocationOptions();
+            if(currentFilterPill) delLocName.innerText = currentFilterPill.innerText;
+            deleteLocationModal.classList.add('active');
+        }
+        function closeDeleteLocationModal() { deleteLocationModal.classList.remove('active'); }
+
+        function confirmDeleteLocation() {
+            if(currentFilterPill) {
+                const areaId = currentFilterPill.getAttribute('data-id');
+                // Remove tables
+                document.querySelectorAll(`.table-card[data-area="${areaId}"]`).forEach(t => t.remove());
+                currentFilterPill.remove();
+                filterTables('all', document.querySelector('.filter-pill[data-id="all"]'));
+                closeDeleteLocationModal();
+            }
+        }
+
+        // EDIT LOCATION
+        const editLocationModal = document.getElementById('editLocationModal');
+        const editLocationInput = document.getElementById('editLocationInput');
+
+        function openEditLocationModal() {
+            closeLocationOptions();
+            if(currentFilterPill) editLocationInput.value = currentFilterPill.innerText;
+            editLocationModal.classList.add('active');
+        }
+        function closeEditLocationModal() { editLocationModal.classList.remove('active'); }
+        
+        function saveLocationEdit() {
+            if(currentFilterPill && editLocationInput.value) {
+                currentFilterPill.innerText = editLocationInput.value;
+                // In real app, update data-id or slugs too
+            }
+            closeEditLocationModal();
+        }
+
+
+        // --- 3. ADD/EDIT TABLE & DROPDOWN ---
+        const addTableModal = document.getElementById('addTableModal');
+        const tableAreaSelect = document.getElementById('tableAreaSelect');
+        const tableModalTitle = document.getElementById('tableModalTitle');
+        const tableNumberInput = document.getElementById('tableNumberInput');
+        let isEditing = false;
+        let editCardRef = null;
+
+        function populateAreaDropdown() {
+            tableAreaSelect.innerHTML = "";
+            document.querySelectorAll('.filter-pill').forEach(pill => {
+                const id = pill.getAttribute('data-id');
+                const name = pill.innerText;
+                if(id !== 'all') {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.text = name;
+                    tableAreaSelect.appendChild(option);
+                }
+            });
+        }
+
+        function openAddTableModal() {
+            toggleFab();
+            isEditing = false;
+            tableModalTitle.innerText = "Tambah Meja";
+            tableNumberInput.value = "";
+            populateAreaDropdown();
+            addTableModal.classList.add('active');
+        }
+
+        function openEditTableModal() {
+            closeTableOptions();
+            isEditing = true;
+            tableModalTitle.innerText = "Edit Meja";
+            populateAreaDropdown();
+            
+            if(editCardRef) {
+                tableNumberInput.value = editCardRef.querySelector('.tc-title').innerText;
+                const currentArea = editCardRef.getAttribute('data-area');
+                tableAreaSelect.value = currentArea;
+            }
+            addTableModal.classList.add('active');
+        }
+
+        function saveTable() {
+            if(isEditing && editCardRef) {
+                // Update existing
+                editCardRef.querySelector('.tc-title').innerText = tableNumberInput.value;
+                const newAreaText = tableAreaSelect.options[tableAreaSelect.selectedIndex].text;
+                const newAreaVal = tableAreaSelect.value;
+                editCardRef.querySelector('.tc-badge').innerText = newAreaText;
+                editCardRef.setAttribute('data-area', newAreaVal);
+            } else {
+                // Logic to add new table would go here (appending DOM)
+                alert("Meja baru ditambahkan!");
+            }
+            closeAddTableModal();
+        }
+
+        function closeAddTableModal() { addTableModal.classList.remove('active'); }
+
+        // --- 4. QR DOWNLOAD ---
+        const qrModal = document.getElementById('qrModal');
+        const qrModalTitle = document.getElementById('qrModalTitle');
+
+        function openQrModal(tableName) {
+            // Check if card is locked
+            qrModalTitle.innerText = tableName || "QR Code";
+            qrModal.classList.add('active');
+        }
+        function closeQrModal() { qrModal.classList.remove('active'); }
+        function downloadQr() { alert("Mengunduh QR Code..."); closeQrModal(); }
+
+        // --- COMMON ---
+        function toggleFab() {
+            document.getElementById('fabMain').classList.toggle('active');
+            document.getElementById('fabOverlay').classList.toggle('active');
+            document.getElementById('fabMenu').classList.toggle('active');
+        }
+
+        const tableOptionsSheet = document.getElementById('tableOptionsSheet');
+        const tableOptionsTitle = document.getElementById('tableOptionsTitle');
+
+        function openTableOptions(element) {
+            const card = element.closest('.table-card');
+            if(card.classList.contains('locked')) return;
+            editCardRef = card;
+            tableOptionsTitle.innerText = "Opsi: " + card.querySelector('.tc-title').innerText;
+            tableOptionsSheet.classList.add('active');
+        }
+        function closeTableOptions() { tableOptionsSheet.classList.remove('active'); }
+
+        const deleteTableModal = document.getElementById('deleteTableModal');
+        function openDeleteTableModal() { closeTableOptions(); deleteTableModal.classList.add('active'); }
+        function closeDeleteTableModal() { deleteTableModal.classList.remove('active'); }
+        function confirmDeleteTable() {
+            if(editCardRef) {
+                editCardRef.remove();
+                closeDeleteTableModal();
+            }
+        }
+
+        const addLocationModal = document.getElementById('addLocationModal');
+        function openLocationModal() { toggleFab(); addLocationModal.classList.add('active'); }
+        function closeLocationModal() { addLocationModal.classList.remove('active'); }
+        function saveLocation() { alert("Lokasi disimpan!"); closeLocationModal(); }
+
+        // Stop propagation
+        document.querySelectorAll('.modal-card, .action-sheet').forEach(el => {
+            el.addEventListener('click', e => e.stopPropagation());
+        });
+    </script>
+
+</body>
+</html>

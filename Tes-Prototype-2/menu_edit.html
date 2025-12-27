@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Edit Menu - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --primary-blue: #1e3a5f;
+            --bg-gray: #f3f4f6;
+            --white: #ffffff;
+            --text-dark: #1f2937;
+            --text-gray: #6b7280;
+            --border-color: #eeeeee;
+            --input-border: #e5e7eb;
+            --btn-dark: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-gray);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg-gray);
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 90px;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            padding: 15px 20px;
+            background: var(--white);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        /* --- CONTENT --- */
+        .content {
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* --- IMAGE EDIT CARD --- */
+        .card {
+            background-color: var(--white);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .image-edit-wrapper {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #eee;
+        }
+
+        .current-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Floating "Ubah Foto" Button */
+        .btn-change-photo {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background-color: rgba(31, 41, 55, 0.85); /* Dark semi-transparent */
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        
+        .btn-change-photo:active { background-color: rgba(31, 41, 55, 1); }
+
+        /* --- FORM SECTION --- */
+        .form-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+        }
+
+        .input-group { margin-bottom: 20px; }
+        .input-group:last-child { margin-bottom: 0; }
+
+        .input-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-dark);
+            outline: none;
+            background-color: var(--white);
+            transition: border-color 0.2s;
+        }
+        
+        .input-field:focus { border-color: var(--btn-dark); }
+
+        select.input-field {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 16px;
+        }
+
+        textarea.input-field {
+            resize: none;
+            height: 100px;
+            line-height: 1.5;
+        }
+
+        /* --- STATUS SECTION --- */
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-text h4 { font-size: 15px; font-weight: 600; color: var(--text-dark); margin-bottom: 4px; }
+        .status-text p { font-size: 12px; color: var(--text-gray); }
+
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 52px; height: 30px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e7eb; transition: .4s; border-radius: 30px; }
+        .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--btn-dark); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* --- BOTTOM BUTTON --- */
+        .bottom-action {
+            position: fixed; bottom: 0; width: 100%; max-width: 480px;
+            background: var(--white); padding: 15px 20px;
+            border-top: 1px solid var(--border-color); z-index: 50;
+        }
+
+        .btn-submit {
+            width: 100%; padding: 16px; background-color: var(--btn-dark);
+            color: white; font-size: 16px; font-weight: 600; border: none;
+            border-radius: 8px; cursor: pointer; transition: opacity 0.2s;
+        }
+        .btn-submit:active { opacity: 0.9; }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="header">
+            <button class="back-btn" onclick="window.history.back()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" color="#1f2937"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div class="header-title">Edit Menu</div>
+        </div>
+
+        <div class="content">
+            <!-- 1. PHOTO EDIT -->
+            <div class="card">
+                <div class="image-edit-wrapper">
+                    <img id="editImg" src="" alt="Menu Image" class="current-img">
+                    <div class="btn-change-photo" onclick="document.getElementById('fileInput').click()">
+                        <span>Ubah Foto</span>
+                    </div>
+                    <input type="file" id="fileInput" hidden accept="image/*" onchange="previewFile(this)">
+                </div>
+            </div>
+
+            <!-- 2. FORM DETAIL -->
+            <div class="card">
+                <div class="form-title">Detail Menu</div>
+
+                <div class="input-group">
+                    <label class="input-label">Nama Menu</label>
+                    <input type="text" id="editName" class="input-field">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Kategori</label>
+                    <select id="editCategory" class="input-field">
+                        <option value="makanan">Makanan Berat</option>
+                        <option value="minuman">Minuman</option>
+                        <option value="cemilan">Cemilan</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Harga Jual</label>
+                    <input type="text" id="editPrice" class="input-field">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Deskripsi Menu</label>
+                    <textarea id="editDesc" class="input-field">Menu spesial dengan bumbu rahasia yang lezat dan menggugah selera.</textarea>
+                </div>
+            </div>
+
+            <!-- 3. STATUS -->
+            <div class="card">
+                <div class="form-title">Status</div>
+                <div class="status-row">
+                    <div class="status-text">
+                        <h4>Status Menu</h4>
+                        <p>Menu akan aktif dan dapat dipesan</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="editStatus" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-action">
+            <button class="btn-submit" onclick="saveChanges()">Simpan Perubahan</button>
+        </div>
+    </div>
+
+    <script>
+        // Load data from URL Params
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Populate fields
+            if(urlParams.has('name')) document.getElementById('editName').value = urlParams.get('name');
+            if(urlParams.has('price')) document.getElementById('editPrice').value = urlParams.get('price');
+            if(urlParams.has('category')) {
+                // Simple category matcher (assuming value matches data-category)
+                document.getElementById('editCategory').value = urlParams.get('category');
+            }
+            if(urlParams.has('img')) document.getElementById('editImg').src = urlParams.get('img');
+            
+            // Set status checkbox based on passed status (simple boolean check)
+            // Note: In real app, pass 'active' or 'inactive' string
+        };
+
+        function previewFile(input) {
+            const file = input.files[0];
+            if(file){
+                const reader = new FileReader();
+                reader.onload = function(e){
+                    document.getElementById('editImg').src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function saveChanges() {
+            alert("Perubahan menu berhasil disimpan!");
+            window.location.href = 'menu.html';
+        }
+    </script>
+
+</body>
+</html>

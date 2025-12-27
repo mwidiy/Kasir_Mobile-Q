@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scan QR Payment - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --bg-dark: #121212;      /* Latar belakang utama */
+            --bg-card: #1f1f1f;      /* Latar belakang kartu tips */
+            --bg-button: #2c2c2c;    /* Tombol sekunder */
+            
+            --text-white: #ffffff;
+            --text-gray: #9e9e9e;
+            --text-dark: #1f2937;    /* Untuk modal putih */
+            
+            --accent-yellow: #fdd835;
+            --accent-green: #4caf50;
+            
+            --border-scan: #555555;
+            --modal-bg: #ffffff;
+            --btn-primary: #1f2937;  /* Tombol Cari Pesanan */
+            --border-light: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--text-white);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            overflow: hidden; /* Mencegah scroll pada body utama */
+        }
+
+        /* --- MOBILE CONTAINER --- */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg-dark);
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            padding-top: 10px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-white);
+            cursor: pointer;
+            padding: 5px;
+            margin-right: 15px;
+        }
+
+        .header-text {
+            flex: 1;
+            text-align: center;
+            margin-right: 30px; 
+        }
+
+        .header-text h2 {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .header-text p {
+            font-size: 12px;
+            color: var(--text-gray);
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        /* --- MAIN SCAN AREA --- */
+        .scan-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .scan-title h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .scan-title p {
+            font-size: 14px;
+            color: var(--text-gray);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        /* Kotak Scan */
+        .scan-frame {
+            width: 280px;
+            height: 280px;
+            border: 2px solid var(--border-scan);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 40px;
+            background: rgba(255,255,255,0.02);
+        }
+
+        /* Animasi Loading */
+        .scan-loader {
+            width: 60px;
+            height: 60px;
+            border: 4px dashed rgba(255,255,255,0.4);
+            border-radius: 50%;
+            animation: spin 3s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- TIPS CARD --- */
+        .tips-card {
+            background-color: var(--bg-card);
+            width: 100%;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .tips-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tips-icon {
+            color: var(--accent-yellow);
+            width: 20px;
+            height: 20px;
+        }
+
+        .tips-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-white);
+        }
+
+        .tips-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tip-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .check-icon {
+            color: var(--accent-green);
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        .tip-text {
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+
+        /* --- BOTTOM BUTTONS --- */
+        .bottom-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .action-btn {
+            flex: 1;
+            background-color: var(--bg-button);
+            border: none;
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .action-btn:active {
+            background-color: #3d3d3d;
+        }
+
+        .btn-icon {
+            width: 20px;
+            height: 20px;
+            fill: var(--text-white);
+        }
+
+        .btn-text {
+            color: var(--text-white);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* --- MODAL BOTTOM SHEET (NEW) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7); /* Gelap untuk kontras dengan modal putih */
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s;
+            display: flex;
+            align-items: flex-end; /* Align bottom */
+            justify-content: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .bottom-sheet {
+            background-color: var(--modal-bg);
+            width: 100%;
+            max-width: 480px;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 12px 24px 32px 24px;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            position: relative;
+            color: var(--text-dark); /* Reset warna teks ke gelap */
+        }
+
+        .modal-overlay.active .bottom-sheet {
+            transform: translateY(0);
+        }
+
+        /* Drag Handle Indicator */
+        .sheet-handle {
+            width: 40px;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            margin: 0 auto 20px auto;
+        }
+
+        .sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .sheet-header h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .btn-close-sheet {
+            background: none;
+            border: none;
+            color: #4b5563;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        /* Input Styles */
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 14px 40px 14px 16px; /* Space for icon right */
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            font-size: 14px;
+            color: #1f2937;
+            outline: none;
+            transition: border-color 0.2s;
+            background-color: #fff;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--btn-primary);
+        }
+
+        .input-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 16px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        /* Primary Button */
+        .btn-primary-action {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--btn-primary); /* Dark Blue/Black */
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary-action:active {
+            opacity: 0.9;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <header class="header">
+            <button class="back-btn" onclick="window.history.back()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+            <div class="header-text">
+                <h2>Pembayaran Kasir</h2>
+                <p>Restaurant Admin</p>
+            </div>
+        </header>
+
+        <div class="scan-content">
+            
+            <div class="scan-title">
+                <h1>Scan QR Code</h1>
+                <p>Arahkan kamera ke kode QR pelanggan</p>
+            </div>
+
+            <div class="scan-frame">
+                <div class="scan-loader"></div>
+            </div>
+
+            <div class="tips-card">
+                <div class="tips-header">
+                    <svg class="tips-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6A4.997 4.997 0 0 1 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/>
+                    </svg>
+                    <span class="tips-title">Tips untuk scanning yang optimal:</span>
+                </div>
+                
+                <div class="tips-list">
+                    <div class="tip-item">
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span class="tip-text">Pastikan QR code berada dalam frame</span>
+                    </div>
+                    <div class="tip-item">
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span class="tip-text">Jaga jarak 10-30cm dari layar</span>
+                    </div>
+                    <div class="tip-item">
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span class="tip-text">Pastikan pencahayaan cukup terang</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="bottom-actions">
+            <button class="action-btn" onclick="openManualInput()">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6-12h4v4h-4V4zm0 6h4v4h-4v-4zm0 6h4v4h-4v-4z"/>
+                </svg>
+                <span class="btn-text">Manual Input</span>
+            </button>
+
+            <button class="action-btn">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                </svg>
+                <span class="btn-text">Recent Scans</span>
+            </button>
+        </div>
+
+        <div class="modal-overlay" id="manualInputModal">
+            <div class="bottom-sheet">
+                <div class="sheet-handle"></div>
+                
+                <div class="sheet-header">
+                    <h3>Masukkan Kode Manual</h3>
+                    <button class="btn-close-sheet" onclick="closeManualInput()">Tutup</button>
+                </div>
+
+                <div class="input-group">
+                    <label>ID Pesanan</label>
+                    <div class="input-wrapper">
+                        <input type="text" placeholder="Ketik ID Pesanan..." id="manualInput">
+                        <span class="input-icon">#</span>
+                    </div>
+                </div>
+
+                <button class="btn-primary-action" onclick="closeManualInput()">Cari Pesanan</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const modal = document.getElementById('manualInputModal');
+        const inputField = document.getElementById('manualInput');
+
+        function openManualInput() {
+            modal.classList.add('active');
+            // Optional: Focus input setelah animasi selesai agar keyboard tidak langsung muncul mengganggu UI
+            // setTimeout(() => inputField.focus(), 300); 
+        }
+
+        function closeManualInput() {
+            modal.classList.remove('active');
+            inputField.blur(); // Hapus fokus keyboard
+        }
+
+        // Tutup jika klik area gelap (overlay)
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeManualInput();
+            }
+        });
+    </script>
+
+</body>
+</html>

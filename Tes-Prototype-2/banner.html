@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Banner Promosi - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --primary-blue: #1e3a5f;
+            --primary-yellow: #fdd85d;
+            --bg-gray: #f8f9fa;
+            --white: #ffffff;
+            --text-dark: #1a2b48;
+            --text-gray: #888888;
+            --border-color: #eeeeee;
+            
+            /* Specific Colors */
+            --card-dark-bg: #2d3e50;
+            --status-green: #2ecc71;
+            --status-gray: #9ca3af;
+            --icon-edit: #3b82f6;
+            --icon-delete: #ef4444;
+            --info-bg: #e0f2fe;
+            --info-text: #0369a1;
+            --btn-red: #ef4444;
+            --btn-dark: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #fff;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: #fff;
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 90px;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            padding: 24px 20px 0 20px;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 20px;
+        }
+
+        /* Tabs */
+        .tabs { display: flex; }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding-bottom: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #aaa;
+            cursor: pointer;
+            position: relative;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .tab.active { color: var(--primary-blue); font-weight: 700; }
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; width: 100%; height: 3px;
+            background-color: var(--primary-blue);
+            border-radius: 3px 3px 0 0;
+        }
+
+        /* --- INFO ALERT --- */
+        .info-alert {
+            background-color: var(--info-bg);
+            color: var(--info-text);
+            padding: 12px 16px;
+            font-size: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.5;
+            margin: 20px 20px 0 20px; 
+            border-radius: 8px;
+            cursor: pointer; /* Clickable for info */
+        }
+
+        .info-icon {
+            width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; fill: currentColor;
+        }
+
+        /* --- BANNER LIST --- */
+        .banner-list {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Banner Card Style */
+        .banner-card {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            background: white;
+            transition: transform 0.2s ease, opacity 0.2s;
+            /* Penting untuk Drag & Drop */
+            cursor: default; 
+        }
+
+        /* Style saat card sedang di-drag */
+        .banner-card.dragging {
+            opacity: 0.5;
+            border: 2px dashed var(--primary-blue);
+            transform: scale(0.98);
+        }
+
+        .banner-card.inactive { opacity: 0.6; filter: grayscale(100%); }
+
+        /* Top Part (Dark) */
+        .card-top {
+            background-color: var(--card-dark-bg);
+            padding: 16px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .banner-img {
+            width: 80px; height: 80px; border-radius: 8px;
+            object-fit: cover; background-color: #eee; pointer-events: none;
+        }
+
+        .banner-info { flex: 1; color: white; pointer-events: none; }
+        .banner-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .banner-desc { font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+        .banner-price { font-size: 14px; font-weight: 700; color: var(--primary-yellow); }
+
+        /* Bottom Part (White) */
+        .card-bottom {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: white;
+        }
+
+        .drag-handle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #9ca3af;
+            cursor: grab; /* Cursor tangan */
+            padding: 5px;
+        }
+        
+        .drag-handle:active { cursor: grabbing; }
+
+        .status-text { font-size: 13px; font-weight: 500; }
+        .status-text.active { color: var(--status-green); }
+        .status-text.inactive { color: var(--status-gray); }
+
+        .card-actions { display: flex; align-items: center; gap: 16px; }
+
+        .action-icon { width: 20px; height: 20px; cursor: pointer; transition: opacity 0.2s; }
+        .action-icon:hover { opacity: 0.8; }
+        
+        .icon-edit { fill: var(--icon-edit); }
+        .icon-delete { fill: var(--icon-delete); }
+        .icon-drag { width: 20px; height: 20px; fill: #9ca3af; }
+
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e7eb; transition: .4s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--status-green); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        /* FAB */
+        .fab {
+            position: fixed; bottom: 30px; right: 20px; width: 56px; height: 56px;
+            background-color: var(--primary-yellow); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 100;
+            transition: transform 0.2s;
+        }
+        .fab:active { transform: scale(0.95); }
+        .fab svg { width: 28px; height: 28px; fill: var(--text-dark); }
+
+        /* --- MODAL STYLES (Delete & Info) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.6); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            padding: 20px; backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+
+        .modal-box {
+            background: white; width: 100%; max-width: 320px;
+            border-radius: 20px; padding: 30px 24px; text-align: center;
+            transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+        .modal-overlay.active .modal-box { transform: scale(1); }
+
+        /* Delete Modal Specifics */
+        .modal-icon-bg {
+            width: 64px; height: 64px; background-color: #1f2937;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .modal-title { font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 12px; }
+        .modal-desc { font-size: 13px; color: #6b7280; margin-bottom: 24px; line-height: 1.5; }
+        .modal-actions { display: flex; gap: 12px; }
+        
+        .modal-btn {
+            flex: 1; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 600;
+            cursor: pointer; border: none; transition: opacity 0.2s;
+        }
+        .modal-btn:active { opacity: 0.9; }
+        .btn-cancel { background-color: var(--btn-dark); color: white; }
+        .btn-confirm { background-color: var(--btn-red); color: white; }
+
+        /* Info Modal Specifics */
+        .info-modal-icon { color: var(--primary-blue); margin-bottom: 15px; }
+        .btn-close-info { background-color: var(--primary-blue); color: white; width: 100%; }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div class="header">
+            <div class="header-title">Manajemen Produk</div>
+            
+            <div class="tabs">
+                <a href="menu.html" class="tab">Daftar Menu</a>
+                <div class="tab active">Banner Promosi</div>
+            </div>
+        </div>
+
+        <div class="info-alert" onclick="openInfoModal()">
+            <svg class="info-icon" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+            <span>Tekan & geser ikon titik-titik untuk mengubah urutan slide. (Klik untuk info)</span>
+        </div>
+
+        <div class="banner-list" id="bannerList">
+            
+            <!-- CARD 1 -->
+            <div class="banner-card" draggable="true">
+                <div class="card-top">
+                    <img src="assets/banner-1.png" alt="Banner 1" class="banner-img">
+                    <div class="banner-info">
+                        <div class="banner-title">Paket Mantap</div>
+                        <div class="banner-desc">Nasi Katsu</div>
+                        <div class="banner-price">Rp 15.000</div>
+                    </div>
+                </div>
+                <div class="card-bottom">
+                    <!-- HANDLE FOR DRAG -->
+                    <div class="drag-handle">
+                        <svg class="icon-drag" viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+                        <span class="status-text active">Status: Aktif</span>
+                    </div>
+                    <div class="card-actions">
+                        <label class="switch">
+                            <input type="checkbox" checked onchange="toggleStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                        <svg class="action-icon icon-edit" onclick="editBanner(this)" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        <!-- DELETE ICON TRIGGERS MODAL -->
+                        <svg class="action-icon icon-delete" onclick="confirmDelete(this)" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2 -->
+            <div class="banner-card" draggable="true">
+                <div class="card-top">
+                    <img src="assets/banner-2.png" alt="Banner 2" class="banner-img">
+                    <div class="banner-info">
+                        <div class="banner-title">Diskon Kopi</div>
+                        <div class="banner-desc">Hari Ini</div>
+                        <div class="banner-price">20% OFF</div>
+                    </div>
+                </div>
+                <div class="card-bottom">
+                    <div class="drag-handle">
+                         <svg class="icon-drag" viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+                        <span class="status-text active">Status: Aktif</span>
+                    </div>
+                    <div class="card-actions">
+                        <label class="switch">
+                            <input type="checkbox" checked onchange="toggleStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                        <svg class="action-icon icon-edit" onclick="editBanner(this)" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        <svg class="action-icon icon-delete" onclick="confirmDelete(this)" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 3 -->
+            <div class="banner-card inactive" draggable="true">
+                <div class="card-top">
+                    <img src="assets/banner-3.png" alt="Banner 3" class="banner-img">
+                    <div class="banner-info">
+                        <div class="banner-title">Promo Jumat</div>
+                        <div class="banner-desc">Berkah</div>
+                        <div class="banner-price">Buy 2 Get 1</div>
+                    </div>
+                </div>
+                <div class="card-bottom">
+                    <div class="drag-handle">
+                        <svg class="icon-drag" viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+                        <span class="status-text inactive">Status: Nonaktif</span>
+                    </div>
+                    <div class="card-actions">
+                        <label class="switch">
+                            <input type="checkbox" onchange="toggleStatus(this)">
+                            <span class="slider"></span>
+                        </label>
+                        <svg class="action-icon icon-edit" onclick="editBanner(this)" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        <svg class="action-icon icon-delete" onclick="confirmDelete(this)" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="fab" onclick="location.href='banner_tambah.html'">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </div>
+
+        <!-- 1. DELETE CONFIRMATION MODAL -->
+        <div id="deleteModal" class="modal-overlay">
+            <div class="modal-box">
+                <div class="modal-icon-bg">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </div>
+                <h3 class="modal-title">Hapus Banner Ini?</h3>
+                <p class="modal-desc">Menghapus banner akan menghilangkannya secara permanen dari daftar promosi aplikasi. Tindakan ini tidak dapat dibatalkan.</p>
+                <div class="modal-actions">
+                    <button class="modal-btn btn-cancel" onclick="closeDeleteModal()">Batal</button>
+                    <button class="modal-btn btn-confirm" onclick="deleteBanner()">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. INFO MODAL -->
+        <div id="infoModal" class="modal-overlay">
+            <div class="modal-box">
+                <div class="info-modal-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                </div>
+                <h3 class="modal-title">Pengaturan Slide</h3>
+                <p class="modal-desc">Urutan banner di halaman ini menentukan urutan tampilan banner di aplikasi pelanggan. Banner yang berada paling atas akan muncul pertama kali.</p>
+                <button class="modal-btn btn-close-info" onclick="closeInfoModal()">Mengerti</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. DRAG & DROP LOGIC (Vanilla JS)
+        const draggables = document.querySelectorAll('.banner-card');
+        const container = document.getElementById('bannerList');
+
+        draggables.forEach(draggable => {
+            draggable.addEventListener('dragstart', () => {
+                draggable.classList.add('dragging');
+            });
+
+            draggable.addEventListener('dragend', () => {
+                draggable.classList.remove('dragging');
+            });
+        });
+
+        container.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(container, e.clientY);
+            const draggable = document.querySelector('.dragging');
+            if (afterElement == null) {
+                container.appendChild(draggable);
+            } else {
+                container.insertBefore(draggable, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.banner-card:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // 2. DELETE MODAL LOGIC
+        let elementToDelete = null;
+        const deleteModal = document.getElementById('deleteModal');
+
+        function confirmDelete(element) {
+            // Save reference to the card
+            elementToDelete = element.closest('.banner-card');
+            deleteModal.classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            deleteModal.classList.remove('active');
+            elementToDelete = null;
+        }
+
+        function deleteBanner() {
+            if (elementToDelete) {
+                // Animation fade out before delete
+                elementToDelete.style.transform = 'translateX(-100%)';
+                elementToDelete.style.opacity = '0';
+                setTimeout(() => {
+                    elementToDelete.remove();
+                    closeDeleteModal();
+                }, 300);
+            }
+        }
+
+        // 3. INFO MODAL LOGIC
+        const infoModal = document.getElementById('infoModal');
+
+        function openInfoModal() {
+            infoModal.classList.add('active');
+        }
+
+        function closeInfoModal() {
+            infoModal.classList.remove('active');
+        }
+
+        // 4. EXISTING FEATURES (Toggle & Edit)
+        function toggleStatus(checkbox) {
+            const bannerCard = checkbox.closest('.banner-card');
+            const cardBottom = bannerCard.querySelector('.card-bottom');
+            const statusText = cardBottom.querySelector('.status-text');
+
+            if (checkbox.checked) {
+                statusText.textContent = "Status: Aktif";
+                statusText.classList.remove('inactive');
+                statusText.classList.add('active');
+                bannerCard.classList.remove('inactive');
+            } else {
+                statusText.textContent = "Status: Nonaktif";
+                statusText.classList.remove('active');
+                statusText.classList.add('inactive');
+                bannerCard.classList.add('inactive');
+            }
+        }
+
+        function editBanner(element) {
+            const card = element.closest('.banner-card');
+            const title = card.querySelector('.banner-title').innerText;
+            const desc = card.querySelector('.banner-desc').innerText;
+            const price = card.querySelector('.banner-price').innerText;
+            const imgSrc = card.querySelector('.banner-img').getAttribute('src');
+
+            const params = new URLSearchParams({
+                title: title, desc: desc, promo: price, img: imgSrc
+            });
+            window.location.href = 'banner_edit.html?' + params.toString();
+        }
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            if (event.target == deleteModal) closeDeleteModal();
+            if (event.target == infoModal) closeInfoModal();
+        }
+    </script>
+
+</body>
+</html>

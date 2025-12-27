@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Riwayat & Laporan - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --bg-body: #f8f9fa;
+            --white: #ffffff;
+            --text-dark: #1f2937;
+            --text-gray: #6b7280;
+            --text-light-gray: #9ca3af;
+            
+            /* Theme Colors */
+            --card-bg: #2d3e50;
+            --card-tab-bg: rgba(255,255,255,0.1);
+            --card-tab-active: rgba(255,255,255,0.25);
+            
+            --price-green: #2ecc71;
+            --price-red: #ef4444;
+            --price-black: #111827;
+            
+            --border-color: #e5e7eb;
+            --primary-yellow: #fde047;
+            --primary-yellow-dark: #eab308;
+
+            --text-main: #1f2937; 
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #fff;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* --- MOBILE CONTAINER --- */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg-body);
+            min-height: 100vh;
+            position: relative;
+            padding-bottom: 100px; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            background-color: var(--white);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #111;
+        }
+
+        .btn-export {
+            background: transparent;
+            border: 1px solid var(--text-dark);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-export:active {
+            background-color: #f3f4f6;
+            transform: scale(0.95);
+        }
+
+        /* --- SUMMARY CARD --- */
+        .summary-section {
+            padding: 20px 20px 10px 20px;
+        }
+
+        .summary-card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        /* Tabs Filter */
+        .tabs-container {
+            background-color: var(--card-tab-bg);
+            border-radius: 8px;
+            padding: 4px;
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 6px 0;
+            font-size: 12px;
+            color: #ccc;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .tab.active {
+            background-color: var(--card-tab-active);
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* Income Text */
+        .income-label {
+            text-align: center;
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-bottom: 5px;
+        }
+
+        .income-value {
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+            transition: opacity 0.2s;
+        }
+
+        /* Bottom Stats Grid */
+        .stats-grid {
+            display: flex;
+            align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 15px;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .stat-val {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #bdc3c7;
+        }
+
+        .divider {
+            width: 1px;
+            height: 30px;
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        /* --- SEARCH & FILTER BAR --- */
+        .filter-bar {
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input-wrap {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-input-wrap input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: white;
+            font-size: 13px;
+            outline: none;
+            color: var(--text-dark);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            color: #aaa;
+        }
+
+        .btn-filter {
+            width: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text-dark);
+            transition: background 0.2s;
+        }
+        
+        .btn-filter:active { background-color: #f3f4f6; }
+
+        /* --- TRANSACTION LIST --- */
+        .transaction-list {
+            padding: 0 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .trans-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        .trans-item:active {
+            transform: scale(0.98);
+            background-color: #f9fafb;
+        }
+        
+        .trans-item:last-child {
+            border-bottom: none;
+        }
+
+        .t-meta {
+            width: 50px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .t-time {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .t-id {
+            font-size: 11px;
+            color: var(--text-light-gray);
+        }
+
+        .t-desc {
+            flex: 1;
+            padding: 0 15px;
+            font-size: 13px;
+            color: #4b5563;
+            line-height: 1.4;
+        }
+
+        .t-end {
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .t-price {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--price-black);
+        }
+
+        .t-price.red {
+            color: var(--price-red);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.green { background-color: var(--price-green); }
+        .status-dot.red { background-color: var(--price-red); }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.6);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            padding: 20px;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Filter Modal */
+        .filter-card {
+            background: white;
+            width: 100%;
+            max-width: 360px;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform: translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.active .filter-card {
+            transform: translateY(0);
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .filter-header h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .btn-reset {
+            color: #ef4444;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-section {
+            margin-bottom: 24px;
+        }
+
+        .filter-section:last-of-type {
+            margin-bottom: 32px;
+        }
+
+        .fs-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .filter-chip {
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-gray);
+            border: 1px solid var(--border-color);
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-chip.active {
+            background-color: var(--card-bg);
+            color: white;
+            border-color: var(--card-bg);
+        }
+
+        .filter-chip.status-done { color: #166534; }
+        .filter-chip.status-done.active { background-color: #dcfce7; border-color: #bbf7d0; color: #15803d; }
+
+        .filter-chip.status-cancel { color: #991b1b; }
+        .filter-chip.status-cancel.active { background-color: #fee2e2; border-color: #fecaca; color: #b91c1c; }
+
+        .btn-date-picker {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: white;
+            color: var(--text-dark);
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        .btn-apply {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--primary-yellow);
+            color: #422006;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(253, 224, 71, 0.2);
+            transition: background 0.2s;
+        }
+        
+        .btn-apply:active { background-color: var(--primary-yellow-dark); }
+
+        /* Receipt Modal */
+        .receipt-card {
+            background: white;
+            width: 100%;
+            max-width: 340px;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform: translateY(20px);
+            transition: transform 0.3s;
+            position: relative;
+        }
+
+        .modal-overlay.active .receipt-card { transform: translateY(0); }
+
+        .receipt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .rh-left { display: flex; gap: 12px; align-items: center; }
+        .rh-icon { color: var(--card-bg); }
+        .rh-title h3 { font-size: 16px; font-weight: 700; color: var(--text-dark); }
+        .rh-id { font-size: 14px; color: var(--text-gray); }
+        .rh-close { cursor: pointer; color: var(--text-light-gray); padding: 4px; }
+
+        .detail-grid { display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-size: 13px; margin-bottom: 16px; }
+        .dg-label { color: #9ca3af; }
+        .dg-val { color: var(--text-dark); font-weight: 500; text-align: right; }
+
+        .status-badge { background-color: #dcfce7; color: #166534; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; display: flex; justify-content: center; align-items: center; gap: 6px; margin: 0 auto 20px auto; width: fit-content; }
+        
+        .order-summary { border-top: 1px solid #f3f4f6; border-bottom: 1px solid #f3f4f6; padding: 16px 0; margin-bottom: 16px; }
+        .os-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-dark); }
+        .os-item { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #4b5563; }
+        
+        .payment-details { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+        .pd-row { display: flex; justify-content: space-between; font-size: 13px; color: #9ca3af; }
+        .pd-row.total { color: var(--text-dark); font-weight: 700; font-size: 16px; margin-top: 8px; align-items: center; }
+        .pd-row.method { margin-top: 2px; font-size: 12px; }
+
+        .btn-close-modal { width: 100%; padding: 14px; background-color: transparent; border: 1px solid var(--border-color); border-radius: 12px; color: var(--text-dark); font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn-close-modal:active { background-color: #f3f4f6; }
+
+        /* --- BOTTOM NAV --- */
+        .bottom-nav {
+            position: fixed; 
+            bottom: 0; 
+            width: 100%; 
+            max-width: 480px;
+            background: white; 
+            border-top: 1px solid #e5e7eb;
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr);
+            height: 80px; 
+            padding-bottom: 10px; 
+            align-items: flex-end; 
+            z-index: 100;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
+        }
+
+        .nav-item {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            justify-content: center; 
+            gap: 5px; 
+            color: #9ca3af;
+            cursor: pointer; 
+            height: 60px; 
+            padding-bottom: 8px;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .nav-item:active { transform: scale(0.95); }
+        
+        .nav-item.active { color: var(--text-main); }
+        .nav-item.active .nav-text { font-weight: 600; }
+        
+        .nav-icon { width: 24px; height: 24px; stroke-width: 2; transition: stroke 0.2s; }
+        .nav-text { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+
+        .nav-item.middle {
+            justify-content: flex-end; 
+        }
+        
+        .nav-item.middle .icon-box {
+            width: 56px; height: 56px; 
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; color: white;
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.3);
+            border: 4px solid white; 
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: transform 0.2s;
+        }
+        
+        .nav-item.middle:active .icon-box { transform: translateX(-50%) scale(0.95); }
+        .nav-item.middle .nav-icon { width: 24px; height: 24px; stroke-width: 2; }
+        .nav-item.middle .nav-text { 
+            color: var(--text-main); font-weight: 600;
+            margin-top: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <header class="header">
+            <h2>Riwayat & Laporan</h2>
+            <button class="btn-export" id="btn-export" onclick="generatePDF()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Ekspor PDF
+            </button>
+        </header>
+
+        <div class="summary-section">
+            <div class="summary-card">
+                <div class="tabs-container">
+                    <div class="tab active" onclick="switchTab(this, 'today')">Hari Ini</div>
+                    <div class="tab" onclick="switchTab(this, 'week')">Minggu Ini</div>
+                    <div class="tab" onclick="switchTab(this, 'month')">Bulan Ini</div>
+                </div>
+
+                <div class="income-label">Total Pendapatan</div>
+                <div class="income-value" id="total-income">Rp 8.542.000</div>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-val" id="trans-count">142</span>
+                        <span class="stat-label">Transaksi</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-val" id="avg-income">Rp 60k</span>
+                        <span class="stat-label">Rata-rata</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="search-input-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Cari Order ID...">
+            </div>
+            <button class="btn-filter" onclick="openFilter()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+            </button>
+        </div>
+
+        <div class="transaction-list" id="transaction-container">
+
+            <div class="trans-item" onclick="openReceipt('#0510', '14:30', 'Rp 85.000')">
+                <div class="t-meta">
+                    <span class="t-time">14:30</span>
+                    <span class="t-id">#0510</span>
+                </div>
+                <div class="t-desc">
+                    2x Nasi Gudeg, 1x Es Teh Manis
+                </div>
+                <div class="t-end">
+                    <span class="t-price">Rp 85.000</span>
+                    <span class="status-dot green"></span>
+                </div>
+            </div>
+
+            <div class="trans-item" onclick="openReceipt('#0509', '14:15', 'Rp 125.000')">
+                <div class="t-meta">
+                    <span class="t-time">14:15</span>
+                    <span class="t-id">#0509</span>
+                </div>
+                <div class="t-desc">
+                    1x Ayam Bakar, 2x Nasi Putih, 1x Jus Jeruk
+                </div>
+                <div class="t-end">
+                    <span class="t-price">Rp 125.000</span>
+                    <span class="status-dot green"></span>
+                </div>
+            </div>
+
+            <div class="trans-item" onclick="openReceipt('#0508', '13:45', 'Rp 90.000')">
+                <div class="t-meta">
+                    <span class="t-time">13:45</span>
+                    <span class="t-id">#0508</span>
+                </div>
+                <div class="t-desc">
+                    3x Soto Ayam, 3x Es Teh
+                </div>
+                <div class="t-end">
+                    <span class="t-price">Rp 90.000</span>
+                    <span class="status-dot green"></span>
+                </div>
+            </div>
+
+            <div class="trans-item" onclick="openReceipt('#0507', '13:20', 'Rp 75.000')">
+                <div class="t-meta">
+                    <span class="t-time">13:20</span>
+                    <span class="t-id">#0507</span>
+                </div>
+                <div class="t-desc">
+                    1x Rendang, 1x Nasi Goreng
+                </div>
+                <div class="t-end">
+                    <span class="t-price red">Rp 75.000</span>
+                    <span class="status-dot red"></span>
+                </div>
+            </div>
+
+            <div class="trans-item" onclick="openReceipt('#0506', '12:55', 'Rp 60.000')">
+                <div class="t-meta">
+                    <span class="t-time">12:55</span>
+                    <span class="t-id">#0506</span>
+                </div>
+                <div class="t-desc">
+                    2x Gado-Gado, 2x Teh Botol
+                </div>
+                <div class="t-end">
+                    <span class="t-price">Rp 60.000</span>
+                    <span class="status-dot green"></span>
+                </div>
+            </div>
+            
+             <div class="trans-item" onclick="openReceipt('#0505', '12:30', 'Rp 55.000')">
+                <div class="t-meta">
+                    <span class="t-time">12:30</span>
+                    <span class="t-id">#0505</span>
+                </div>
+                <div class="t-desc">
+                    1x Nasi Campur, 1x Kopi Susu
+                </div>
+                <div class="t-end">
+                    <span class="t-price">Rp 55.000</span>
+                    <span class="status-dot green"></span>
+                </div>
+            </div>
+
+        </div>
+
+        <nav class="bottom-nav">
+            <div class="nav-item" onclick="location.href='dasboard.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                <span class="nav-text">Dasbor</span>
+            </div>
+            
+            <div class="nav-item active" onclick="location.href='riwayat.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span class="nav-text">Riwayat</span>
+            </div>
+
+            <div class="nav-item middle" onclick="location.href='bayar.html'">
+                <div class="icon-box">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                        <line x1="5" y1="12" x2="19" y2="12"></line> </svg>
+                </div>
+                <span class="nav-text">Bayar</span>
+            </div>
+
+            <div class="nav-item" onclick="location.href='menu.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path><path d="M17 2v20"></path></svg>
+                <span class="nav-text">Menu</span>
+            </div>
+
+            <div class="nav-item" onclick="location.href='qr.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span class="nav-text">Meja</span>
+            </div>
+        </nav>
+
+        <div id="receiptModal" class="modal-overlay">
+            <div class="receipt-card">
+                <div class="receipt-header">
+                    <div class="rh-left">
+                        <div class="rh-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </div>
+                        <div class="rh-title">
+                            <h3>Detail Transaksi</h3>
+                        </div>
+                    </div>
+                    <div class="rh-right">
+                        <span class="rh-id" id="modal-id">#0510</span>
+                        <span class="rh-close" onclick="closeReceipt()">&times;</span>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="dg-label">Meja:</div>
+                    <div class="dg-val">12</div>
+                    <div class="dg-label">Kasir:</div>
+                    <div class="dg-val">Ahmed Ridlo</div>
+                    <div class="dg-label">Tipe:</div>
+                    <div class="dg-val">Makan Di Tempat</div>
+                    <div class="dg-label">Waktu:</div>
+                    <div class="dg-val" id="modal-time">28 Okt 2025, 08:30 WIB</div>
+                </div>
+
+                <div class="status-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Selesai
+                </div>
+
+                <div class="order-summary">
+                    <div class="os-title">Rincian Pesanan</div>
+                    <div class="os-item">
+                        <span>2x Nasi Goreng Spesial</span>
+                        <span>Rp 50.000</span>
+                    </div>
+                    <div class="os-item">
+                        <span>1x Ayam Bakar</span>
+                        <span>Rp 35.000</span>
+                    </div>
+                    <div class="os-item">
+                        <span>3x Es Teh Manis</span>
+                        <span>Rp 15.000</span>
+                    </div>
+                     <div class="os-item">
+                        <span>1x Gado-gado</span>
+                        <span>Rp 20.000</span>
+                    </div>
+                </div>
+
+                <div class="payment-details">
+                    <div class="os-title">Rincian Pembayaran</div>
+                    <div class="pd-row">
+                        <span>Subtotal</span>
+                        <span>Rp 120.000</span>
+                    </div>
+                    <div class="pd-row">
+                        <span>Pajak (11%)</span>
+                        <span>Rp 13.200</span>
+                    </div>
+                    <div class="pd-row">
+                        <span>Biaya Layanan</span>
+                        <span>Rp 5.000</span>
+                    </div>
+                    <div class="pd-row total">
+                        <span>Total Pembayaran</span>
+                        <span id="modal-total">Rp 138.200</span>
+                    </div>
+                    <div class="pd-row method">
+                        <span>Metode Pembayaran</span>
+                        <span style="color:#1f2937; font-weight:600; display:flex; align-items:center; gap:4px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            QRIS
+                        </span>
+                    </div>
+                </div>
+
+                <button class="btn-close-modal" onclick="closeReceipt()">Tutup</button>
+            </div>
+        </div>
+
+        <div id="filterModal" class="modal-overlay">
+            <div class="filter-card">
+                <div class="filter-header">
+                    <h3>Filter Riwayat</h3>
+                    <button class="btn-reset" onclick="closeFilter()">Reset</button>
+                </div>
+
+                <div class="filter-section">
+                    <div class="fs-title">Pilih Periode</div>
+                    <div class="chip-group">
+                        <div class="filter-chip active" onclick="toggleChip(this)">Hari Ini</div>
+                        <div class="filter-chip" onclick="toggleChip(this)">Kemarin</div>
+                        <div class="filter-chip" onclick="toggleChip(this)">7 Hari Ini</div>
+                    </div>
+                    <button class="btn-date-picker">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        Pilih Tanggal Manual
+                    </button>
+                </div>
+
+                <div class="filter-section">
+                    <div class="fs-title">Status</div>
+                    <div class="chip-group">
+                        <div class="filter-chip" onclick="toggleChip(this)">Semua</div>
+                        <div class="filter-chip status-done active" onclick="toggleChip(this)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            Selesai
+                        </div>
+                        <div class="filter-chip status-cancel" onclick="toggleChip(this)">
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            Dibatalkan
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-apply" onclick="closeFilter()">Tampilkan Hasil</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. DATA DUMMY TABS
+        const summaryData = {
+            'today': { income: 'Rp 8.542.000', count: '142', avg: 'Rp 60k', label: 'Hari Ini' },
+            'week': { income: 'Rp 54.200.000', count: '890', avg: 'Rp 61k', label: 'Minggu Ini' },
+            'month': { income: 'Rp 215.450.000', count: '3.420', avg: 'Rp 63k', label: 'Bulan Ini' }
+        };
+        
+        let currentPeriod = 'today'; // Default active tab
+
+        function switchTab(element, period) {
+            currentPeriod = period; // Update state global
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            element.classList.add('active');
+
+            const incomeEl = document.getElementById('total-income');
+            const countEl = document.getElementById('trans-count');
+            const avgEl = document.getElementById('avg-income');
+
+            incomeEl.style.opacity = 0;
+            setTimeout(() => {
+                incomeEl.innerText = summaryData[period].income;
+                countEl.innerText = summaryData[period].count;
+                avgEl.innerText = summaryData[period].avg;
+                incomeEl.style.opacity = 1;
+            }, 150);
+        }
+
+        // 2. RECEIPT MODAL
+        const modalReceipt = document.getElementById('receiptModal');
+        const modalId = document.getElementById('modal-id');
+        const modalTime = document.getElementById('modal-time');
+        const modalTotal = document.getElementById('modal-total');
+
+        function openReceipt(id, time, price) {
+            modalId.innerText = id;
+            modalTime.innerText = "28 Okt 2025, " + time + " WIB";
+            modalTotal.innerText = price;
+            modalReceipt.classList.add('active');
+        }
+
+        function closeReceipt() {
+            modalReceipt.classList.remove('active');
+        }
+
+        // 3. FILTER MODAL LOGIC
+        const modalFilter = document.getElementById('filterModal');
+
+        function openFilter() {
+            modalFilter.classList.add('active');
+        }
+
+        function closeFilter() {
+            modalFilter.classList.remove('active');
+        }
+
+        function toggleChip(element) {
+            const parent = element.parentElement;
+            const siblings = parent.getElementsByClassName('filter-chip');
+            for (let chip of siblings) {
+                chip.classList.remove('active');
+            }
+            element.classList.add('active');
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modalReceipt) {
+                closeReceipt();
+            }
+            if (event.target == modalFilter) {
+                closeFilter();
+            }
+        }
+
+        // 4. FUNCTION GENERATE PDF (BARU & PROFESSIONAL)
+        async function generatePDF() {
+            const btnExport = document.getElementById('btn-export');
+            const originalText = btnExport.innerHTML;
+            
+            // Visual feedback: Ubah tombol jadi "Memproses..."
+            btnExport.innerHTML = `<svg class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> Memproses...`;
+            
+            // Tunggu sebentar agar UI update
+            await new Promise(r => setTimeout(r, 500));
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // --- HEADER PDF ---
+            doc.setFontSize(18);
+            doc.setFont("helvetica", "bold");
+            doc.text("Laporan Keuangan - Dapur QuackXel", 14, 22);
+            
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            doc.text(`Dicetak pada: ${dateStr}`, 14, 28);
+            doc.text(`Periode Laporan: ${summaryData[currentPeriod].label}`, 14, 33);
+
+            // --- SUMMARY SECTION DI PDF ---
+            doc.setDrawColor(200);
+            doc.line(14, 38, 196, 38); // Garis horizontal
+
+            doc.setFontSize(12);
+            doc.text(`Total Pendapatan: ${summaryData[currentPeriod].income}`, 14, 46);
+            doc.text(`Jumlah Transaksi: ${summaryData[currentPeriod].count}`, 14, 52);
+
+            // --- DATA TABLE SCRAPING ---
+            // Kita ambil data langsung dari element HTML yang tampil
+            const rows = [];
+            const transItems = document.querySelectorAll('.trans-item');
+
+            transItems.forEach(item => {
+                const id = item.querySelector('.t-id').innerText;
+                const time = item.querySelector('.t-time').innerText;
+                // Bersihkan deskripsi dari spasi berlebih/newline
+                const desc = item.querySelector('.t-desc').innerText.replace(/\s+/g, ' ').trim();
+                const price = item.querySelector('.t-price').innerText;
+                const isSuccess = item.querySelector('.status-dot').classList.contains('green');
+                const status = isSuccess ? 'Selesai' : 'Batal';
+
+                rows.push([id, time, desc, price, status]);
+            });
+
+            // --- GENERATE TABLE ---
+            doc.autoTable({
+                startY: 60,
+                head: [['ID Order', 'Waktu', 'Detail Pesanan', 'Total', 'Status']],
+                body: rows,
+                theme: 'grid',
+                headStyles: { fillColor: [45, 62, 80], textColor: 255 }, // Sesuai warna tema app
+                styles: { fontSize: 9, cellPadding: 3 },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 15 },
+                    2: { cellWidth: 'auto' }, // Deskripsi lebar otomatis
+                    3: { cellWidth: 25, halign: 'right' },
+                    4: { cellWidth: 20, halign: 'center' }
+                },
+                didParseCell: function(data) {
+                    // Warna teks merah jika status batal/harga merah
+                    if (data.section === 'body' && (data.column.index === 4 || data.column.index === 3)) {
+                        if (data.row.raw[4] === 'Batal') {
+                            data.cell.styles.textColor = [239, 68, 68]; // Red
+                        }
+                    }
+                }
+            });
+
+            // --- FOOTER ---
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text("Dokumen ini dihasilkan secara otomatis oleh sistem Dapur QuackXel.", 14, finalY);
+
+            // Save PDF
+            doc.save(`Laporan_QuackXel_${Date.now()}.pdf`);
+
+            // Kembalikan tombol
+            btnExport.innerHTML = originalText;
+        }
+    </script>
+    <style>
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+
+</body>
+</html>

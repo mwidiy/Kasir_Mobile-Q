@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manajemen Produk - Dapur QuackXel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --primary-blue: #1e3a5f;
+            --primary-yellow: #fdd85d;
+            --bg-gray: #ffffff;
+            --text-dark: #1a2b48;
+            --text-gray: #888888;
+            --border-color: #eeeeee;
+            --switch-green: #2ecc71;
+            --switch-gray: #e0e0e0;
+            
+            /* FAB & UI Colors */
+            --fab-menu-bg: #2d3e50;
+            --fab-text: #ffffff;
+            --info-bg: #e0f2fe;
+            --info-text: #0369a1;
+            
+            /* Action Sheet & Modal Colors */
+            --sheet-bg-icon-edit: #2d3e50;
+            --sheet-bg-icon-delete: #fee2e2;
+            --sheet-text-delete: #ef4444;
+            --modal-btn-cancel: #2d3e50;
+            --modal-btn-delete: #ef4444;
+
+            /* Nav specific vars */
+            --text-main: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background-color: #fff;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: #fff;
+            min-height: 100vh;
+            position: relative;
+            /* UPDATED: Extra space for the new floating nav */
+            padding-bottom: 100px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- HEADER --- */
+        .header {
+            padding: 24px 20px 0 20px;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding-bottom: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #aaa;
+            cursor: pointer;
+            position: relative;
+            text-decoration: none;
+        }
+
+        .tab.active {
+            color: var(--primary-blue);
+            font-weight: 600;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0; width: 100%; height: 3px;
+            background-color: var(--primary-blue);
+            border-radius: 3px 3px 0 0;
+        }
+
+        /* --- INFO ALERT --- */
+        .info-alert {
+            background-color: var(--info-bg);
+            color: var(--info-text);
+            padding: 12px 16px;
+            font-size: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.5;
+            margin: 16px 20px 0 20px; 
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .info-icon {
+            width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; fill: currentColor;
+        }
+
+        /* --- SEARCH & FILTER (MOBILE OPTIMIZED) --- */
+        .filter-section {
+            padding: 15px 0; /* Padding 0 agar scroll mentok */
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-box {
+            position: relative;
+            margin: 0 20px 15px 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 15px 12px 40px;
+            background-color: #f9f9f9;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-dark);
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px; top: 50%; transform: translateY(-50%);
+            width: 18px; height: 18px; fill: #aaa;
+        }
+
+        /* Filter Chips Container */
+        .chips-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            flex-wrap: nowrap; /* Mencegah turun baris */
+            padding: 4px 20px 8px 20px; /* Padding kiri kanan */
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch; /* Smooth scroll */
+        }
+        .chips-scroll::-webkit-scrollbar { display: none; }
+
+        .chip {
+            flex: 0 0 auto; /* Mencegah gepeng */
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden; 
+        }
+
+        .chip:active { transform: scale(0.95); }
+
+        .chip.active {
+            background-color: var(--primary-blue);
+            color: #fff;
+        }
+
+        /* --- PRODUCT LIST --- */
+        .product-list {
+            padding: 0 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .product-item.inactive {
+            opacity: 0.5;
+            filter: grayscale(100%);
+        }
+
+        .p-img {
+            width: 64px; height: 64px; border-radius: 12px;
+            object-fit: cover; margin-right: 16px; background-color: #eee;
+        }
+
+        .p-info { flex: 1; }
+        .p-title { font-size: 15px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px; }
+        .p-category { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+        .p-price { font-size: 14px; color: var(--text-gray); font-weight: 600; }
+
+        .p-actions { display: flex; align-items: center; gap: 16px; }
+
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--switch-gray); transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--switch-green); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .more-icon {
+            width: 24px; height: 24px; fill: #aaa; cursor: pointer; padding: 2px;
+        }
+
+        /* --- ACTION SHEET --- */
+        .action-sheet-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.5); z-index: 200;
+            display: flex; align-items: flex-end; justify-content: center;
+            opacity: 0; visibility: hidden; transition: all 0.3s;
+            backdrop-filter: blur(2px);
+        }
+        .action-sheet-overlay.active { opacity: 1; visibility: visible; }
+
+        .action-sheet {
+            background: white; width: 100%; max-width: 480px;
+            border-radius: 24px 24px 0 0; padding: 30px 24px 40px 24px;
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        }
+        .action-sheet-overlay.active .action-sheet { transform: translateY(0); }
+
+        .sheet-header-title {
+            font-size: 16px; font-weight: 700; color: var(--text-dark); margin-bottom: 20px; text-align: center;
+        }
+
+        .menu-options-container { display: flex; flex-direction: column; gap: 0; }
+
+        .sheet-option {
+            display: flex; align-items: center; gap: 16px;
+            padding: 16px 0; cursor: pointer; transition: background 0.2s;
+        }
+        .sheet-option:active { opacity: 7; }
+        
+        .menu-divider { height: 1px; width: 100%; background-color: #f3f4f6; margin: 4px 0; }
+
+        .option-icon-box {
+            width: 44px; height: 44px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .bg-edit { background-color: var(--sheet-bg-icon-edit); color: white; }
+        .bg-delete { background-color: var(--sheet-bg-icon-delete); color: var(--sheet-text-delete); }
+        
+        .option-text { font-size: 15px; font-weight: 600; color: var(--text-dark); flex: 1; }
+        .text-delete { color: var(--sheet-text-delete); }
+
+        /* --- FAB & OVERLAY --- */
+        .fab-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); 
+            z-index: 110; opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .fab-overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+
+        .fab-main {
+            position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px;
+            background-color: var(--primary-yellow); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 120;
+            transition: transform 0.3s;
+        }
+        .fab-main.active svg { transform: rotate(45deg); }
+        .fab-main svg { width: 28px; height: 28px; fill: #1a2b48; transition: transform 0.3s; }
+        
+        .fab-menu-items {
+            position: fixed; bottom: 170px; right: 20px; display: flex; flex-direction: column;
+            gap: 12px; align-items: flex-end; z-index: 120; pointer-events: none;
+        }
+
+        .fab-action-btn {
+            background-color: var(--fab-menu-bg); color: var(--fab-text);
+            padding: 10px 16px 10px 12px; border-radius: 50px;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+            opacity: 0; transform: translateY(20px) scale(0.9);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .fab-menu-items.active .fab-action-btn { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .fab-menu-items.active .fab-action-btn:nth-child(1) { transition-delay: 0.1s; }
+        .fab-menu-items.active .fab-action-btn:nth-child(2) { transition-delay: 0.05s; }
+        .fab-action-text { font-size: 13px; font-weight: 500; }
+        .fab-action-icon { width: 20px; height: 20px; fill: white; }
+
+        @media (min-width: 480px) {
+            .fab-main, .fab-menu-items { right: calc(50% - 240px + 20px); }
+        }
+
+        /* --- MODALS (Shared Styles) --- */
+        .modal-overlay-center {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.6); z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+            backdrop-filter: blur(2px); padding: 20px;
+        }
+        .modal-overlay-center.active { opacity: 1; visibility: visible; }
+
+        .modal-card {
+            background: white; width: 100%; max-width: 320px;
+            border-radius: 20px; padding: 24px;
+            transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .modal-overlay-center.active .modal-card { transform: scale(1); }
+
+        /* ADD & EDIT CATEGORY MODAL */
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 18px; font-weight: 700; color: var(--text-dark); }
+        .modal-close { cursor: pointer; color: #aaa; padding: 4px; }
+        .modal-label { font-size: 14px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px; display: block; }
+        .modal-input {
+            width: 100%; padding: 12px 16px; border-radius: 10px;
+            border: 1px solid #e5e7eb; background-color: #f9fafb;
+            font-size: 14px; outline: none; margin-bottom: 24px;
+        }
+        .modal-input:focus { border-color: var(--primary-blue); background-color: white; }
+        .modal-btn-save {
+            width: 100%; padding: 14px; background-color: var(--fab-menu-bg);
+            color: white; font-weight: 600; border: none; border-radius: 10px;
+            cursor: pointer; font-size: 14px;
+        }
+
+        /* DELETE CONFIRMATION MODAL */
+        .modal-icon-header { display: flex; justify-content: center; margin-bottom: 20px; }
+        .icon-circle-bg { width: 72px; height: 72px; background-color: #1f2937; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .icon-trash-white { width: 32px; height: 32px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        
+        .modal-title-center { font-size: 20px; font-weight: 700; color: #1f2937; text-align: center; margin-bottom: 12px; }
+        .modal-desc-center { font-size: 14px; color: #6b7280; text-align: center; line-height: 1.5; margin-bottom: 28px; }
+        .modal-actions-row { display: flex; gap: 12px; }
+        
+        .btn-modal-cancel { flex: 1; padding: 14px; background-color: var(--modal-btn-cancel); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; }
+        .btn-modal-delete { flex: 1; padding: 14px; background-color: var(--modal-btn-delete); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; }
+
+        /* GUIDE ANIMATION */
+        .guide-animation { height: 120px; background-color: #f3f4f6; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .anim-btn { width: 80px; height: 30px; background-color: white; border: 1px solid #ddd; border-radius: 15px; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .anim-hand { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 32px; height: 32px; opacity: 0.8; animation: pressHold 2s infinite; }
+        @keyframes pressHold {
+            0% { transform: translate(-50%, 10%) scale(1); opacity: 0; }
+            20% { transform: translate(-50%, -20%) scale(1); opacity: 1; }
+            30% { transform: translate(-50%, -20%) scale(0.9); }
+            70% { transform: translate(-50%, -20%) scale(0.9); }
+            80% { transform: translate(-50%, -20%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+        .anim-ring { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary-blue); transform: translate(-50%, -50%) scale(0); opacity: 0; animation: ringExpand 2s infinite; }
+        @keyframes ringExpand { 30% { transform: translate(-50%, -50%) scale(0); opacity: 0.8; } 70% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; } 100% { opacity: 0; } }
+
+        /* --- BOTTOM NAV (REFINED & PROPORTIONAL) --- */
+        .bottom-nav {
+            position: fixed; 
+            bottom: 0; 
+            width: 100%; 
+            max-width: 480px;
+            background: white; 
+            border-top: 1px solid #e5e7eb;
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr);
+            /* FIXED HEIGHT & PADDING - KUNCI PROPORSIONALITAS */
+            height: 80px; 
+            padding-bottom: 10px; 
+            align-items: flex-end; /* Align items to bottom */
+            z-index: 100;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
+        }
+
+        .nav-item {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            justify-content: center; 
+            gap: 5px; 
+            color: #9ca3af;
+            cursor: pointer; 
+            height: 60px; /* Fixed height for click area */
+            padding-bottom: 8px;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .nav-item:active { transform: scale(0.95); }
+        
+        .nav-item.active { color: var(--text-main); }
+        .nav-item.active .nav-text { font-weight: 600; }
+        
+        .nav-icon { width: 24px; height: 24px; stroke-width: 2; transition: stroke 0.2s; }
+        .nav-text { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+
+        /* PROMINENT MIDDLE BUTTON (BAYAR) - ABSOLUTE FLOATING */
+        .nav-item.middle {
+            /* Make container static relative to grid, but content absolute */
+            justify-content: flex-end; 
+        }
+        
+        .nav-item.middle .icon-box {
+            width: 56px; height: 56px; 
+            /* Gradient Modern Dark */
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; color: white;
+            /* Soft Shadow & White Border */
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.3);
+            border: 4px solid white; 
+            
+            /* Absolute Positioning to Float */
+            position: absolute;
+            top: -28px; /* Floating offset */
+            left: 50%;
+            transform: translateX(-50%);
+            transition: transform 0.2s;
+        }
+        
+        .nav-item.middle:active .icon-box { transform: translateX(-50%) scale(0.95); }
+        
+        .nav-item.middle .nav-icon { width: 24px; height: 24px; stroke-width: 2; }
+        
+        /* Text stays in flow at bottom */
+        .nav-item.middle .nav-text { 
+            color: var(--text-main); font-weight: 600;
+            margin-top: 0; /* Reset margin */
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div class="header">
+            <h2>Manajemen Produk</h2>
+            <div class="tabs">
+                <div class="tab active">Daftar Menu</div>
+                <a href="banner.html" class="tab">Banner Promosi</a>
+            </div>
+        </div>
+
+        <div class="info-alert" onclick="openGuideModal()">
+            <svg class="info-icon" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+            <span>Tekan & tahan tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)</span>
+        </div>
+
+        <div class="filter-section">
+            <div class="search-box">
+                <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" placeholder="Cari nama menu..." onkeyup="filterMenu(this.value)">
+            </div>
+            
+            <div class="chips-scroll" id="chipContainer">
+                <button class="chip active" data-id="all" onclick="filterCategory('all', this)">Semua</button>
+                <button class="chip" data-id="makanan" onclick="filterCategory('makanan', this)">Makanan Berat</button>
+                <button class="chip" data-id="minuman" onclick="filterCategory('minuman', this)">Minuman</button>
+                <button class="chip" data-id="cemilan" onclick="filterCategory('cemilan', this)">Cemilan</button>
+                <button class="chip" data-id="paket" onclick="filterCategory('paket', this)">Paket Hemat</button>
+            </div>
+        </div>
+
+        <div class="product-list" id="productList">
+            <div class="product-item" data-category="makanan">
+                <img src="assets/nasi_goreng_special.png" alt="Nasi Goreng" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Nasi Goreng Special</div>
+                    <div class="p-category">Makanan Utama</div>
+                    <div class="p-price">Rp 15.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="makanan">
+                <img src="assets/mie_goreng_jawa.png" alt="Mie Goreng" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Mie Goreng Jawa</div>
+                    <div class="p-category">Makanan Utama</div>
+                    <div class="p-price">Rp 12.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item inactive" data-category="makanan"> 
+                <img src="assets/ayam_bakar_madu.png" alt="Ayam Bakar" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Ayam Bakar Madu</div>
+                    <div class="p-category">Makanan Utama</div>
+                    <div class="p-price">Rp 18.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleProduct(this)"> 
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="minuman">
+                <img src="assets/es_teh_manis.png" alt="Es Teh" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Es Teh Manis</div>
+                    <div class="p-category">Minuman</div>
+                    <div class="p-price">Rp 5.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="minuman">
+                <img src="assets/es_jeruk_peras.png" alt="Es Jeruk" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Es Jeruk Peras</div>
+                    <div class="p-category">Minuman</div>
+                    <div class="p-price">Rp 8.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="makanan">
+                <img src="assets/sate_ayam_10_tusuk.png" alt="Sate Ayam" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Sate Ayam 10 Tusuk</div>
+                    <div class="p-category">Makanan Utama</div>
+                    <div class="p-price">Rp 20.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="cemilan">
+                <img src="assets/pisang_goreng_krispy.png" alt="Pisang Goreng" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Pisang Goreng Krispy</div>
+                    <div class="p-category">Cemilan</div>
+                    <div class="p-price">Rp 10.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+
+            <div class="product-item" data-category="minuman">
+                <img src="assets/kopi_susu_gula_aren.png" alt="Kopi Susu" class="p-img">
+                <div class="p-info">
+                    <div class="p-title">Kopi Susu Gula Aren</div>
+                    <div class="p-category">Minuman</div>
+                    <div class="p-price">Rp 12.000</div>
+                </div>
+                <div class="p-actions">
+                    <label class="switch">
+                        <input type="checkbox" checked onchange="toggleProduct(this)">
+                        <span class="slider"></span>
+                    </label>
+                    <svg class="more-icon" onclick="openProductOptions(this)" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="fab-overlay" id="fabOverlay" onclick="toggleFab()"></div>
+        
+        <div class="fab-menu-items" id="fabMenu">
+            <div class="fab-action-btn" onclick="openAddCategoryModal()">
+                <svg class="fab-action-icon" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+                <span class="fab-action-text">Tambah Kategori</span>
+            </div>
+            <div class="fab-action-btn" onclick="location.href='menu_tambah.html'">
+                <svg class="fab-action-icon" viewBox="0 0 24 24"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>
+                <span class="fab-action-text">Tambah Produk</span>
+            </div>
+        </div>
+
+        <div class="fab-main" id="fabMain" onclick="toggleFab()">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </div>
+
+        <nav class="bottom-nav">
+            <div class="nav-item" onclick="location.href='dasboard.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                <span class="nav-text">Dasbor</span>
+            </div>
+            
+            <div class="nav-item" onclick="location.href='riwayat.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span class="nav-text">Riwayat</span>
+            </div>
+
+            <div class="nav-item middle" onclick="location.href='bayar.html'">
+                <div class="icon-box">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                        <line x1="5" y1="12" x2="19" y2="12"></line> </svg>
+                </div>
+                <span class="nav-text">Bayar</span>
+            </div>
+
+            <div class="nav-item active" onclick="location.href='menu.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path><path d="M17 2v20"></path></svg>
+                <span class="nav-text">Menu</span>
+            </div>
+
+            <div class="nav-item" onclick="location.href='qr.html'">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span class="nav-text">Meja</span>
+            </div>
+        </nav>
+
+        <div class="action-sheet-overlay" id="productOptionsSheet" onclick="closeProductOptions()">
+            <div class="action-sheet">
+                <div class="sheet-header-title" id="productOptionsTitle">Opsi Menu</div>
+                
+                <div class="menu-options-container">
+                    <div class="sheet-option" onclick="goToEditMenu()">
+                        <div class="option-icon-box bg-edit">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </div>
+                        <span class="option-text">Edit Menu</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="sheet-option" onclick="openDeleteMenuModal()">
+                        <div class="option-icon-box bg-delete">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </div>
+                        <span class="option-text text-delete">Hapus Menu</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-sheet-overlay" id="categoryOptionsSheet" onclick="closeCategoryOptions()">
+            <div class="action-sheet">
+                <div class="sheet-header-title">Opsi Kategori: <span id="selectedCategoryName"></span></div>
+                <div class="menu-options-container">
+                    <div class="sheet-option" onclick="openEditCategoryModal()">
+                        <div class="option-icon-box bg-edit"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></div>
+                        <span class="option-text">Ubah Nama Kategori</span>
+                    </div>
+                    <div class="menu-divider"></div>
+                    <div class="sheet-option" onclick="openDeleteCategoryModal()">
+                        <div class="option-icon-box bg-delete"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></div>
+                        <span class="option-text text-delete">Hapus Kategori</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="editCategoryModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Edit Kategori</div>
+                    <div class="modal-close" onclick="closeEditCategoryModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <label class="modal-label">Nama Kategori</label>
+                <input type="text" id="editCategoryInput" class="modal-input" placeholder="Nama Kategori">
+                <button class="modal-btn-save" onclick="saveCategoryEdit()">Simpan Perubahan</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="addCategoryModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Tambah Kategori</div>
+                    <div class="modal-close" onclick="closeAddCategoryModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <label class="modal-label">Nama Kategori Baru</label>
+                <input type="text" class="modal-input" placeholder="cth: Manisan, Jus">
+                <button class="modal-btn-save" onclick="closeAddCategoryModal()">Simpan Kategori</button>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="deleteMenuModal">
+            <div class="modal-card">
+                <div class="modal-icon-header">
+                    <div class="icon-circle-bg">
+                        <svg class="icon-trash-white" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </div>
+                </div>
+                <h3 class="modal-title-center">Hapus Menu Ini?</h3>
+                <p class="modal-desc-center">Menghapus menu akan menghapusnya secara permanen. Tindakan ini tidak dapat dibatalkan.</p>
+                <div class="modal-actions-row">
+                    <button class="btn-modal-cancel" onclick="closeDeleteMenuModal()">Batal</button>
+                    <button class="btn-modal-delete" onclick="confirmDeleteMenu()">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="deleteCategoryModal">
+            <div class="modal-card">
+                <div class="modal-icon-header">
+                    <div class="icon-circle-bg" style="background-color: #7f1d1d;">
+                        <svg class="icon-trash-white" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </div>
+                </div>
+                <h3 class="modal-title-center" style="color:#991b1b;">Hapus Kategori?</h3>
+                <p class="modal-desc-center">
+                    Hati-hati! Menghapus kategori <b><span id="delCatName"></span></b> akan 
+                    <span style="color:#ef4444; font-weight:600;">menghapus SEMUA menu</span> 
+                    yang ada di dalamnya.
+                </p>
+                <div class="modal-actions-row">
+                    <button class="btn-modal-cancel" onclick="closeDeleteCategoryModal()">Batal</button>
+                    <button class="btn-modal-delete" onclick="confirmDeleteCategory()">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-center" id="guideModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title">Cara Mengelola Kategori</div>
+                    <div class="modal-close" onclick="closeGuideModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                </div>
+                <div class="guide-animation">
+                    <div class="anim-btn"></div><div class="anim-ring"></div><svg class="anim-hand" viewBox="0 0 24 24" fill="currentColor"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></svg>
+                </div>
+                <p style="font-size:13px; color:#6b7280; text-align:center; line-height:1.5; margin-bottom:20px;">
+                    Untuk mengubah nama atau menghapus kategori, cukup <b>Tekan & Tahan (Long Press)</b> pada tombol kategori yang ingin Anda edit.
+                </p>
+                <button class="modal-btn-save" onclick="closeGuideModal()">Mengerti</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- BASIC UI LOGIC ---
+        function toggleProduct(checkbox) {
+            const productItem = checkbox.closest('.product-item');
+            if (checkbox.checked) {
+                productItem.classList.remove('inactive');
+            } else {
+                productItem.classList.add('inactive');
+            }
+        }
+
+        function filterCategory(category, chip) {
+            const chips = document.querySelectorAll('.chip');
+            chips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            const products = document.querySelectorAll('.product-item');
+            products.forEach(item => {
+                const itemCat = item.getAttribute('data-category');
+                if (category === 'all' || itemCat === category) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function filterMenu(query) {
+            const lowerQuery = query.toLowerCase();
+            const products = document.querySelectorAll('.product-item');
+            products.forEach(item => {
+                const title = item.querySelector('.p-title').innerText.toLowerCase();
+                if (title.includes(lowerQuery)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function toggleFab() {
+            const fabMain = document.getElementById('fabMain');
+            const fabOverlay = document.getElementById('fabOverlay');
+            const fabMenu = document.getElementById('fabMenu');
+            fabMain.classList.toggle('active');
+            fabOverlay.classList.toggle('active');
+            fabMenu.classList.toggle('active');
+        }
+
+        // --- PRODUCT OPTION LOGIC ---
+        let currentEditProductElement = null; // Store DOM reference
+        let currentEditData = {}; // Store data
+
+        const productSheet = document.getElementById('productOptionsSheet');
+        const productTitleDisplay = document.getElementById('productOptionsTitle');
+
+        function openProductOptions(element) {
+            const card = element.closest('.product-item');
+            currentEditProductElement = card;
+            
+            // Extract data for Edit Page
+            const name = card.querySelector('.p-title').innerText;
+            const category = card.getAttribute('data-category');
+            const price = card.querySelector('.p-price').innerText;
+            const img = card.querySelector('.p-img').getAttribute('src');
+
+            currentEditData = { name, category, price, img };
+
+            productTitleDisplay.innerText = "Opsi: " + name;
+            productSheet.classList.add('active');
+        }
+
+        function goToEditMenu() {
+            // Integration with menu_edit.html
+            const params = new URLSearchParams(currentEditData).toString();
+            window.location.href = 'menu_edit.html?' + params;
+        }
+
+        function closeProductOptions() {
+            productSheet.classList.remove('active');
+        }
+
+        // --- DELETE MENU MODAL LOGIC ---
+        const deleteMenuModal = document.getElementById('deleteMenuModal');
+
+        function openDeleteMenuModal() {
+            closeProductOptions();
+            deleteMenuModal.classList.add('active');
+        }
+
+        function closeDeleteMenuModal() {
+            deleteMenuModal.classList.remove('active');
+        }
+
+        function confirmDeleteMenu() {
+            if (currentEditProductElement) {
+                currentEditProductElement.style.opacity = '0';
+                currentEditProductElement.style.transform = 'translateX(-100%)';
+                setTimeout(() => {
+                    currentEditProductElement.remove();
+                    closeDeleteMenuModal();
+                }, 300);
+            }
+        }
+
+        // --- CATEGORY LONG PRESS & OPTION LOGIC ---
+        const categorySheet = document.getElementById('categoryOptionsSheet');
+        const categoryNameDisplay = document.getElementById('selectedCategoryName');
+        let currentSelectedCategoryChip = null; // To store which chip is being edited
+        let pressTimer;
+
+        const allChips = document.querySelectorAll('.chip');
+        allChips.forEach(chip => {
+            if(chip.getAttribute('data-id') !== 'all') {
+                chip.addEventListener('mousedown', startPress);
+                chip.addEventListener('touchstart', startPress);
+                chip.addEventListener('mouseup', cancelPress);
+                chip.addEventListener('mouseleave', cancelPress);
+                chip.addEventListener('touchend', cancelPress);
+                chip.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
+            }
+        });
+
+        function startPress(e) {
+            currentSelectedCategoryChip = this; // Store reference
+            const categoryName = this.innerText;
+            pressTimer = window.setTimeout(() => {
+                openCategoryOptions(categoryName);
+            }, 800);
+        }
+
+        function cancelPress(e) { clearTimeout(pressTimer); }
+
+        function openCategoryOptions(name) {
+            categoryNameDisplay.innerText = name;
+            categorySheet.classList.add('active');
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        function closeCategoryOptions() { categorySheet.classList.remove('active'); }
+
+        // --- EDIT CATEGORY MODAL ---
+        const editCategoryModal = document.getElementById('editCategoryModal');
+        const editCategoryInput = document.getElementById('editCategoryInput');
+
+        function openEditCategoryModal() {
+            closeCategoryOptions(); // Close sheet
+            // Pre-fill input
+            if(currentSelectedCategoryChip) {
+                editCategoryInput.value = currentSelectedCategoryChip.innerText;
+            }
+            editCategoryModal.classList.add('active');
+        }
+
+        function closeEditCategoryModal() { editCategoryModal.classList.remove('active'); }
+
+        function saveCategoryEdit() {
+            if(currentSelectedCategoryChip && editCategoryInput.value.trim() !== "") {
+                currentSelectedCategoryChip.innerText = editCategoryInput.value;
+                closeEditCategoryModal();
+            }
+        }
+
+        // --- ADD CATEGORY MODAL ---
+        const addCategoryModal = document.getElementById('addCategoryModal');
+        function openAddCategoryModal() { toggleFab(); addCategoryModal.classList.add('active'); }
+        function closeAddCategoryModal() { addCategoryModal.classList.remove('active'); }
+
+        // --- DELETE CATEGORY MODAL ---
+        const deleteCategoryModal = document.getElementById('deleteCategoryModal');
+        const delCatNameDisplay = document.getElementById('delCatName');
+
+        function openDeleteCategoryModal() {
+            closeCategoryOptions();
+            if(currentSelectedCategoryChip) {
+                delCatNameDisplay.innerText = currentSelectedCategoryChip.innerText;
+            }
+            deleteCategoryModal.classList.add('active');
+        }
+
+        function closeDeleteCategoryModal() { deleteCategoryModal.classList.remove('active'); }
+
+        function confirmDeleteCategory() {
+            if(currentSelectedCategoryChip) {
+                // Animate removal
+                currentSelectedCategoryChip.style.transform = "scale(0)";
+                setTimeout(() => {
+                    currentSelectedCategoryChip.remove();
+                    // Optional: Reset filter to 'All'
+                    filterCategory('all', document.querySelector('.chip[data-id="all"]'));
+                    closeDeleteCategoryModal();
+                }, 200);
+            }
+        }
+
+        // --- GUIDE MODAL ---
+        const guideModal = document.getElementById('guideModal');
+        function openGuideModal() { guideModal.classList.add('active'); }
+        function closeGuideModal() { guideModal.classList.remove('active'); }
+
+        // Stop propagation
+        document.querySelectorAll('.action-sheet').forEach(sheet => {
+            sheet.addEventListener('click', e => e.stopPropagation());
+        });
+        document.querySelectorAll('.modal-card').forEach(card => {
+            card.addEventListener('click', e => e.stopPropagation());
+        });
+    </script>
+
+</body>
+</html>
