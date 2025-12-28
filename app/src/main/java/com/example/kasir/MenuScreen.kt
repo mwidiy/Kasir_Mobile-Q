@@ -40,6 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.kasir.ui.theme.KasirTheme
+import com.example.kasir.ui.banner.BannerListScreen
+import com.example.kasir.ui.banner.BannerFormScreen
+import com.example.kasir.ui.banner.BannerItem
+import com.example.kasir.ui.menu.MenuFormScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kasir.viewmodel.MenuViewModel
+import com.example.kasir.ui.banner.BannerListScreen
 
 // --- COLORS ---
 private val MenuBg = Color(0xFFF3F4F6)
@@ -75,10 +82,30 @@ val initialMenuItems = listOf(
 
 @Composable
 fun MenuScreen(onNavigate: (String) -> Unit) {
+    val viewModel: MenuViewModel = viewModel()
+    val products by viewModel.products.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("all") }
-    var menuList by remember { mutableStateOf(initialMenuItems) }
+    // Initialize with empty list, data will come from VM
+    var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var isFabExpanded by remember { mutableStateOf(false) }
+
+    // Sync products from VM to local menuList (UI Model)
+    LaunchedEffect(products) {
+        menuList = products.map { product ->
+            MenuItem(
+                id = product.id.toString(),
+                name = product.name,
+                category = product.category.lowercase(),
+                categoryDisplay = product.category,
+                price = "Rp ${product.price}",
+                isActive = product.isActive
+            )
+        }
+    }
     
     // Modals & Sheets State
     var showActionSheet by remember { mutableStateOf<MenuItem?>(null) }
@@ -87,174 +114,309 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     var showEditCategoryModal by remember { mutableStateOf<String?>(null) } // category id/name
     var showGuideModal by remember { mutableStateOf(false) }
     
-    // Filtering
+    var activeTab by remember { mutableStateOf("menu") } // "menu" or "banner"
+    var bannerScreenState by remember { mutableStateOf("list") } // "list", "add", "edit"
+    var menuScreenState by remember { mutableStateOf("list") } // "list", "add_product", "edit_product"
+    var selectedBannerToEdit by remember { mutableStateOf<BannerItem?>(null) }
+    var selectedMenuToEdit by remember { mutableStateOf<MenuItem?>(null) }
+    
+    // Filtering (Menu)
     val filteredItems = menuList.filter { item ->
         (selectedCategory == "all" || item.category == selectedCategory) &&
         (searchQuery.isEmpty() || item.name.contains(searchQuery, ignoreCase = true))
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MenuBg)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Column(modifier = Modifier.background(Color.White).padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
-                Text("Manajemen Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MenuPrimaryBlue)
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(modifier = Modifier.fillMaxWidth().border(0.dp, Color.Transparent)) { // Mock Tabs
-                    Column(modifier = Modifier.weight(1f).clickable { }.padding(bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Daftar Menu", fontWeight = FontWeight.SemiBold, color = MenuPrimaryBlue, fontSize = 14.sp)
-                        Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(MenuPrimaryBlue, RoundedCornerShape(3.dp, 3.dp, 0.dp, 0.dp)))
-                    }
-                    Column(modifier = Modifier.weight(1f).clickable { }.padding(bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Banner Promosi", fontWeight = FontWeight.Medium, color = Color.LightGray, fontSize = 14.sp)
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MenuPrimaryBlue)
+            }
+        } else if (errorMessage != null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "Error: $errorMessage", color = Color.Red)
+                    Button(onClick = { viewModel.fetchProducts() }) {
+                        Text("Coba Lagi")
                     }
                 }
             }
-            
-            // Info Alert
-            Surface(
-                color = InfoBg,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.padding(16.dp).fillMaxWidth().clickable { showGuideModal = true }
-            ) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                    Text("ℹ️", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        "Tekan & tahan tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)",
-                        color = InfoText,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
-                    )
+        } else {
+            // Main Content when not loading and no error
+            Column(modifier = Modifier.fillMaxSize()) {
+            // Only show Header and Tabs if in List mode for both Tabs
+            if (bannerScreenState == "list" && menuScreenState == "list") {
+                // Header (Shared)
+                Column(modifier = Modifier.background(Color.White).padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
+                    Text("Manajemen Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MenuPrimaryBlue)
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(modifier = Modifier.fillMaxWidth().border(0.dp, Color.Transparent)) {
+                        // Tab Menu
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { activeTab = "menu" }
+                                .padding(bottom = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Daftar Menu",
+                                fontWeight = if (activeTab == "menu") FontWeight.Bold else FontWeight.Medium,
+                                color = if (activeTab == "menu") MenuPrimaryBlue else Color.LightGray,
+                                fontSize = 14.sp
+                            )
+                            if (activeTab == "menu") {
+                                Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(MenuPrimaryBlue, RoundedCornerShape(3.dp, 3.dp, 0.dp, 0.dp)))
+                            }
+                        }
+                        // Tab Banner
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { activeTab = "banner" }
+                                .padding(bottom = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Banner Promosi",
+                                fontWeight = if (activeTab == "banner") FontWeight.Bold else FontWeight.Medium,
+                                color = if (activeTab == "banner") MenuPrimaryBlue else Color.LightGray,
+                                fontSize = 14.sp
+                            )
+                            if (activeTab == "banner") {
+                                Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(MenuPrimaryBlue, RoundedCornerShape(3.dp, 3.dp, 0.dp, 0.dp)))
+                            }
+                        }
+                    }
                 }
             }
 
-            // Search & Filter
-            Column(modifier = Modifier.background(Color.White).padding(bottom = 10.dp)) {
-                // Search
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFF9F9F9),
-                    modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.LightGray)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        BasicTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            decorationBox = { inner ->
-                                if (searchQuery.isEmpty()) Text("Cari nama menu...", color = Color.Gray, fontSize = 13.sp)
-                                inner()
+            // Content Switcher
+            if (activeTab == "menu") {
+                if (menuScreenState == "list") {
+                    // --- EXISTING MENU CONTENT ---
+                    // Info Alert
+                    Surface(
+                        color = InfoBg,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(16.dp).fillMaxWidth().clickable { showGuideModal = true }
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                            Text("ℹ️", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                "Tekan & tahan tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)",
+                                color = InfoText,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    // Search & Filter
+                    Column(modifier = Modifier.background(Color.White).padding(bottom = 10.dp)) {
+                        // Search
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF9F9F9),
+                            modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(48.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = Color.LightGray)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    decorationBox = { inner ->
+                                        if (searchQuery.isEmpty()) Text("Cari nama menu...", color = Color.Gray, fontSize = 13.sp)
+                                        inner()
+                                    }
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(15.dp))
+                        
+                        // Chips
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val categories = listOf(
+                                "all" to "Semua", 
+                                "makanan" to "Makanan Berat", 
+                                "minuman" to "Minuman", 
+                                "cemilan" to "Cemilan", 
+                                "paket" to "Paket Hemat"
+                            )
+                            items(categories) { (id, label) ->
+                                FilterChipCustom(
+                                    label = label,
+                                    isActive = selectedCategory == id,
+                                    onClick = { selectedCategory = id },
+                                    onLongClick = { if(id != "all") showEditCategoryModal = label }
+                                )
+                            }
+                        }
+                    }
+
+                    // Product List
+                    LazyColumn(
+                        contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    ) {
+                        items(filteredItems) { item ->
+                            MenuItemRow(
+                                item = item,
+                                onToggle = { 
+                                    menuList = menuList.map { if (it.id == item.id) it.copy(isActive = !it.isActive) else it }
+                                },
+                                onOptionClick = { showActionSheet = item }
+                            )
+                            Divider(color = Color(0xFFEEEEEE))
+                        }
+                    }
+                } else if (menuScreenState == "add_product") {
+                    // --- ADD PRODUCT FORM ---
+                    MenuFormScreen(
+                        onBack = { menuScreenState = "list" },
+                        onSave = { name, category, price, desc, isActive ->
+                            // Logic to save
+                            menuScreenState = "list" 
+                        }
+                    )
+                } else if (menuScreenState == "edit_product") {
+                    // --- EDIT PRODUCT FORM ---
+                    MenuFormScreen(
+                        initialName = selectedMenuToEdit?.name ?: "",
+                        initialCategory = selectedMenuToEdit?.categoryDisplay ?: "",
+                        initialPrice = selectedMenuToEdit?.price ?: "",
+                        initialDescription = "Menu spesial dengan bumbu rahasia yang lezat dan menggugah selera.", // Default from HTML
+                        initialIsActive = selectedMenuToEdit?.isActive ?: true,
+                        isEditMode = true,
+                        onBack = { 
+                            menuScreenState = "list"
+                            selectedMenuToEdit = null
+                        },
+                        onSave = { name, category, price, desc, isActive ->
+                            // Update logic (mock)
+                            val priceFmt = if(price.startsWith("Rp")) price else "Rp $price"
+                            // Here we would find and replace in menuList, but for now just returning to list
+                            menuScreenState = "list"
+                            selectedMenuToEdit = null
+                        }
+                    )
+                }
+            } else {
+                // --- BANNER CONTENT ---
+                when (bannerScreenState) {
+                    "list" -> {
+                        BannerListScreen(
+                            onNavigateToAdd = { bannerScreenState = "add" },
+                            onNavigateToEdit = { banner -> 
+                                selectedBannerToEdit = banner
+                                bannerScreenState = "edit" 
+                            }
+                        )
+                    }
+                    "add" -> {
+                        BannerFormScreen(
+                            title = "Tambah Banner Baru",
+                            onBack = { bannerScreenState = "list" },
+                            onSave = { 
+                                // Logic to save new banner
+                                bannerScreenState = "list" 
+                            }
+                        )
+                    }
+                    "edit" -> {
+                        BannerFormScreen(
+                            title = "Edit Banner Promosi",
+                            initialBanner = selectedBannerToEdit,
+                            onBack = { 
+                                bannerScreenState = "list"
+                                selectedBannerToEdit = null
+                            },
+                            onSave = { 
+                                // Logic to update banner
+                                bannerScreenState = "list" 
+                                selectedBannerToEdit = null
                             }
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(15.dp))
-                
-                // Chips
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val categories = listOf(
-                        "all" to "Semua", 
-                        "makanan" to "Makanan Berat", 
-                        "minuman" to "Minuman", 
-                        "cemilan" to "Cemilan", 
-                        "paket" to "Paket Hemat"
-                    )
-                    items(categories) { (id, label) ->
-                        FilterChipCustom(
-                            label = label,
-                            isActive = selectedCategory == id,
-                            onClick = { selectedCategory = id },
-                            onLongClick = { if(id != "all") showEditCategoryModal = label }
-                        )
-                    }
-                }
-            }
-
-            // Product List
-            LazyColumn(
-                contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp),
-                modifier = Modifier.padding(horizontal = 20.dp)
-            ) {
-                items(filteredItems) { item ->
-                    MenuItemRow(
-                        item = item,
-                        onToggle = { 
-                            menuList = menuList.map { if (it.id == item.id) it.copy(isActive = !it.isActive) else it }
-                        },
-                        onOptionClick = { showActionSheet = item }
-                    )
-                    Divider(color = Color(0xFFEEEEEE))
-                }
             }
         }
-
-        // Floating Action Button (FAB) Area
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Overlay
-             AnimatedVisibility(
-                visible = isFabExpanded,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                 modifier = Modifier.fillMaxSize()
-            ) {
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.6f)).clickable { isFabExpanded = false })
             }
 
-            // FAB Items
-            Column(
-                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 170.dp, end = 20.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+        // Floating Action Button (FAB) Area - ONLY for Menu Tab & List View
+        if (activeTab == "menu" && menuScreenState == "list") {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Overlay
                  AnimatedVisibility(
                     visible = isFabExpanded,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut()
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    FabSubButton("Tambah Produk", "🍳") { /* Navigate to Add Product */ }
+                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.6f)).clickable { isFabExpanded = false })
                 }
-                AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut()
+    
+                // FAB Items
+                Column(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 170.dp, end = 20.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                     FabSubButton("Tambah Kategori", "📁") { 
-                         isFabExpanded = false
-                         showAddCategoryModal = true 
-                     }
+                     AnimatedVisibility(
+                        visible = isFabExpanded,
+                        enter = slideInVertically { it } + fadeIn(),
+                        exit = slideOutVertically { it } + fadeOut()
+                    ) {
+                        FabSubButton("Tambah Produk", "🍳") { 
+                           isFabExpanded = false
+                           menuScreenState = "add_product"
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = isFabExpanded,
+                        enter = slideInVertically { it } + fadeIn(),
+                        exit = slideOutVertically { it } + fadeOut()
+                    ) {
+                         FabSubButton("Tambah Kategori", "📁") { 
+                             isFabExpanded = false
+                             showAddCategoryModal = true 
+                         }
+                    }
                 }
-            }
-
-            // Main FAB
-            val rotation by animateFloatAsState(if (isFabExpanded) 45f else 0f)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 100.dp, end = 20.dp)
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(MenuPrimaryYellow)
-                    .clickable { isFabExpanded = !isFabExpanded }
-                    .shadow(elevation = 4.dp, shape = CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add", tint = MenuTextDark, modifier = Modifier.rotate(rotation))
+    
+                // Main FAB
+                val rotation by animateFloatAsState(if (isFabExpanded) 45f else 0f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 100.dp, end = 20.dp)
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MenuPrimaryYellow)
+                        .clickable { isFabExpanded = !isFabExpanded }
+                        .shadow(elevation = 4.dp, shape = CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = MenuTextDark, modifier = Modifier.rotate(rotation))
+                }
             }
         }
 
-        // Bottom Nav
-        AppBottomNavigation(
-            currentScreen = "menu",
-            onNavigate = onNavigate,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        // Bottom Nav - Hide when in full screen forms
+        if (bannerScreenState == "list" && menuScreenState == "list") {
+            AppBottomNavigation(
+                currentScreen = "menu",
+                onNavigate = onNavigate,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
 
         // --- MODALS ---
         
@@ -263,7 +425,10 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             ActionSheetModal(
                 title = "Opsi Menu: ${showActionSheet!!.name}",
                 onEdit = { 
-                    showActionSheet = null // Close sheet, open edit (dummy)
+                    val item = showActionSheet
+                    showActionSheet = null // Close sheet (so modal disappears)
+                    selectedMenuToEdit = item
+                    menuScreenState = "edit_product"
                 },
                 onDelete = {
                     val item = showActionSheet
