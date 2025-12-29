@@ -40,4 +40,67 @@ class MenuViewModel : ViewModel() {
             }
         }
     }
+
+
+    fun addProduct(product: Product) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                val response = RetrofitClient.instance.addProduct(product)
+                if (response.success) {
+                    fetchProducts()
+                } else {
+                    _errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal menambah produk: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateProduct(id: Int, product: Product) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                val response = RetrofitClient.instance.updateProduct(id, product)
+                if (response.success) {
+                    fetchProducts()
+                } else {
+                    _errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal mengupdate produk: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun toggleProductStatus(product: Product) {
+        val updatedProduct = product.copy(isActive = !product.isActive)
+        updateProduct(product.id, updatedProduct)
+    }
+
+    fun deleteProduct(id: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                val response = RetrofitClient.instance.deleteProduct(id)
+                if (response.success) {
+                    fetchProducts()
+                } else {
+                    _errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal menghapus produk: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

@@ -15,3 +15,10 @@ data class Product(
     val description: String?,
     val isActive: Boolean
 )
+
+data class SingleProductResponse(
+    val success: Boolean,
+    val message: String,
+    val data: Product?
+)
+

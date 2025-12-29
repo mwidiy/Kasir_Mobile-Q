@@ -44,6 +44,8 @@ import com.example.kasir.ui.banner.BannerListScreen
 import com.example.kasir.ui.banner.BannerFormScreen
 import com.example.kasir.ui.banner.BannerItem
 import com.example.kasir.ui.menu.MenuFormScreen
+import com.example.kasir.ui.menu.AddEditProductScreen // Added import
+import com.example.kasir.data.model.Product // Added import
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.viewmodel.MenuViewModel
 import com.example.kasir.ui.banner.BannerListScreen
@@ -66,18 +68,20 @@ data class MenuItem(
     val category: String, // "makanan", "minuman", "cemilan", "paket"
     val categoryDisplay: String,
     val price: String,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val description: String? = null,
+    val image: String? = null
 )
 
 val initialMenuItems = listOf(
-    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", "Rp 15.000", true),
-    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", "Rp 12.000", true),
-    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", "Rp 18.000", false),
-    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", "Rp 5.000", true),
-    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", "Rp 8.000", true),
-    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", "Rp 20.000", true),
-    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", "Rp 10.000", true),
-    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", "Rp 12.000", true)
+    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", "Rp 15.000", true, "Enak", null),
+    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", "Rp 12.000", true, "Jowo tulen", null),
+    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", "Rp 18.000", false, "Manis", null),
+    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", "Rp 5.000", true, "Seger", null),
+    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", "Rp 8.000", true, "Asem manis", null),
+    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", "Rp 20.000", true, "Madura", null),
+    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", "Rp 10.000", true, "Kriuk", null),
+    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", "Rp 12.000", true, "Kopi", null)
 )
 
 @Composable
@@ -102,7 +106,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 category = product.category.lowercase(),
                 categoryDisplay = product.category,
                 price = "Rp ${product.price}",
-                isActive = product.isActive
+                isActive = product.isActive,
+                description = product.description,
+                image = product.image
             )
         }
     }
@@ -116,9 +122,17 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     
     var activeTab by remember { mutableStateOf("menu") } // "menu" or "banner"
     var bannerScreenState by remember { mutableStateOf("list") } // "list", "add", "edit"
-    var menuScreenState by remember { mutableStateOf("list") } // "list", "add_product", "edit_product"
+    
+    // Navigation State
+    var currentScreen by remember { mutableStateOf("menu_list") } // "menu_list", "add_product", "edit_product"
+    var selectedProductId by remember { mutableStateOf<String?>(null) } // For edit
+
     var selectedBannerToEdit by remember { mutableStateOf<BannerItem?>(null) }
     var selectedMenuToEdit by remember { mutableStateOf<MenuItem?>(null) }
+    
+    // CRUD Dialog State - REMOVED, using Screen instead
+    // var showProductDialog by remember { mutableStateOf(false) }
+    // var activeProductItem by remember { mutableStateOf<MenuItem?>(null) }
     
     // Filtering (Menu)
     val filteredItems = menuList.filter { item ->
@@ -144,7 +158,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             // Main Content when not loading and no error
             Column(modifier = Modifier.fillMaxSize()) {
             // Only show Header and Tabs if in List mode for both Tabs
-            if (bannerScreenState == "list" && menuScreenState == "list") {
+            if (bannerScreenState == "list" && currentScreen == "menu_list") {
                 // Header (Shared)
                 Column(modifier = Modifier.background(Color.White).padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
                     Text("Manajemen Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MenuPrimaryBlue)
@@ -192,7 +206,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
             // Content Switcher
             if (activeTab == "menu") {
-                if (menuScreenState == "list") {
+                if (currentScreen == "menu_list") {
                     // --- EXISTING MENU CONTENT ---
                     // Info Alert
                     Surface(
@@ -270,42 +284,41 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                             MenuItemRow(
                                 item = item,
                                 onToggle = { 
-                                    menuList = menuList.map { if (it.id == item.id) it.copy(isActive = !it.isActive) else it }
+                                    // Convert MenuItem back to Product for the toggle call
+                                    // ideally we should just use Product everywhere but to minimize change risk:
+                                    val p = com.example.kasir.data.model.Product(
+                                        id = item.id.toInt(),
+                                        name = item.name,
+                                        price = item.price.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0,
+                                        category = item.category,
+                                        description = item.description,
+                                        image = item.image,
+                                        isActive = item.isActive
+                                    )
+                                    viewModel.toggleProductStatus(p)
                                 },
                                 onOptionClick = { showActionSheet = item }
                             )
                             Divider(color = Color(0xFFEEEEEE))
                         }
                     }
-                } else if (menuScreenState == "add_product") {
-                    // --- ADD PRODUCT FORM ---
-                    MenuFormScreen(
-                        onBack = { menuScreenState = "list" },
-                        onSave = { name, category, price, desc, isActive ->
-                            // Logic to save
-                            menuScreenState = "list" 
-                        }
+                } else if (currentScreen == "add_product_legacy") {
+                    // Deprecated: keeping loop structure but this state shouldn't be reached or logic removed
+                } else if (currentScreen == "edit_product_legacy") {
+                    // Deprecated
+                } else if (currentScreen == "add_product") {
+                    AddEditProductScreen(
+                        onBack = { currentScreen = "menu_list" },
+                        viewModel = viewModel
                     )
-                } else if (menuScreenState == "edit_product") {
-                    // --- EDIT PRODUCT FORM ---
-                    MenuFormScreen(
-                        initialName = selectedMenuToEdit?.name ?: "",
-                        initialCategory = selectedMenuToEdit?.categoryDisplay ?: "",
-                        initialPrice = selectedMenuToEdit?.price ?: "",
-                        initialDescription = "Menu spesial dengan bumbu rahasia yang lezat dan menggugah selera.", // Default from HTML
-                        initialIsActive = selectedMenuToEdit?.isActive ?: true,
-                        isEditMode = true,
+                } else if (currentScreen == "edit_product") {
+                    AddEditProductScreen(
+                        productId = selectedProductId,
                         onBack = { 
-                            menuScreenState = "list"
-                            selectedMenuToEdit = null
+                            currentScreen = "menu_list" 
+                            selectedProductId = null
                         },
-                        onSave = { name, category, price, desc, isActive ->
-                            // Update logic (mock)
-                            val priceFmt = if(price.startsWith("Rp")) price else "Rp $price"
-                            // Here we would find and replace in menuList, but for now just returning to list
-                            menuScreenState = "list"
-                            selectedMenuToEdit = null
-                        }
+                        viewModel = viewModel
                     )
                 }
             } else {
@@ -351,7 +364,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             }
 
         // Floating Action Button (FAB) Area - ONLY for Menu Tab & List View
-        if (activeTab == "menu" && menuScreenState == "list") {
+        if (activeTab == "menu" && currentScreen == "menu_list") {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Overlay
                  AnimatedVisibility(
@@ -376,7 +389,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     ) {
                         FabSubButton("Tambah Produk", "🍳") { 
                            isFabExpanded = false
-                           menuScreenState = "add_product"
+                           currentScreen = "add_product"
                         }
                     }
                     AnimatedVisibility(
@@ -410,7 +423,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         }
 
         // Bottom Nav - Hide when in full screen forms
-        if (bannerScreenState == "list" && menuScreenState == "list") {
+        if (bannerScreenState == "list" && currentScreen == "menu_list") {
             AppBottomNavigation(
                 currentScreen = "menu",
                 onNavigate = onNavigate,
@@ -420,15 +433,14 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
         // --- MODALS ---
         
-        // Action Sheet (Mocked as bottom dialog for simplicity, or centered dialog)
         if (showActionSheet != null) {
             ActionSheetModal(
                 title = "Opsi Menu: ${showActionSheet!!.name}",
                 onEdit = { 
                     val item = showActionSheet
-                    showActionSheet = null // Close sheet (so modal disappears)
-                    selectedMenuToEdit = item
-                    menuScreenState = "edit_product"
+                    showActionSheet = null
+                    selectedProductId = item?.id
+                    currentScreen = "edit_product"
                 },
                 onDelete = {
                     val item = showActionSheet
@@ -444,7 +456,10 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 title = "Hapus Menu Ini?",
                 desc = "Menghapus menu akan menghapusnya secara permanen. Tindakan ini tidak dapat dibatalkan.",
                 onConfirm = {
-                    menuList = menuList.filter { it.id != showDeleteConfirm!!.id }
+                    val idToDelete = showDeleteConfirm?.id?.toIntOrNull()
+                    if (idToDelete != null) {
+                        viewModel.deleteProduct(idToDelete)
+                    }
                     showDeleteConfirm = null
                 },
                 onCancel = { showDeleteConfirm = null }
@@ -503,13 +518,20 @@ fun FilterChipCustom(label: String, isActive: Boolean, onClick: () -> Unit, onLo
     }
 }
 
+// Helper to get image URL safely (placeholder logic moved here or in UI)
+// val MenuItem.imageUrl: String? get() = this.image // REMOVED as redundant
+
+
 @Composable
 fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit) {
+    // Opacity logic: if not active, alpha is 0.5f
+    val alpha = if (item.isActive) 1f else 0.5f
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp)
-            .then(if (!item.isActive) Modifier.alpha(0.5f) else Modifier),
+            .alpha(alpha), // Apply opacity
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Image Placeholder
@@ -520,7 +542,14 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
                 .background(Color.LightGray),
             contentAlignment = Alignment.Center
         ) {
-            Text("IMG", fontSize = 10.sp, color = Color.White)
+            // In a real app, use AsyncImage here
+             if (!item.image.isNullOrBlank()) {
+                // Determine if we can show image, for now just text or if using Coil:
+                // AsyncImage(model = item.image, ...)
+                Text("IMG", fontSize = 10.sp, color = Color.White) 
+            } else {
+                Text("IMG", fontSize = 10.sp, color = Color.White)
+            }
         }
         
         Spacer(modifier = Modifier.width(16.dp))
@@ -677,3 +706,5 @@ fun GuideModal(onDismiss: () -> Unit) {
         }
     }
 }
+
+
