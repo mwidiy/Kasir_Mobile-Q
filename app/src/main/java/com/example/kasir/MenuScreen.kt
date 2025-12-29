@@ -141,11 +141,11 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MenuBg)) {
-        if (isLoading) {
+        if (isLoading && menuList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MenuPrimaryBlue)
             }
-        } else if (errorMessage != null) {
+        } else if (errorMessage != null && menuList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "Error: $errorMessage", color = Color.Red)
@@ -280,7 +280,10 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp),
                         modifier = Modifier.padding(horizontal = 20.dp)
                     ) {
-                        items(filteredItems) { item ->
+                        items(
+                            items = filteredItems,
+                            key = { it.id }
+                        ) { item ->
                             MenuItemRow(
                                 item = item,
                                 onToggle = { 

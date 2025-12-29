@@ -19,12 +19,29 @@ class MenuViewModel : ViewModel() {
     val errorMessage: StateFlow<String?> = _errorMessage
 
     init {
+        // Initialize Socket
+        com.example.kasir.utils.SocketHandler.setSocket()
+        com.example.kasir.utils.SocketHandler.establishConnection()
+        
+        val mSocket = com.example.kasir.utils.SocketHandler.getSocket()
+        mSocket.on("products_updated") {
+            // Trigger fetch in silent mode
+            fetchProducts(isSilent = true)
+        }
+
         fetchProducts()
     }
 
-    fun fetchProducts() {
+    override fun onCleared() {
+        super.onCleared()
+        com.example.kasir.utils.SocketHandler.closeConnection()
+    }
+
+    fun fetchProducts(isSilent: Boolean = false) {
         viewModelScope.launch {
-            _isLoading.value = true
+            if (!isSilent) {
+                _isLoading.value = true
+            }
             _errorMessage.value = null
             try {
                 val response = RetrofitClient.instance.getProducts()
@@ -36,7 +53,9 @@ class MenuViewModel : ViewModel() {
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal memuat data: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false
+                if (!isSilent) {
+                    _isLoading.value = false
+                }
             }
         }
     }
