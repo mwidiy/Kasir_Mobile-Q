@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +40,10 @@ fun AddEditProductScreen(
     var price by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var image by remember { mutableStateOf("") }
+    // var image by remember { mutableStateOf("") } // Deprecated string URL
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var existingImageUrl by remember { mutableStateOf<String?>(null) }
+    
     var isActive by remember { mutableStateOf(true) }
     var isInitialized by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
@@ -53,7 +57,8 @@ fun AddEditProductScreen(
                 price = product.price.toString()
                 category = product.category
                 description = product.description ?: ""
-                image = product.image ?: ""
+                // image = product.image ?: ""
+                existingImageUrl = product.image
                 isActive = product.isActive
                 isInitialized = true
             }
@@ -203,24 +208,47 @@ fun AddEditProductScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // Image URL
-                    Text("URL Gambar", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF374151))
+                    // Image Picker
+                    Text("Gambar Produk", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF374151))
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = image,
-                        onValueChange = { image = it },
-                        placeholder = { Text("https://...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            cursorColor = Color.Black
-                        ),
-                        singleLine = true
-                    )
+                    
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                    ) { uri: android.net.Uri? ->
+                        selectedImageUri = uri
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF3F4F6))
+                            .clickable { launcher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (selectedImageUri != null) {
+                            coil.compose.AsyncImage(
+                                model = selectedImageUri,
+                                contentDescription = "Selected Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else if (!existingImageUrl.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model = existingImageUrl,
+                                contentDescription = "Existing Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                Text("Pilih Foto", color = Color.Gray, fontSize = 14.sp)
+                            }
+                        }
+                    }
                 }
             }
             
@@ -255,6 +283,8 @@ fun AddEditProductScreen(
             
             // Save Button
             val isFormValid = name.isNotBlank() && price.isNotBlank() && category.isNotBlank()
+            val context = androidx.compose.ui.platform.LocalContext.current // Move Context here
+
             Button(
                 onClick = {
                     val p = Product(
@@ -263,13 +293,14 @@ fun AddEditProductScreen(
                         price = price.toIntOrNull() ?: 0,
                         category = category,
                         description = description,
-                        image = image.ifBlank { "https://placehold.co/200" },
+                        image = existingImageUrl, 
                         isActive = isActive
                     )
+                    
                     if (isEditMode) {
-                        viewModel.updateProduct(p.id, p)
+                        viewModel.updateProduct(p.id, p, selectedImageUri, context)
                     } else {
-                        viewModel.addProduct(p)
+                        viewModel.addProduct(p, selectedImageUri, context)
                     }
                     onBack()
                 },

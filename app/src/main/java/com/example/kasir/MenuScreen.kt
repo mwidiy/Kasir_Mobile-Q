@@ -545,11 +545,18 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
                 .background(Color.LightGray),
             contentAlignment = Alignment.Center
         ) {
-            // In a real app, use AsyncImage here
              if (!item.image.isNullOrBlank()) {
-                // Determine if we can show image, for now just text or if using Coil:
-                // AsyncImage(model = item.image, ...)
-                Text("IMG", fontSize = 10.sp, color = Color.White) 
+                 var model = item.image
+                 // If using local emulator with localhost address, replace localhost with 10.0.2.2 or proper IP
+                 // But typically user provides full IP. Assuming item.image is full URL.
+                 
+                coil.compose.AsyncImage(
+                    model = model,
+                    contentDescription = item.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Gray) // Fallback simple
+                )
             } else {
                 Text("IMG", fontSize = 10.sp, color = Color.White)
             }

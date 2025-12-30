@@ -7,6 +7,8 @@ import com.example.kasir.data.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MediaType.Companion.toMediaType
 
 class MenuViewModel : ViewModel() {
     private val _products = MutableStateFlow<List<Product>>(emptyList())
@@ -61,12 +63,34 @@ class MenuViewModel : ViewModel() {
     }
 
 
-    fun addProduct(product: Product) {
+    private fun createPartFromString(stringData: String): okhttp3.RequestBody {
+        return okhttp3.RequestBody.create("text/plain".toMediaTypeOrNull(), stringData)
+    }
+
+    fun addProduct(product: Product, imageUri: android.net.Uri? = null, context: android.content.Context) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                val response = RetrofitClient.instance.addProduct(product)
+                val name = createPartFromString(product.name)
+                val category = createPartFromString(product.category)
+                val price = createPartFromString(product.price.toString())
+                val description = createPartFromString(product.description ?: "")
+                val isActive = createPartFromString(product.isActive.toString())
+                
+                var imagePart: okhttp3.MultipartBody.Part? = null
+                if (imageUri != null) {
+                    val file = com.example.kasir.utils.FileUtils.getFileFromUri(context, imageUri)
+                    if (file != null) {
+                        val requestFile = okhttp3.RequestBody.create("image/*".toMediaTypeOrNull(), file)
+                        imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
+                    }
+                }
+
+                val response = RetrofitClient.instance.addProduct(
+                    name, category, price, description, imagePart, isActive
+                )
+                
                 if (response.success) {
                     fetchProducts()
                 } else {
@@ -80,12 +104,30 @@ class MenuViewModel : ViewModel() {
         }
     }
 
-    fun updateProduct(id: Int, product: Product) {
+    fun updateProduct(id: Int, product: Product, imageUri: android.net.Uri? = null, context: android.content.Context? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                val response = RetrofitClient.instance.updateProduct(id, product)
+                val name = createPartFromString(product.name)
+                val category = createPartFromString(product.category)
+                val price = createPartFromString(product.price.toString())
+                val description = createPartFromString(product.description ?: "")
+                val isActive = createPartFromString(product.isActive.toString())
+
+                var imagePart: okhttp3.MultipartBody.Part? = null
+                if (imageUri != null && context != null) {
+                    val file = com.example.kasir.utils.FileUtils.getFileFromUri(context, imageUri)
+                    if (file != null) {
+                        val requestFile = okhttp3.RequestBody.create("image/*".toMediaTypeOrNull(), file)
+                        imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
+                    }
+                }
+
+                val response = RetrofitClient.instance.updateProduct(
+                    id, name, category, price, description, imagePart, isActive
+                )
+                
                 if (response.success) {
                     fetchProducts()
                 } else {
@@ -101,7 +143,25 @@ class MenuViewModel : ViewModel() {
 
     fun toggleProductStatus(product: Product) {
         val updatedProduct = product.copy(isActive = !product.isActive)
-        updateProduct(product.id, updatedProduct)
+        // For toggle, we don't change image, so pass null context/uri
+        // But we need to use the new signature. The function handles nulls gracefully.
+        // We do basic update without file.
+        viewModelScope.launch {
+             try {
+                val name = createPartFromString(updatedProduct.name)
+                val category = createPartFromString(updatedProduct.category)
+                val price = createPartFromString(updatedProduct.price.toString())
+                val description = createPartFromString(updatedProduct.description ?: "")
+                val isActive = createPartFromString(updatedProduct.isActive.toString())
+                
+                RetrofitClient.instance.updateProduct(
+                     updatedProduct.id, name, category, price, description, null, isActive
+                )
+                fetchProducts(isSilent = true)
+             } catch (e: Exception) {
+                 e.printStackTrace()
+             }
+        }
     }
 
     fun deleteProduct(id: Int) {
