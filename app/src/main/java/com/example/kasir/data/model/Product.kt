@@ -9,7 +9,8 @@ data class ProductResponse(
 data class Product(
     val id: Int,
     val name: String,
-    val category: String,
+    val category: String?, // Backend might still send this or we map it
+    val categoryId: Int?, // New field
     val price: Int,
     val image: String?,
     val description: String?,

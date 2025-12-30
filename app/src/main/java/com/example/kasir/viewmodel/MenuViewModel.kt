@@ -3,6 +3,7 @@ package com.example.kasir.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kasir.data.model.Product
+import com.example.kasir.data.model.Category
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.FileUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MediaType.Companion.toMediaType
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class MenuViewModel : ViewModel() {
     private val _products = MutableStateFlow<List<Product>>(emptyList())
@@ -20,6 +24,11 @@ class MenuViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
+
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    val categories: StateFlow<List<Category>> = _categories
+
+    var selectedCategoryId by mutableStateOf(0)
 
     init {
         // Initialize Socket
@@ -33,6 +42,7 @@ class MenuViewModel : ViewModel() {
         }
 
         fetchProducts()
+        fetchCategories()
     }
 
     override fun onCleared() {
@@ -63,6 +73,56 @@ class MenuViewModel : ViewModel() {
         }
     }
 
+    fun fetchCategories() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getCategories()
+                if (response.success) {
+                    _categories.value = response.data
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun addCategory(name: String) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.addCategory(mapOf("name" to name))
+                if (response.success) fetchCategories()
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal menambah kategori: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun updateCategory(id: Int, name: String) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.updateCategory(id, mapOf("name" to name))
+                if (response.success) fetchCategories()
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal update kategori: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun deleteCategory(id: Int) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.deleteCategory(id)
+                if (response.success) {
+                    fetchCategories()
+                } else {
+                    _errorMessage.value = response.message // Display backend error (e.g., used by products)
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal menghapus kategori: ${e.localizedMessage}"
+            }
+        }
+    }
+
 
     private fun createPartFromString(stringData: String): okhttp3.RequestBody {
         return okhttp3.RequestBody.create("text/plain".toMediaTypeOrNull(), stringData)
@@ -74,7 +134,8 @@ class MenuViewModel : ViewModel() {
             _errorMessage.value = null
             try {
                 val name = createPartFromString(product.name)
-                val category = createPartFromString(product.category)
+                // val category = createPartFromString(product.category)
+                val categoryId = createPartFromString(product.categoryId?.toString() ?: "0")
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
                 val isActive = createPartFromString(product.isActive.toString())
@@ -91,7 +152,7 @@ class MenuViewModel : ViewModel() {
                 }
 
                 val response = RetrofitClient.instance.addProduct(
-                    name, category, price, description, imagePart, isActive
+                    name, categoryId, price, description, imagePart, isActive
                 )
                 
                 if (response.success) {
@@ -113,7 +174,8 @@ class MenuViewModel : ViewModel() {
             _errorMessage.value = null
             try {
                 val name = createPartFromString(product.name)
-                val category = createPartFromString(product.category)
+                // val category = createPartFromString(product.category)
+                val categoryId = createPartFromString(product.categoryId?.toString() ?: "0")
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
                 val isActive = createPartFromString(product.isActive.toString())
@@ -130,7 +192,7 @@ class MenuViewModel : ViewModel() {
                 }
 
                 val response = RetrofitClient.instance.updateProduct(
-                    id, name, category, price, description, imagePart, isActive
+                    id, name, categoryId, price, description, imagePart, isActive
                 )
                 
                 if (response.success) {
@@ -154,13 +216,13 @@ class MenuViewModel : ViewModel() {
         viewModelScope.launch {
              try {
                 val name = createPartFromString(updatedProduct.name)
-                val category = createPartFromString(updatedProduct.category)
+                val categoryId = createPartFromString(updatedProduct.categoryId?.toString() ?: "0")
                 val price = createPartFromString(updatedProduct.price.toString())
                 val description = createPartFromString(updatedProduct.description ?: "")
                 val isActive = createPartFromString(updatedProduct.isActive.toString())
                 
                 RetrofitClient.instance.updateProduct(
-                     updatedProduct.id, name, category, price, description, null, isActive
+                     updatedProduct.id, name, categoryId, price, description, null, isActive
                 )
                 fetchProducts(isSilent = true)
              } catch (e: Exception) {

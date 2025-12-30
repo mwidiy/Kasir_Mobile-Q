@@ -12,11 +12,23 @@ interface ApiService {
     @GET("api/products/{id}")
     suspend fun getProductById(@Path("id") id: Int): SingleProductResponse
 
+    @GET("api/categories")
+    suspend fun getCategories(): com.example.kasir.data.model.CategoryResponse
+
+    @POST("api/categories")
+    suspend fun addCategory(@Body category: Map<String, String>): com.example.kasir.data.model.SingleCategoryResponse
+
+    @PUT("api/categories/{id}")
+    suspend fun updateCategory(@Path("id") id: Int, @Body category: Map<String, String>): com.example.kasir.data.model.SingleCategoryResponse
+
+    @DELETE("api/categories/{id}")
+    suspend fun deleteCategory(@Path("id") id: Int): com.example.kasir.data.model.SingleCategoryResponse
+
     @Multipart
     @POST("api/products")
     suspend fun addProduct(
         @Part("name") name: okhttp3.RequestBody,
-        @Part("category") category: okhttp3.RequestBody,
+        @Part("categoryId") categoryId: okhttp3.RequestBody,
         @Part("price") price: okhttp3.RequestBody,
         @Part("description") description: okhttp3.RequestBody,
         @Part image: okhttp3.MultipartBody.Part?,
@@ -28,7 +40,7 @@ interface ApiService {
     suspend fun updateProduct(
         @Path("id") id: Int,
         @Part("name") name: okhttp3.RequestBody,
-        @Part("category") category: okhttp3.RequestBody,
+        @Part("categoryId") categoryId: okhttp3.RequestBody,
         @Part("price") price: okhttp3.RequestBody,
         @Part("description") description: okhttp3.RequestBody,
         @Part image: okhttp3.MultipartBody.Part?,

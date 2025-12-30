@@ -44,8 +44,9 @@ import com.example.kasir.ui.banner.BannerListScreen
 import com.example.kasir.ui.banner.BannerFormScreen
 import com.example.kasir.ui.banner.BannerItem
 import com.example.kasir.ui.menu.MenuFormScreen
-import com.example.kasir.ui.menu.AddEditProductScreen // Added import
-import com.example.kasir.data.model.Product // Added import
+import com.example.kasir.ui.menu.AddEditProductScreen
+import com.example.kasir.data.model.Product
+import com.example.kasir.data.model.Category // Added import
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.viewmodel.MenuViewModel
 import com.example.kasir.ui.banner.BannerListScreen
@@ -67,6 +68,7 @@ data class MenuItem(
     val name: String,
     val category: String, // "makanan", "minuman", "cemilan", "paket"
     val categoryDisplay: String,
+    val categoryId: Int?, // New field
     val price: String,
     val isActive: Boolean,
     val description: String? = null,
@@ -74,14 +76,14 @@ data class MenuItem(
 )
 
 val initialMenuItems = listOf(
-    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", "Rp 15.000", true, "Enak", null),
-    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", "Rp 12.000", true, "Jowo tulen", null),
-    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", "Rp 18.000", false, "Manis", null),
-    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", "Rp 5.000", true, "Seger", null),
-    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", "Rp 8.000", true, "Asem manis", null),
-    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", "Rp 20.000", true, "Madura", null),
-    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", "Rp 10.000", true, "Kriuk", null),
-    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", "Rp 12.000", true, "Kopi", null)
+    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", 1, "Rp 15.000", true, "Enak", null),
+    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", 1, "Rp 12.000", true, "Jowo tulen", null),
+    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", 1, "Rp 18.000", false, "Manis", null),
+    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", 2, "Rp 5.000", true, "Seger", null),
+    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", 2, "Rp 8.000", true, "Asem manis", null),
+    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", 1, "Rp 20.000", true, "Madura", null),
+    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", 3, "Rp 10.000", true, "Kriuk", null),
+    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", 2, "Rp 12.000", true, "Kopi", null)
 )
 
 @Composable
@@ -92,10 +94,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("all") }
+    // var selectedCategory by remember { mutableStateOf("all") }  <-- Removed, using ViewModel
     // Initialize with empty list, data will come from VM
     var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var isFabExpanded by remember { mutableStateOf(false) }
+
+    val categoriesState by viewModel.categories.collectAsState()
 
     // Sync products from VM to local menuList (UI Model)
     LaunchedEffect(products) {
@@ -103,8 +107,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             MenuItem(
                 id = product.id.toString(),
                 name = product.name,
-                category = product.category.lowercase(),
-                categoryDisplay = product.category,
+                category = product.category?.lowercase() ?: "",
+                categoryDisplay = product.category ?: "",
+                categoryId = product.categoryId,
                 price = "Rp ${product.price}",
                 isActive = product.isActive,
                 description = product.description,
@@ -117,7 +122,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     var showActionSheet by remember { mutableStateOf<MenuItem?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<MenuItem?>(null) }
     var showAddCategoryModal by remember { mutableStateOf(false) }
-    var showEditCategoryModal by remember { mutableStateOf<String?>(null) } // category id/name
+    
+    // Category Management State
+    var showCategoryActionSheet by remember { mutableStateOf<Category?>(null) }
+    var showEditCategoryModal by remember { mutableStateOf<Category?>(null) }
+    var showDeleteCategoryConfirm by remember { mutableStateOf<Category?>(null) }
+    
     var showGuideModal by remember { mutableStateOf(false) }
     
     var activeTab by remember { mutableStateOf("menu") } // "menu" or "banner"
@@ -135,8 +145,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     // var activeProductItem by remember { mutableStateOf<MenuItem?>(null) }
     
     // Filtering (Menu)
+    // Filtering (Menu)
     val filteredItems = menuList.filter { item ->
-        (selectedCategory == "all" || item.category == selectedCategory) &&
+        (viewModel.selectedCategoryId == 0 || item.categoryId == viewModel.selectedCategoryId) &&
         (searchQuery.isEmpty() || item.name.contains(searchQuery, ignoreCase = true))
     }
 
@@ -257,19 +268,28 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            val categories = listOf(
-                                "all" to "Semua", 
-                                "makanan" to "Makanan Berat", 
-                                "minuman" to "Minuman", 
-                                "cemilan" to "Cemilan", 
-                                "paket" to "Paket Hemat"
-                            )
-                            items(categories) { (id, label) ->
+                            // "All" Item
+                            item(key = 0) {
                                 FilterChipCustom(
-                                    label = label,
-                                    isActive = selectedCategory == id,
-                                    onClick = { selectedCategory = id },
-                                    onLongClick = { if(id != "all") showEditCategoryModal = label }
+                                    label = "Semua",
+                                    isActive = viewModel.selectedCategoryId == 0,
+                                    onClick = { viewModel.selectedCategoryId = 0 },
+                                    onLongClick = {}
+                                )
+                            }
+                            
+                            // Dynamic Items
+                            items(
+                                items = categoriesState,
+                                key = { it.id }
+                            ) { cat ->
+                                FilterChipCustom(
+                                    label = cat.name,
+                                    isActive = viewModel.selectedCategoryId == cat.id,
+                                    onClick = { viewModel.selectedCategoryId = cat.id },
+                                    onLongClick = { 
+                                        showCategoryActionSheet = cat
+                                    }
                                 )
                             }
                         }
@@ -294,6 +314,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                                         name = item.name,
                                         price = item.price.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0,
                                         category = item.category,
+                                        categoryId = item.categoryId,
                                         description = item.description,
                                         image = item.image,
                                         isActive = item.isActive
@@ -475,20 +496,52 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 label = "Nama Kategori Baru",
                 placeholder = "cth: Manisan, Jus",
                 onSave = { 
-                    // Add category logic here
+                    viewModel.addCategory(it)
                     showAddCategoryModal = false 
                 },
                 onCancel = { showAddCategoryModal = false }
             )
         }
         
+        if (showCategoryActionSheet != null) {
+            ActionSheetModal(
+                title = "Opsi Kategori: ${showCategoryActionSheet!!.name}",
+                onEdit = {
+                    val cat = showCategoryActionSheet
+                    showCategoryActionSheet = null
+                    showEditCategoryModal = cat
+                },
+                onDelete = {
+                    val cat = showCategoryActionSheet
+                    showCategoryActionSheet = null
+                    showDeleteCategoryConfirm = cat
+                },
+                onDismiss = { showCategoryActionSheet = null }
+            )
+        }
+
         if (showEditCategoryModal != null) {
              InputModal(
                 title = "Edit Kategori",
                 label = "Nama Kategori",
-                initialValue = showEditCategoryModal!!,
-                onSave = { showEditCategoryModal = null },
+                initialValue = showEditCategoryModal!!.name,
+                onSave = { 
+                    viewModel.updateCategory(showEditCategoryModal!!.id, it)
+                    showEditCategoryModal = null
+                },
                 onCancel = { showEditCategoryModal = null }
+            )
+        }
+
+        if (showDeleteCategoryConfirm != null) {
+            ConfirmationModal(
+                title = "Hapus Kategori?",
+                desc = "Menghapus kategori mungkin mempengaruhi produk yang menggunakan kategori ini.",
+                onConfirm = {
+                    viewModel.deleteCategory(showDeleteCategoryConfirm!!.id)
+                    showDeleteCategoryConfirm = null
+                },
+                onCancel = { showDeleteCategoryConfirm = null }
             )
         }
 

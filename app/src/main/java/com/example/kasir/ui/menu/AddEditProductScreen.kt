@@ -54,7 +54,7 @@ fun AddEditProductScreen(
             if (product != null) {
                 name = product.name
                 price = product.price.toString()
-                category = product.category
+                category = product.categoryId?.toString() ?: ""
                 description = product.description ?: ""
                 existingImageUrl = product.image
                 isActive = product.isActive
@@ -63,13 +63,8 @@ fun AddEditProductScreen(
         }
     }
 
-    val categories = listOf(
-        "makanan" to "Makanan Berat", 
-        "minuman" to "Minuman", 
-        "cemilan" to "Cemilan",
-        "paket" to "Paket Hemat"
-    )
-    val categoryDisplay = categories.find { it.first == category }?.second ?: "Pilih Kategori"
+    val categoriesState by viewModel.categories.collectAsState()
+    val categoryDisplay = categoriesState.find { it.id == category.toIntOrNull() }?.name ?: "Pilih Kategori"
 
     Scaffold(
         topBar = {
@@ -149,11 +144,11 @@ fun AddEditProductScreen(
                             onDismissRequest = { expanded = false },
                             modifier = Modifier.background(Color.White)
                         ) {
-                            categories.forEach { (id, label) ->
+                            categoriesState.forEach { cat ->
                                 DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(cat.name) },
                                     onClick = {
-                                        category = id
+                                        category = cat.id.toString()
                                         expanded = false
                                     }
                                 )
@@ -289,7 +284,8 @@ fun AddEditProductScreen(
                         id = if (isEditMode) productId!!.toInt() else 0,
                         name = name,
                         price = price.toIntOrNull() ?: 0,
-                        category = category,
+                        category = null, // Backend handles this
+                        categoryId = category.toIntOrNull(),
                         description = description,
                         image = existingImageUrl, 
                         isActive = isActive
