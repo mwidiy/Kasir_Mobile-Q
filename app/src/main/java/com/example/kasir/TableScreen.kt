@@ -14,18 +14,15 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,21 +33,22 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.kasir.ui.theme.KasirTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kasir.data.model.Location
+import com.example.kasir.data.model.Table
+import com.example.kasir.viewmodel.TableViewModel
 
 // --- COLORS ---
 private val QrBg = Color(0xFFF8F9FA)
 private val QrPrimaryBlue = Color(0xFF1E3A5F)
 private val QrPrimaryYellow = Color(0xFFFDD85D)
 private val QrActiveGreen = Color(0xFF2ECC71)
-private val QrInactiveGray = Color(0xFFE0E0E0)
 private val QrTextDark = Color(0xFF1F2937)
 private val QrTextMuted = Color(0xFF9CA3AF)
 private val StatusOpenBg = Color(0xFFFFFFFF)
@@ -65,24 +63,6 @@ private val InfoBoxText = Color(0xFF166534)
 private val InfoBoxBorder = Color(0xFFBBF7D0)
 private val DeleteRed = Color(0xFFEF4444)
 
-// --- MODELS ---
-data class TableItem(
-    val id: String,
-    val name: String,
-    val area: String, // "lantai-1", "outdoor", "vip"
-    val areaDisplay: String,
-    val isActive: Boolean
-)
-
-val initialTableItems = listOf(
-    TableItem("1", "Meja 01", "lantai-1", "Lantai 1", true),
-    TableItem("2", "Meja 02", "lantai-1", "Lantai 1", true),
-    TableItem("3", "Meja 03", "outdoor", "Outdoor", true),
-    TableItem("4", "Meja 04", "outdoor", "Outdoor", true),
-    TableItem("5", "Meja 05", "vip", "VIP", true),
-    TableItem("6", "Meja 06", "vip", "VIP", true)
-)
-
 data class QrStatus(
     val isOpen: Boolean = true,
     val openText: String = "Buka",
@@ -91,20 +71,33 @@ data class QrStatus(
 
 @Composable
 fun TableScreen(onNavigate: (String) -> Unit) {
-    var selectedArea by remember { mutableStateOf("all") }
-    var tableList by remember { mutableStateOf(initialTableItems) }
-    var globalStatus by remember { mutableStateOf(QrStatus()) }
+    val viewModel: TableViewModel = viewModel()
+    val locations by viewModel.locations.collectAsState()
+    val tables by viewModel.tables.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+
     var isFabExpanded by remember { mutableStateOf(false) }
+    var globalStatus by remember { mutableStateOf(QrStatus()) }
 
     // Modals & Sheets State
-    var showTableOptions by remember { mutableStateOf<TableItem?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf<TableItem?>(null) }
-    var showQrModal by remember { mutableStateOf<TableItem?>(null) }
+    var showTableOptions by remember { mutableStateOf<Table?>(null) }
+    var showDeleteTableConfirm by remember { mutableStateOf<Table?>(null) }
+    var showQrModal by remember { mutableStateOf<Table?>(null) }
+    
     var showAddTableModal by remember { mutableStateOf(false) }
     
-    // Filtering
-    val filteredTables = tableList.filter { item ->
-        selectedArea == "all" || item.area == selectedArea
+    // Location Management
+    var showAddLocationModal by remember { mutableStateOf(false) }
+    var showLocationOptions by remember { mutableStateOf<Location?>(null) }
+    var showEditLocationModal by remember { mutableStateOf<Location?>(null) }
+    var showDeleteLocationConfirm by remember { mutableStateOf<Location?>(null) }
+
+    // Use viewmodel selectedLocationId
+    val filteredTables = if (viewModel.selectedLocationId == 0) {
+        tables
+    } else {
+        tables.filter { it.locationId == viewModel.selectedLocationId }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(QrBg)) {
@@ -113,7 +106,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF2D3E50)) // Header color from CSS
+                    .background(Color(0xFF2D3E50))
                     .padding(24.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -121,61 +114,86 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 Text("Manajemen Meja & QR", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            // Scrollable Content
-            LazyColumn(
-                contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                item {
-                    // Status Card
-                    StatusCard(globalStatus, onToggle = { globalStatus = globalStatus.copy(isOpen = !globalStatus.isOpen) })
-                    Spacer(modifier = Modifier.height(20.dp))
+            if (isLoading && tables.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = QrPrimaryBlue)
                 }
-
-                item {
-                    // Filter Tabs
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(bottom = 5.dp) // padding for scrolling shadow or spacing
-                    ) {
-                        val areas = listOf("all" to "Semua", "lantai-1" to "Lantai 1", "outdoor" to "Outdoor", "vip" to "VIP")
-                        items(areas) { (id, label) ->
-                            FilterPill(
-                                label = label,
-                                isActive = selectedArea == id,
-                                onClick = { selectedArea = id }
-                            )
-                        }
+            } else {
+                // Scrollable Content
+                LazyColumn(
+                    contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                ) {
+                    item {
+                        // Status Card
+                        StatusCard(globalStatus, onToggle = { globalStatus = globalStatus.copy(isOpen = !globalStatus.isOpen) })
+                        Spacer(modifier = Modifier.height(20.dp))
                     }
-                    Spacer(modifier = Modifier.height(15.dp))
-                }
 
-                // Table Grid
-                // We use a custom Grid layout inside LazyColumn via item chunking or simple FlowRow equivalent if available, 
-                // but since we are inside a LazyColumn, we can't easily nest a LazyVerticalGrid.
-                // We will manually chunk the list into rows of 2.
-                items(filteredTables.chunked(2)) { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        for (item in rowItems) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                TableCard(
-                                    item = item,
-                                    onToggle = { 
-                                        tableList = tableList.map { if (it.id == item.id) it.copy(isActive = !it.isActive) else it }
-                                    },
-                                    onQrClick = { showQrModal = item },
-                                    onOptionClick = { showTableOptions = item }
+                    item {
+                        // Location Chips
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 15.dp)
+                        ) {
+                             // "Semua" Chip
+                            item {
+                                FilterPill(
+                                    label = "Semua",
+                                    isActive = viewModel.selectedLocationId == 0,
+                                    onClick = { viewModel.selectedLocationId = 0 },
+                                    onLongClick = {}
+                                )
+                            }
+                            
+                            // Dynamic Locations
+                            // Removed the standalone "+" chip as requested.
+                            // Added key for stability.
+                            items(locations, key = { it.id }) { loc ->
+                                FilterPill(
+                                    label = loc.name,
+                                    isActive = viewModel.selectedLocationId == loc.id,
+                                    onClick = { viewModel.selectedLocationId = loc.id },
+                                    onLongClick = { showLocationOptions = loc }
                                 )
                             }
                         }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+                    }
+
+                    // Table Grid
+                    items(filteredTables.chunked(2)) { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            for (item in rowItems) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    TableCard(
+                                        item = item,
+                                        onToggle = { 
+                                            // Toggle functionality currently not in VM/API for 'isActive' update
+                                            // Just placeholder or if API supported:
+                                            // viewModel.updateTable(item.id, ..., !isActive)
+                                        },
+                                        onQrClick = { showQrModal = item },
+                                        onOptionClick = { showTableOptions = item }
+                                    )
+                                }
+                            }
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    
+                    if (filteredTables.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                                Text("Tidak ada meja di lokasi ini", color = Color.Gray)
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
@@ -201,14 +219,17 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut()
                 ) {
-                    FabSubButton("Tambah Lokasi", "📍") { /* Add Location Logic */ }
+                    TableFabSubButton("Tambah Lokasi", "📍") { 
+                        isFabExpanded = false
+                        showAddLocationModal = true
+                    }
                 }
                 AnimatedVisibility(
                     visible = isFabExpanded,
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut()
                 ) {
-                     FabSubButton("Tambah Meja", "🪑") { 
+                     TableFabSubButton("Tambah Meja", "🪑") { 
                          isFabExpanded = false
                          showAddTableModal = true
                      }
@@ -247,43 +268,97 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         }
 
         if (showTableOptions != null) {
-            ActionSheetModal(
+            TableActionSheetModal(
                 title = "Opsi Meja: ${showTableOptions!!.name}",
                 onEdit = { 
                     showTableOptions = null
-                    // Edit logic 
+                    // Edit logic not implemented yet
                 },
                 onDelete = {
                     val item = showTableOptions
                     showTableOptions = null
-                    showDeleteConfirm = item
+                    showDeleteTableConfirm = item
                 },
                 onDismiss = { showTableOptions = null }
             )
         }
 
-        if (showDeleteConfirm != null) {
-            ConfirmationModal(
+        if (showDeleteTableConfirm != null) {
+            TableConfirmationModal(
                 title = "Hapus Meja Ini?",
                 desc = "Menghapus meja akan menghilangkan QR code dan data terkait. Tindakan ini tidak dapat dibatalkan.",
                 onConfirm = {
-                    tableList = tableList.filter { it.id != showDeleteConfirm!!.id }
-                    showDeleteConfirm = null
+                    viewModel.deleteTable(showDeleteTableConfirm!!.id)
+                    showDeleteTableConfirm = null
                 },
-                onCancel = { showDeleteConfirm = null }
+                onCancel = { showDeleteTableConfirm = null }
             )
         }
         
         if (showAddTableModal) {
-            InputModal(
-                title = "Tambah Meja",
-                label = "Nomor Meja",
-                placeholder = "Contoh: Meja 12",
-                onSave = { 
-                    // Add table logic
+            AddTableDialog(
+                locations = locations,
+                onSave = { name, locId ->
+                    viewModel.addTable(name, locId)
                     showAddTableModal = false
                 },
                 onCancel = { showAddTableModal = false }
+            )
+        }
+        
+        // Location Modals
+        if (showAddLocationModal) {
+            TableInputModal(
+                title = "Tambah Lokasi",
+                label = "Nama Lokasi",
+                placeholder = "Contoh: Lantai 2, Outdoor",
+                onSave = { name: String -> // Explicit type
+                    viewModel.addLocation(name)
+                    showAddLocationModal = false
+                },
+                onCancel = { showAddLocationModal = false }
+            )
+        }
+        
+        if (showLocationOptions != null) {
+             TableActionSheetModal(
+                title = "Opsi Lokasi: ${showLocationOptions!!.name}",
+                onEdit = {
+                    val loc = showLocationOptions
+                    showLocationOptions = null
+                    showEditLocationModal = loc
+                },
+                onDelete = {
+                    val loc = showLocationOptions
+                    showLocationOptions = null
+                    showDeleteLocationConfirm = loc
+                },
+                onDismiss = { showLocationOptions = null }
+            )
+        }
+        
+        if (showEditLocationModal != null) {
+            TableInputModal(
+                title = "Edit Lokasi",
+                label = "Nama Lokasi",
+                initialValue = showEditLocationModal!!.name,
+                onSave = { name: String -> // Explicit type
+                    viewModel.updateLocation(showEditLocationModal!!.id, name)
+                    showEditLocationModal = null
+                },
+                onCancel = { showEditLocationModal = null }
+            )
+        }
+        
+        if (showDeleteLocationConfirm != null) {
+             TableConfirmationModal(
+                title = "Hapus Lokasi?",
+                desc = "Meja yang ada di lokasi ini mungkin akan kehilangan referensi lokasinya atau tidak tampil.",
+                onConfirm = {
+                    viewModel.deleteLocation(showDeleteLocationConfirm!!.id)
+                    showDeleteLocationConfirm = null
+                },
+                onCancel = { showDeleteLocationConfirm = null }
             )
         }
     }
@@ -307,7 +382,7 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
                 Column {
                     Text("Status Operasional Kantin", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                        Text("• ", color = if (status.isOpen) QrActiveGreen else DeleteRed, fontWeight = FontWeight.Bold) // Dot icon
+                        Text("• ", color = if (status.isOpen) QrActiveGreen else DeleteRed, fontWeight = FontWeight.Bold)
                         Text(
                             if (status.isOpen) status.openText else status.closedText,
                             color = if (status.isOpen) QrActiveGreen else DeleteRed,
@@ -352,14 +427,19 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
 }
 
 @Composable
-fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit) {
+fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     Surface(
         color = if (isActive) Color(0xFF2D3E50) else Color.White,
         contentColor = if (isActive) Color.White else Color(0xFF666666),
         shape = RoundedCornerShape(50.dp),
         border = if (!isActive) BorderStroke(1.dp, Color.Transparent) else null,
         shadowElevation = if (isActive) 4.dp else 1.dp,
-        modifier = Modifier.clickable { onClick() }
+        modifier = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = { onClick() },
+                onLongPress = { onLongClick() }
+            )
+        }
     ) {
         Text(
             text = label,
@@ -371,7 +451,7 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun TableCard(item: TableItem, onToggle: () -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+fun TableCard(item: Table, onToggle: () -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -388,7 +468,13 @@ fun TableCard(item: TableItem, onToggle: () -> Unit, onQrClick: () -> Unit, onOp
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
-                        Text(item.areaDisplay, fontSize = 10.sp, color = QrTextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontWeight = FontWeight.Medium)
+                        Text(
+                            text = item.location?.name ?: "Unknown",
+                            fontSize = 10.sp, 
+                            color = QrTextMuted, 
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
                 Icon(
@@ -416,7 +502,7 @@ fun TableCard(item: TableItem, onToggle: () -> Unit, onQrClick: () -> Unit, onOp
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_camera), // Placeholder icon
+                        painter = painterResource(id = android.R.drawable.ic_menu_camera),
                         contentDescription = "QR",
                         tint = if (item.isActive) QrPrimaryBlue else Color.Gray,
                         modifier = Modifier.size(32.dp)
@@ -429,14 +515,6 @@ fun TableCard(item: TableItem, onToggle: () -> Unit, onQrClick: () -> Unit, onOp
             Spacer(modifier = Modifier.height(12.dp))
             
             // Footer
-            Row(
-                modifier = Modifier.fillMaxWidth().border(0.dp, Color.Transparent).padding(top = 12.dp), // Separator visual via padding/border
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Determine visuals manually
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF3F4F6)))
-            }
              Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -454,10 +532,8 @@ fun TableCard(item: TableItem, onToggle: () -> Unit, onQrClick: () -> Unit, onOp
     }
 }
 
-
-
 @Composable
-fun QrModal(table: TableItem, onDismiss: () -> Unit) {
+fun QrModal(table: Table, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -475,7 +551,7 @@ fun QrModal(table: TableItem, onDismiss: () -> Unit) {
                 ) {
                     Text("QR Code Meja", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel), // Fallback for close
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                         contentDescription = "Close", 
                         tint = Color.Gray, 
                         modifier = Modifier.clickable { onDismiss() }
@@ -488,7 +564,6 @@ fun QrModal(table: TableItem, onDismiss: () -> Unit) {
                 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // QR Preview (Mock)
                 Box(
                     modifier = Modifier
                         .size(150.dp)
@@ -496,7 +571,6 @@ fun QrModal(table: TableItem, onDismiss: () -> Unit) {
                         .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                      // Using a text placeholder if icon is problematic, or just a simple box
                       Text("QR CODE", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
                 
@@ -515,6 +589,197 @@ fun QrModal(table: TableItem, onDismiss: () -> Unit) {
     }
 }
 
-// Extension to scale modifier using built-in graphicsLayer
-fun Modifier.scaleCustom(scale: Float) = this.then(Modifier.graphicsLayer(scaleX = scale, scaleY = scale))
+@Composable
+fun AddTableDialog(
+    locations: List<Location>,
+    onSave: (String, Int) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var selectedLocation by remember { mutableStateOf<Location?>(null) }
+    var expanded by remember { mutableStateOf(false) }
 
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text("Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text("Nomor / Nama Meja", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    placeholder = { Text("Contoh: Meja 12") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // DROPDOWN MENU
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = selectedLocation?.name ?: "Pilih Lokasi",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, "drop") },
+                        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+                        enabled = false, // Disable typing, handled by Box click
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Black,
+                            disabledBorderColor = Color.Gray,
+                            disabledPlaceholderColor = Color.Gray,
+                            disabledTrailingIconColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    // We need an invisible overlay or use ReadOnly TextField with interaction source
+                    Box(modifier = Modifier.matchParentSize().clickable { expanded = true })
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.fillMaxWidth(0.7f).background(Color.White)
+                    ) {
+                        locations.forEach { location ->
+                            DropdownMenuItem(
+                                text = { Text(location.name) },
+                                onClick = {
+                                    selectedLocation = location
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = { 
+                        if (name.isNotEmpty() && selectedLocation != null) {
+                            onSave(name, selectedLocation!!.id)
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = name.isNotEmpty() && selectedLocation != null
+                ) { 
+                    Text("Simpan") 
+                }
+            }
+        }
+    }
+}
+
+// Reuse FabSubButton & Modals from MenuScreen if needed, but defining simple versions here to avoid breakage.
+// Renamed to TableFabSubButton
+@Composable
+private fun TableFabSubButton(text: String, icon: String, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClick() }) {
+        Surface(
+            color = Color.White,
+            shadowElevation = 2.dp,
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.padding(end = 8.dp)
+        ) {
+            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        }
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF2D3E50)),
+            contentAlignment = Alignment.Center
+        ) {
+             Text(icon, fontSize = 18.sp, color = Color.White)
+        }
+    }
+}
+
+// Simple Input Modal specific for Table/Location simple strings
+// Renamed to TableInputModal
+@Composable
+private fun TableInputModal(title: String, label: String, placeholder: String = "", initialValue: String = "", onSave: (String) -> Unit, onCancel: () -> Unit) {
+    var text by remember { mutableStateOf(initialValue) }
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text, 
+                    onValueChange = { text = it }, 
+                    placeholder = { Text(placeholder) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                 Spacer(modifier = Modifier.height(24.dp))
+                 Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan") }
+            }
+        }
+    }
+}
+
+// Simple Action Sheet
+// Renamed to TableActionSheetModal
+@Composable
+private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(24.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 20.dp))
+                Row(modifier = Modifier.fillMaxWidth().clickable { onEdit() }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Edit", fontWeight = FontWeight.SemiBold)
+                }
+                Divider(color = Color(0xFFF3F4F6))
+                Row(modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(44.dp).background(Color(0xFFFEE2E2), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = DeleteRed)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Hapus", fontWeight = FontWeight.SemiBold, color = DeleteRed)
+                }
+            }
+        }
+    }
+}
+
+// Simple Confirmation
+// Renamed to TableConfirmationModal
+@Composable
+private fun TableConfirmationModal(title: String, desc: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                 Box(modifier = Modifier.size(72.dp).background(Color(0xFF1F2937), CircleShape), contentAlignment = Alignment.Center) {
+                     Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+                 }
+                 Spacer(modifier = Modifier.height(16.dp))
+                 Text(title, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                 Spacer(modifier = Modifier.height(8.dp))
+                 Text(desc, textAlign = TextAlign.Center, color = Color.Gray, fontSize = 14.sp)
+                 Spacer(modifier = Modifier.height(24.dp))
+                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                     Button(onClick = onCancel, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.weight(1f)) { Text("Batal") }
+                     Button(onClick = onConfirm, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus") }
+                 }
+            }
+        }
+    }
+}
+
+// Made PRIVATE
+private fun Modifier.scaleCustom(scale: Float) = this.then(Modifier.graphicsLayer(scaleX = scale, scaleY = scale))

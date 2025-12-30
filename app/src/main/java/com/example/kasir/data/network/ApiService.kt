@@ -6,6 +6,12 @@ import com.example.kasir.data.model.SingleProductResponse
 import retrofit2.http.*
 import com.example.kasir.data.model.Banner
 import com.example.kasir.data.model.ApiResponse
+import com.example.kasir.data.model.Location
+import com.example.kasir.data.model.LocationResponse
+import com.example.kasir.data.model.SingleLocationResponse
+import com.example.kasir.data.model.Table
+import com.example.kasir.data.model.TableResponse
+import com.example.kasir.data.model.SingleTableResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -82,4 +88,29 @@ interface ApiService {
         @Part image: MultipartBody.Part?,
         @Part("isActive") isActive: RequestBody
     ): Response<ApiResponse<Banner>>
+
+    // Location Endpoints
+    @GET("api/locations")
+    suspend fun getLocations(): LocationResponse
+
+    @POST("api/locations")
+    suspend fun addLocation(@Body location: Map<String, String>): SingleLocationResponse
+
+    @PUT("api/locations/{id}")
+    suspend fun updateLocation(@Path("id") id: Int, @Body location: Map<String, String>): SingleLocationResponse
+
+    @DELETE("api/locations/{id}")
+    suspend fun deleteLocation(@Path("id") id: Int): SingleLocationResponse
+
+    // Table Endpoints
+    @GET("api/tables")
+    suspend fun getTables(): TableResponse
+
+    @POST("api/tables")
+    suspend fun addTable(
+         @Body tableData: Map<String, Any> // Sending name and locationId
+    ): SingleTableResponse
+
+    @DELETE("api/tables/{id}")
+    suspend fun deleteTable(@Path("id") id: Int): SingleTableResponse
 }
