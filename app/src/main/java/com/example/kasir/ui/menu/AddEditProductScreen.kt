@@ -40,7 +40,6 @@ fun AddEditProductScreen(
     var price by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    // var image by remember { mutableStateOf("") } // Deprecated string URL
     var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var existingImageUrl by remember { mutableStateOf<String?>(null) }
     
@@ -57,7 +56,6 @@ fun AddEditProductScreen(
                 price = product.price.toString()
                 category = product.category
                 description = product.description ?: ""
-                // image = product.image ?: ""
                 existingImageUrl = product.image
                 isActive = product.isActive
                 isInitialized = true

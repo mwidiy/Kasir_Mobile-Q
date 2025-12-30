@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kasir.data.model.Product
 import com.example.kasir.data.network.RetrofitClient
+import com.example.kasir.utils.FileUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -80,9 +81,11 @@ class MenuViewModel : ViewModel() {
                 
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null) {
-                    val file = com.example.kasir.utils.FileUtils.getFileFromUri(context, imageUri)
+                    val file = FileUtils.getFileFromUri(context, imageUri)
                     if (file != null) {
-                        val requestFile = okhttp3.RequestBody.create("image/*".toMediaTypeOrNull(), file)
+                        val contentResolver = context.contentResolver
+                        val type = contentResolver.getType(imageUri) ?: "image/jpeg"
+                        val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
                         imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
                     }
                 }
@@ -117,9 +120,11 @@ class MenuViewModel : ViewModel() {
 
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null && context != null) {
-                    val file = com.example.kasir.utils.FileUtils.getFileFromUri(context, imageUri)
+                    val file = FileUtils.getFileFromUri(context, imageUri)
                     if (file != null) {
-                        val requestFile = okhttp3.RequestBody.create("image/*".toMediaTypeOrNull(), file)
+                        val contentResolver = context.contentResolver
+                        val type = contentResolver.getType(imageUri) ?: "image/jpeg"
+                        val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
                         imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
                     }
                 }
