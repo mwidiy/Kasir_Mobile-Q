@@ -4,6 +4,11 @@ import com.example.kasir.data.model.Product
 import com.example.kasir.data.model.ProductResponse
 import com.example.kasir.data.model.SingleProductResponse
 import retrofit2.http.*
+import com.example.kasir.data.model.Banner
+import com.example.kasir.data.model.ApiResponse
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import retrofit2.Response
 
 interface ApiService {
     @GET("api/products")
@@ -49,4 +54,32 @@ interface ApiService {
 
     @DELETE("api/products/{id}")
     suspend fun deleteProduct(@Path("id") id: Int): SingleProductResponse
+
+    // Banner Endpoints
+    @GET("api/banners")
+    suspend fun getBanners(): Response<ApiResponse<List<Banner>>>
+
+    @DELETE("api/banners/{id}")
+    suspend fun deleteBanner(@Path("id") id: Int): Response<ApiResponse<Any>>
+
+    @Multipart
+    @POST("api/banners")
+    suspend fun addBanner(
+        @Part("title") title: RequestBody,
+        @Part("subtitle") subtitle: RequestBody?,
+        @Part("highlightText") highlightText: RequestBody?,
+        @Part image: MultipartBody.Part,
+        @Part("isActive") isActive: RequestBody
+    ): Response<ApiResponse<Banner>>
+
+    @Multipart
+    @PUT("api/banners/{id}")
+    suspend fun updateBanner(
+        @Path("id") id: Int,
+        @Part("title") title: RequestBody,
+        @Part("subtitle") subtitle: RequestBody?,
+        @Part("highlightText") highlightText: RequestBody?,
+        @Part image: MultipartBody.Part?,
+        @Part("isActive") isActive: RequestBody
+    ): Response<ApiResponse<Banner>>
 }

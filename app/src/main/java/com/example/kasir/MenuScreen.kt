@@ -42,13 +42,14 @@ import androidx.compose.ui.window.Dialog
 import com.example.kasir.ui.theme.KasirTheme
 import com.example.kasir.ui.banner.BannerListScreen
 import com.example.kasir.ui.banner.BannerFormScreen
-import com.example.kasir.ui.banner.BannerItem
+import com.example.kasir.data.model.Banner
 import com.example.kasir.ui.menu.MenuFormScreen
 import com.example.kasir.ui.menu.AddEditProductScreen
 import com.example.kasir.data.model.Product
 import com.example.kasir.data.model.Category // Added import
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.viewmodel.MenuViewModel
+import com.example.kasir.viewmodel.BannerViewModel
 import com.example.kasir.ui.banner.BannerListScreen
 
 // --- COLORS ---
@@ -89,6 +90,7 @@ val initialMenuItems = listOf(
 @Composable
 fun MenuScreen(onNavigate: (String) -> Unit) {
     val viewModel: MenuViewModel = viewModel()
+    val bannerViewModel: BannerViewModel = viewModel()
     val products by viewModel.products.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -137,7 +139,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     var currentScreen by remember { mutableStateOf("menu_list") } // "menu_list", "add_product", "edit_product"
     var selectedProductId by remember { mutableStateOf<String?>(null) } // For edit
 
-    var selectedBannerToEdit by remember { mutableStateOf<BannerItem?>(null) }
+    var selectedBannerToEdit by remember { mutableStateOf<Banner?>(null) }
     var selectedMenuToEdit by remember { mutableStateOf<MenuItem?>(null) }
     
     // CRUD Dialog State - REMOVED, using Screen instead
@@ -350,6 +352,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 when (bannerScreenState) {
                     "list" -> {
                         BannerListScreen(
+                            viewModel = bannerViewModel,
                             onNavigateToAdd = { bannerScreenState = "add" },
                             onNavigateToEdit = { banner -> 
                                 selectedBannerToEdit = banner
@@ -360,9 +363,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     "add" -> {
                         BannerFormScreen(
                             title = "Tambah Banner Baru",
+                            viewModel = bannerViewModel,
                             onBack = { bannerScreenState = "list" },
                             onSave = { 
-                                // Logic to save new banner
                                 bannerScreenState = "list" 
                             }
                         )
@@ -371,12 +374,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         BannerFormScreen(
                             title = "Edit Banner Promosi",
                             initialBanner = selectedBannerToEdit,
+                            viewModel = bannerViewModel,
                             onBack = { 
                                 bannerScreenState = "list"
                                 selectedBannerToEdit = null
                             },
                             onSave = { 
-                                // Logic to update banner
                                 bannerScreenState = "list" 
                                 selectedBannerToEdit = null
                             }

@@ -16,21 +16,23 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.kasir.MenuItem
-import com.example.kasir.MenuScreen
-import com.example.kasir.R
+import coil.compose.AsyncImage
+import com.example.kasir.data.model.Banner
+import com.example.kasir.viewmodel.BannerViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 // --- COLORS ---
 private val BannerBg = Color(0xFFF8F9FA)
@@ -43,28 +45,15 @@ private val DeleteRed = Color(0xFFEF4444)
 private val PrimaryBlue = Color(0xFF1E3A5F)
 private val PrimaryYellow = Color(0xFFFDD85D)
 
-data class BannerItem(
-    val id: String,
-    val title: String,
-    val description: String,
-    val price: String, // Or Promo text
-    val isActive: Boolean
-)
-
-// Dummy Data
-val sampleBanners = listOf(
-    BannerItem("1", "Paket Mantap", "Nasi Katsu", "Rp 15.000", true),
-    BannerItem("2", "Diskon Kopi", "Hari Ini", "20% OFF", true),
-    BannerItem("3", "Promo Jumat", "Berkah", "Buy 2 Get 1", false)
-)
-
 @Composable
 fun BannerListScreen(
+    viewModel: BannerViewModel,
     onNavigateToAdd: () -> Unit,
-    onNavigateToEdit: (BannerItem) -> Unit
+    onNavigateToEdit: (Banner) -> Unit
 ) {
-    var banners by remember { mutableStateOf(sampleBanners) }
-    var showDeleteConfirm by remember { mutableStateOf<BannerItem?>(null) }
+    val banners by viewModel.banners.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf<Banner?>(null) }
     var showInfoModal by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(BannerBg)) {
@@ -80,7 +69,7 @@ fun BannerListScreen(
                     .padding(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Text("ℹ️", fontSize = 14.sp) // Replace with icon if preferred
+                    Text("ℹ️", fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         "Tekan & geser ikon titik-titik untuk mengubah urutan slide. (Klik untuk info)",
@@ -100,7 +89,14 @@ fun BannerListScreen(
                     BannerCard(
                         banner = banner,
                         onToggle = {
-                            banners = banners.map { if (it.id == banner.id) it.copy(isActive = !it.isActive) else it }
+                             viewModel.saveBanner(
+                                context = context, 
+                                id = banner.id,
+                                title = banner.title,
+                                subtitle = banner.subtitle,
+                                highlightText = banner.highlightText,
+                                isActive = !banner.isActive
+                            )
                         },
                         onEdit = { onNavigateToEdit(banner) },
                         onDelete = { showDeleteConfirm = banner }
@@ -113,12 +109,12 @@ fun BannerListScreen(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 100.dp, end = 20.dp) // Adjusted to match MenuScreen default FAB position
+                .padding(bottom = 100.dp, end = 20.dp)
                 .size(56.dp)
                 .clip(CircleShape)
                 .background(PrimaryYellow)
                 .clickable { onNavigateToAdd() }
-                .padding(16.dp), // Icon padding
+                .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
               Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF1A2B48))
@@ -128,7 +124,7 @@ fun BannerListScreen(
         if (showDeleteConfirm != null) {
             BannerDeleteModal(
                 onConfirm = {
-                    banners = banners.filter { it.id != showDeleteConfirm!!.id }
+                    viewModel.deleteBanner(showDeleteConfirm!!.id)
                     showDeleteConfirm = null
                 },
                 onCancel = { showDeleteConfirm = null }
@@ -143,7 +139,7 @@ fun BannerListScreen(
 
 @Composable
 fun BannerCard(
-    banner: BannerItem,
+    banner: Banner,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
@@ -152,7 +148,7 @@ fun BannerCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().then(if (!banner.isActive) Modifier.background(Color.Transparent) else Modifier) // Opacity handled via content color/alpha usually
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Top Part (Dark)
@@ -163,12 +159,23 @@ fun BannerCard(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray)) // Image Placeholder
+                // IMAGE WITH COIL
+                Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray)) {
+                    val model = if (banner.image.startsWith("http")) banner.image else "http://192.168.1.6:3000${banner.image}"
+                    AsyncImage(
+                        model = model,
+                        contentDescription = banner.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Gray)
+                    )
+                }
+                
                 Spacer(modifier = Modifier.width(15.dp))
                 Column {
                     Text(banner.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                    Text(banner.description, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
-                    Text(banner.price, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryYellow)
+                    Text(banner.subtitle ?: "", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text(banner.highlightText ?: "", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryYellow)
                 }
             }
             
@@ -181,7 +188,7 @@ fun BannerCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painter = painterResource(android.R.drawable.ic_menu_sort_by_size), contentDescription = "Drag", tint = Color.Gray, modifier = Modifier.size(20.dp)) // Mock drag icon
+                    Icon(painter = painterResource(android.R.drawable.ic_menu_sort_by_size), contentDescription = "Drag", tint = Color.Gray, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (banner.isActive) "Status: Aktif" else "Status: Nonaktif",
@@ -216,11 +223,11 @@ fun BannerDeleteModal(onConfirm: () -> Unit, onCancel: () -> Unit) {
                  Spacer(modifier = Modifier.height(20.dp))
                  Text("Hapus Banner Ini?", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
                  Spacer(modifier = Modifier.height(12.dp))
-                 Text("Menghapus banner akan menghilangkannya secara permanen dari daftar promosi aplikasi. Tindakan ini tidak dapat dibatalkan.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
+                 Text("Menghapus banner akan menghilangkannya secara permanen dari daftar promosi aplikasi.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(24.dp))
                  Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                      Button(onClick = onCancel, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)), modifier = Modifier.weight(1f)) { Text("Batal") }
-                     Button(onClick = onConfirm, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Ya, Hapus") }
+                     Button(onClick = onConfirm, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus") }
                  }
             }
         }
@@ -236,7 +243,7 @@ fun BannerInfoModal(onDismiss: () -> Unit) {
                  Spacer(modifier = Modifier.height(15.dp))
                  Text("Pengaturan Slide", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                  Spacer(modifier = Modifier.height(12.dp))
-                 Text("Urutan banner di halaman ini menentukan urutan tampilan banner di aplikasi pelanggan. Banner yang berada paling atas akan muncul pertama kali.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
+                 Text("Urutan banner di halaman ini menentukan urutan tampilan banner di aplikasi pelanggan.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(20.dp))
                  Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue), modifier = Modifier.fillMaxWidth()) { Text("Mengerti") }
              }
@@ -247,20 +254,32 @@ fun BannerInfoModal(onDismiss: () -> Unit) {
 @Composable
 fun BannerFormScreen(
     title: String,
-    initialBanner: BannerItem? = null,
+    initialBanner: Banner? = null,
+    viewModel: BannerViewModel,
     onBack: () -> Unit,
-    onSave: (BannerItem) -> Unit
+    onSave: () -> Unit
 ) {
     var bannerTitle by remember { mutableStateOf(initialBanner?.title ?: "") }
-    var bannerDesc by remember { mutableStateOf(initialBanner?.description ?: "") }
-    var bannerPromo by remember { mutableStateOf(initialBanner?.price ?: "") }
+    var bannerDesc by remember { mutableStateOf(initialBanner?.subtitle ?: "") }
+    var bannerPromo by remember { mutableStateOf(initialBanner?.highlightText ?: "") }
     
-    // Preview uses live updates
-    val previewBanner = BannerItem(
-        id = "preview", 
+    val selectedImageUri = viewModel.selectedImageUri
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: android.net.Uri? -> 
+        if(uri != null) viewModel.selectedImageUri = uri 
+    }
+
+    LaunchedEffect(initialBanner) {
+        viewModel.selectedImageUri = null
+    }
+
+    val previewBanner = Banner(
+        id = initialBanner?.id ?: 0, 
         title = bannerTitle.ifEmpty { "Judul Promo" }, 
-        description = bannerDesc.ifEmpty { "Keterangan singkat" }, 
-        price = bannerPromo.ifEmpty { "Info Diskon" }, 
+        subtitle = bannerDesc.ifEmpty { "Keterangan singkat" }, 
+        highlightText = bannerPromo.ifEmpty { "Info Diskon" }, 
+        image = "", 
         isActive = true
     )
 
@@ -268,7 +287,7 @@ fun BannerFormScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(15.dp).border(0.dp, Color.Transparent), // Border bottom manually
+                modifier = Modifier.fillMaxWidth().padding(15.dp).border(0.dp, Color.Transparent),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
@@ -296,61 +315,55 @@ fun BannerFormScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                    Box(modifier = Modifier.size(80.dp).background(Color.White.copy(alpha=0.1f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                       // Placeholder Image or Icon
-                       Icon(painter = painterResource(android.R.drawable.ic_menu_gallery), contentDescription = null, tint = Color.White.copy(alpha=0.3f))
+                       if (selectedImageUri != null) {
+                            AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                       } else if (initialBanner != null && initialBanner.image.isNotEmpty()) {
+                            val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "http://192.168.1.6:3000${initialBanner.image}"
+                            AsyncImage(model = model, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                       } else {
+                            Icon(painter = painterResource(android.R.drawable.ic_menu_gallery), contentDescription = null, tint = Color.White.copy(alpha=0.3f))
+                       }
                    }
                    Spacer(modifier = Modifier.width(16.dp))
                    Column {
                        Text(previewBanner.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                       Text(previewBanner.description, fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
-                       Text(previewBanner.price, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryYellow)
+                       Text(previewBanner.subtitle ?: "", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+                       Text(previewBanner.highlightText ?: "", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryYellow)
                    }
                 }
                 
                 Spacer(modifier = Modifier.height(30.dp))
                 
-                // Form
                 if (title.contains("Tambah")) Text("Detail Banner", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom=10.dp))
                 
-                // --- Form Fields --- (Simplified components)
-                // Photo Upload (Mock)
-                if (title.contains("Edit")) {
-                    Column(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 20.dp)
-                        .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(12.dp))
-                        .padding(20.dp)) {
-                         Text("Foto Banner", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                         Spacer(modifier = Modifier.height(8.dp))
-                         Row(verticalAlignment = Alignment.CenterVertically) {
-                             Box(modifier = Modifier.size(64.dp).background(Color.LightGray, RoundedCornerShape(8.dp)))
-                             Spacer(modifier = Modifier.width(16.dp))
-                             Button(
-                                 onClick = {}, 
-                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF9FAFB), contentColor = Color.Black),
-                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
-                             ) {
-                                 Text("Ganti Foto")
-                             }
-                         }
-                    }
-                } else {
-                     // Upload Area for Add
-                     Column(modifier = Modifier.padding(bottom = 20.dp)) {
-                         Text("Foto Banner", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                         Box(
-                             modifier = Modifier
-                                 .fillMaxWidth()
-                                 .padding(top = 8.dp)
-                                 .border(2.dp, Color(0xFFD1D5DB), RoundedCornerShape(12.dp)) // Dashed if possible
-                                 .padding(30.dp),
-                             contentAlignment = Alignment.Center
-                         ) {
-                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                 Icon(painter = painterResource(android.R.drawable.ic_menu_upload), contentDescription = null, tint = Color.Gray)
-                                 Text("Upload Foto Banner", fontWeight = FontWeight.SemiBold)
-                                 Text("PNG, JPG (Max 2MB)", fontSize = 11.sp, color = Color.Gray)
-                             }
+                // Photo Upload
+                Column(modifier = Modifier.padding(bottom = 20.dp)) {
+                     Text("Foto Banner", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                     Box(
+                         modifier = Modifier
+                             .fillMaxWidth()
+                             .height(140.dp)
+                             .padding(top = 8.dp)
+                             .clip(RoundedCornerShape(12.dp))
+                             .border(1.dp, Color(0xFFD1D5DB), RoundedCornerShape(12.dp))
+                             .clickable { launcher.launch("image/*") },
+                         contentAlignment = Alignment.Center
+                     ) {
+                         if (selectedImageUri != null) {
+                              AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                         } else if (initialBanner != null && initialBanner.image.isNotEmpty()) {
+                              val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "http://192.168.1.6:3000${initialBanner.image}"
+                              AsyncImage(model = model, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                              // Overlay hint to change
+                              Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.3f)), contentAlignment=Alignment.Center) {
+                                  Text("Ganti Foto", color = Color.White)
+                              }
+                         } else {
+                              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                  Icon(painter = painterResource(android.R.drawable.ic_menu_upload), contentDescription = null, tint = Color.Gray)
+                                  Text("Upload Foto Banner", fontWeight = FontWeight.SemiBold)
+                                  Text("JPG/PNG", fontSize = 11.sp, color = Color.Gray)
+                              }
                          }
                      }
                 }
@@ -358,25 +371,29 @@ fun BannerFormScreen(
                 BannerInputField("Judul Utama", "Contoh: Paket Hemat", bannerTitle) { bannerTitle = it }
                 BannerInputField("Sub-judul", "Contoh: Nasi + Ayam", bannerDesc) { bannerDesc = it }
                 BannerInputField("Teks Promo (Highlight Kuning)", "Contoh: 20% OFF", bannerPromo) { bannerPromo = it }
-            }
-        }
-        
-        // Bottom Button
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color.White)
-                .border(1.dp, Color(0xFFEEEEEE))
-                .padding(20.dp)
-        ) {
-            Button(
-                onClick = { onSave(BannerItem(initialBanner?.id ?: "new", bannerTitle, bannerDesc, bannerPromo, true)) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-            ) {
-                Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold)
+                
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.saveBanner(
+                            context = context,
+                            id = if (initialBanner?.id != 0 && initialBanner?.id != null) initialBanner.id else null,
+                            title = bannerTitle,
+                            subtitle = bannerDesc,
+                            highlightText = bannerPromo,
+                            isActive = initialBanner?.isActive ?: true
+                        )
+                         onSave()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }
