@@ -91,7 +91,7 @@ interface ApiService {
 
     // Location Endpoints
     @GET("api/locations")
-    suspend fun getLocations(): LocationResponse
+    suspend fun getLocations(): List<Location>
 
     @POST("api/locations")
     suspend fun addLocation(@Body location: Map<String, String>): SingleLocationResponse
@@ -104,13 +104,11 @@ interface ApiService {
 
     // Table Endpoints
     @GET("api/tables")
-    suspend fun getTables(): TableResponse
+    suspend fun getTables(): List<Table>
 
     @POST("api/tables")
-    suspend fun addTable(
-         @Body tableData: Map<String, Any> // Sending name and locationId
-    ): SingleTableResponse
+    suspend fun addTable(@Body tableData: Map<String, Any>): Table
 
     @DELETE("api/tables/{id}")
-    suspend fun deleteTable(@Path("id") id: Int): SingleTableResponse
+    suspend fun deleteTable(@Path("id") id: Int): Table
 }

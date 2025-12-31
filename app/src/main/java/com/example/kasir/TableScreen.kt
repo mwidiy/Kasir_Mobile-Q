@@ -39,10 +39,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.kasir.data.model.Location
 import com.example.kasir.data.model.Table
-import com.example.kasir.viewmodel.TableViewModel
+import com.example.kasir.data.network.RetrofitClient
+import kotlinx.coroutines.launch
 
 // --- COLORS ---
 private val QrBg = Color(0xFFF8F9FA)
@@ -71,33 +70,53 @@ data class QrStatus(
 
 @Composable
 fun TableScreen(onNavigate: (String) -> Unit) {
-    val viewModel: TableViewModel = viewModel()
-    val locations by viewModel.locations.collectAsState()
-    val tables by viewModel.tables.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    // State Management for Data
+    var tableList by remember { mutableStateOf<List<Table>>(emptyList()) }
+    // Location Filter List from API
+    var locationList by remember { mutableStateOf<List<String>>(listOf("Semua")) }
+    
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // Filter State
+    var selectedLocation by remember { mutableStateOf("Semua") }
 
     var isFabExpanded by remember { mutableStateOf(false) }
     var globalStatus by remember { mutableStateOf(QrStatus()) }
 
-    // Modals & Sheets State
+    // Modals
     var showTableOptions by remember { mutableStateOf<Table?>(null) }
     var showDeleteTableConfirm by remember { mutableStateOf<Table?>(null) }
     var showQrModal by remember { mutableStateOf<Table?>(null) }
-    
     var showAddTableModal by remember { mutableStateOf(false) }
-    
-    // Location Management
-    var showAddLocationModal by remember { mutableStateOf(false) }
-    var showLocationOptions by remember { mutableStateOf<Location?>(null) }
-    var showEditLocationModal by remember { mutableStateOf<Location?>(null) }
-    var showDeleteLocationConfirm by remember { mutableStateOf<Location?>(null) }
 
-    // Use viewmodel selectedLocationId
-    val filteredTables = if (viewModel.selectedLocationId == 0) {
-        tables
+    // Fetch Tables and Locations
+    LaunchedEffect(Unit) {
+        isLoading = true
+        try {
+            // Fetch Tables
+            val tables = RetrofitClient.instance.getTables()
+            tableList = tables
+            
+            // Fetch Locations
+            val locations = RetrofitClient.instance.getLocations()
+            // Map to String list and add "Semua"
+            locationList = listOf("Semua") + locations.map { it.name }.distinct().sorted()
+
+            isLoading = false
+        } catch (e: Exception) {
+            errorMessage = "Gagal memuat data: ${e.localizedMessage}"
+            isLoading = false
+        }
+    }
+
+    // Filter Logic
+    val filteredTables = if (selectedLocation == "Semua") {
+        tableList
     } else {
-        tables.filter { it.locationId == viewModel.selectedLocationId }
+        // Compare with location name from LocationData object
+        tableList.filter { it.location?.name == selectedLocation }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(QrBg)) {
@@ -114,9 +133,13 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 Text("Manajemen Meja & QR", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
-            if (isLoading && tables.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = QrPrimaryBlue)
+                }
+            } else if (errorMessage != null) {
+                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Text(text = errorMessage ?: "Error", color = Color.Red, modifier = Modifier.padding(16.dp))
                 }
             } else {
                 // Scrollable Content
@@ -131,30 +154,17 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     }
 
                     item {
-                        // Location Chips
+                        // Location Chips (Direct from API)
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.padding(bottom = 15.dp)
                         ) {
-                             // "Semua" Chip
-                            item {
+                            items(locationList) { category ->
                                 FilterPill(
-                                    label = "Semua",
-                                    isActive = viewModel.selectedLocationId == 0,
-                                    onClick = { viewModel.selectedLocationId = 0 },
+                                    label = category,
+                                    isActive = selectedLocation == category,
+                                    onClick = { selectedLocation = category },
                                     onLongClick = {}
-                                )
-                            }
-                            
-                            // Dynamic Locations
-                            // Removed the standalone "+" chip as requested.
-                            // Added key for stability.
-                            items(locations, key = { it.id }) { loc ->
-                                FilterPill(
-                                    label = loc.name,
-                                    isActive = viewModel.selectedLocationId == loc.id,
-                                    onClick = { viewModel.selectedLocationId = loc.id },
-                                    onLongClick = { showLocationOptions = loc }
                                 )
                             }
                         }
@@ -171,9 +181,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                     TableCard(
                                         item = item,
                                         onToggle = { 
-                                            // Toggle functionality currently not in VM/API for 'isActive' update
-                                            // Just placeholder or if API supported:
-                                            // viewModel.updateTable(item.id, ..., !isActive)
+                                            // Toggle functionality placeholder
                                         },
                                         onQrClick = { showQrModal = item },
                                         onOptionClick = { showTableOptions = item }
@@ -204,7 +212,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 visible = isFabExpanded,
                 enter = fadeIn(),
                 exit = fadeOut(),
-                 modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize()
             ) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.6f)).clickable { isFabExpanded = false })
             }
@@ -214,16 +222,6 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                 AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut()
-                ) {
-                    TableFabSubButton("Tambah Lokasi", "📍") { 
-                        isFabExpanded = false
-                        showAddLocationModal = true
-                    }
-                }
                 AnimatedVisibility(
                     visible = isFabExpanded,
                     enter = slideInVertically { it } + fadeIn(),
@@ -272,7 +270,6 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 title = "Opsi Meja: ${showTableOptions!!.name}",
                 onEdit = { 
                     showTableOptions = null
-                    // Edit logic not implemented yet
                 },
                 onDelete = {
                     val item = showTableOptions
@@ -288,77 +285,45 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 title = "Hapus Meja Ini?",
                 desc = "Menghapus meja akan menghilangkan QR code dan data terkait. Tindakan ini tidak dapat dibatalkan.",
                 onConfirm = {
-                    viewModel.deleteTable(showDeleteTableConfirm!!.id)
-                    showDeleteTableConfirm = null
+                    val id = showDeleteTableConfirm!!.id
+                    scope.launch {
+                        try {
+                            RetrofitClient.instance.deleteTable(id)
+                            tableList = tableList.filter { it.id != id }
+                        } catch(e: Exception) {
+                            // Handle error
+                        }
+                        showDeleteTableConfirm = null
+                    }
                 },
                 onCancel = { showDeleteTableConfirm = null }
             )
         }
         
         if (showAddTableModal) {
+            // Use API locations for suggestion or dropdown
             AddTableDialog(
-                locations = locations,
-                onSave = { name, locId ->
-                    viewModel.addTable(name, locId)
-                    showAddTableModal = false
+                existingLocations = locationList.filter { it != "Semua" },
+                onSave = { name, location ->
+                    scope.launch {
+                        try {
+                            val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+                             // Map as per ApiService signature
+                            val tableData = mapOf(
+                                "name" to name,
+                                "location" to location,
+                                "qrCode" to qrCode,
+                                "isActive" to true
+                            )
+                            val newTable = RetrofitClient.instance.addTable(tableData)
+                            tableList = tableList + newTable
+                            showAddTableModal = false
+                        } catch(e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 },
                 onCancel = { showAddTableModal = false }
-            )
-        }
-        
-        // Location Modals
-        if (showAddLocationModal) {
-            TableInputModal(
-                title = "Tambah Lokasi",
-                label = "Nama Lokasi",
-                placeholder = "Contoh: Lantai 2, Outdoor",
-                onSave = { name: String -> // Explicit type
-                    viewModel.addLocation(name)
-                    showAddLocationModal = false
-                },
-                onCancel = { showAddLocationModal = false }
-            )
-        }
-        
-        if (showLocationOptions != null) {
-             TableActionSheetModal(
-                title = "Opsi Lokasi: ${showLocationOptions!!.name}",
-                onEdit = {
-                    val loc = showLocationOptions
-                    showLocationOptions = null
-                    showEditLocationModal = loc
-                },
-                onDelete = {
-                    val loc = showLocationOptions
-                    showLocationOptions = null
-                    showDeleteLocationConfirm = loc
-                },
-                onDismiss = { showLocationOptions = null }
-            )
-        }
-        
-        if (showEditLocationModal != null) {
-            TableInputModal(
-                title = "Edit Lokasi",
-                label = "Nama Lokasi",
-                initialValue = showEditLocationModal!!.name,
-                onSave = { name: String -> // Explicit type
-                    viewModel.updateLocation(showEditLocationModal!!.id, name)
-                    showEditLocationModal = null
-                },
-                onCancel = { showEditLocationModal = null }
-            )
-        }
-        
-        if (showDeleteLocationConfirm != null) {
-             TableConfirmationModal(
-                title = "Hapus Lokasi?",
-                desc = "Meja yang ada di lokasi ini mungkin akan kehilangan referensi lokasinya atau tidak tampil.",
-                onConfirm = {
-                    viewModel.deleteLocation(showDeleteLocationConfirm!!.id)
-                    showDeleteLocationConfirm = null
-                },
-                onCancel = { showDeleteLocationConfirm = null }
             )
         }
     }
@@ -489,7 +454,7 @@ fun TableCard(item: Table, onToggle: () -> Unit, onQrClick: () -> Unit, onOption
             
             // QR Placeholder
             Surface(
-                color = if (item.isActive) Color(0xFFF8FAFC) else Color(0xFFF1F5F9),
+                color = if (item.isActive != false) Color(0xFFF8FAFC) else Color(0xFFF1F5F9), // Handle default true if null? Boolean is non-null in data class
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                 modifier = Modifier
@@ -591,13 +556,17 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
 
 @Composable
 fun AddTableDialog(
-    locations: List<Location>,
-    onSave: (String, Int) -> Unit,
+    existingLocations: List<String>,
+    onSave: (String, String) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var selectedLocation by remember { mutableStateOf<Location?>(null) }
-    var expanded by remember { mutableStateOf(false) }
+    var location by remember { mutableStateOf("") }
+    
+    // We can add logic to pick from existing locations if we want
+    // For now simple text input for integrated "Dynamic" part where new locations can be created?
+    // User prompts: "createTable: Untuk input meja baru (terima name, location, qrCode)."
+    // Implies we can type any location.
 
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
@@ -620,56 +589,27 @@ fun AddTableDialog(
                 
                 Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                // DROPDOWN MENU
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = selectedLocation?.name ?: "Pilih Lokasi",
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, "drop") },
-                        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
-                        enabled = false, // Disable typing, handled by Box click
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Black,
-                            disabledBorderColor = Color.Gray,
-                            disabledPlaceholderColor = Color.Gray,
-                            disabledTrailingIconColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    // We need an invisible overlay or use ReadOnly TextField with interaction source
-                    Box(modifier = Modifier.matchParentSize().clickable { expanded = true })
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        modifier = Modifier.fillMaxWidth(0.7f).background(Color.White)
-                    ) {
-                        locations.forEach { location ->
-                            DropdownMenuItem(
-                                text = { Text(location.name) },
-                                onClick = {
-                                    selectedLocation = location
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+                OutlinedTextField(
+                    value = location, 
+                    onValueChange = { location = it }, 
+                    placeholder = { Text("Contoh: Lantai 2") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Button(
                     onClick = { 
-                        if (name.isNotEmpty() && selectedLocation != null) {
-                            onSave(name, selectedLocation!!.id)
+                        if (name.isNotEmpty() && location.isNotEmpty()) {
+                            onSave(name, location)
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = name.isNotEmpty() && selectedLocation != null
+                    enabled = name.isNotEmpty() && location.isNotEmpty()
                 ) { 
                     Text("Simpan") 
                 }
@@ -678,8 +618,6 @@ fun AddTableDialog(
     }
 }
 
-// Reuse FabSubButton & Modals from MenuScreen if needed, but defining simple versions here to avoid breakage.
-// Renamed to TableFabSubButton
 @Composable
 private fun TableFabSubButton(text: String, icon: String, onClick: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClick() }) {
@@ -703,34 +641,6 @@ private fun TableFabSubButton(text: String, icon: String, onClick: () -> Unit) {
     }
 }
 
-// Simple Input Modal specific for Table/Location simple strings
-// Renamed to TableInputModal
-@Composable
-private fun TableInputModal(title: String, label: String, placeholder: String = "", initialValue: String = "", onSave: (String) -> Unit, onCancel: () -> Unit) {
-    var text by remember { mutableStateOf(initialValue) }
-    Dialog(onDismissRequest = onCancel) {
-        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = text, 
-                    onValueChange = { text = it }, 
-                    placeholder = { Text(placeholder) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                 Spacer(modifier = Modifier.height(24.dp))
-                 Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan") }
-            }
-        }
-    }
-}
-
-// Simple Action Sheet
-// Renamed to TableActionSheetModal
 @Composable
 private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
@@ -744,7 +654,7 @@ private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: (
                     Spacer(modifier = Modifier.width(16.dp))
                     Text("Edit", fontWeight = FontWeight.SemiBold)
                 }
-                Divider(color = Color(0xFFF3F4F6))
+                HorizontalDivider(color = Color(0xFFF3F4F6))
                 Row(modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(44.dp).background(Color(0xFFFEE2E2), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.Delete, contentDescription = null, tint = DeleteRed)
@@ -757,8 +667,6 @@ private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: (
     }
 }
 
-// Simple Confirmation
-// Renamed to TableConfirmationModal
 @Composable
 private fun TableConfirmationModal(title: String, desc: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
     Dialog(onDismissRequest = onCancel) {

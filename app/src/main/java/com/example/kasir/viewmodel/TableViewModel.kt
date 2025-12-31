@@ -25,7 +25,7 @@ class TableViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    var selectedLocationId by mutableStateOf(0) // 0 means "All"
+    var selectedLocationName by mutableStateOf("Semua")
 
     init {
         fetchLocations()
@@ -35,10 +35,9 @@ class TableViewModel : ViewModel() {
     fun fetchLocations() {
         viewModelScope.launch {
             try {
+                // Now returns List<Location> directly
                 val response = RetrofitClient.instance.getLocations()
-                if (response.success) {
-                    _locations.value = response.data
-                }
+                _locations.value = response
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal memuat lokasi: ${e.localizedMessage}"
             }
@@ -49,10 +48,9 @@ class TableViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                // ApiService returns List<Table> directly
                 val response = RetrofitClient.instance.getTables()
-                if (response.success) {
-                    _tables.value = response.data
-                }
+                _tables.value = response
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal memuat meja: ${e.localizedMessage}"
             } finally {
@@ -94,7 +92,7 @@ class TableViewModel : ViewModel() {
                 val response = RetrofitClient.instance.deleteLocation(id)
                 if (response.success) {
                     fetchLocations()
-                    if (selectedLocationId == id) selectedLocationId = 0
+                    // Logic reset location selection if needed
                 } else {
                     _errorMessage.value = response.message
                 }
@@ -104,16 +102,14 @@ class TableViewModel : ViewModel() {
         }
     }
 
-    fun addTable(name: String, locationId: Int) {
+    fun addTable(name: String, location: String) {
         viewModelScope.launch {
             try {
-                val body = mapOf("name" to name, "locationId" to locationId)
-                val response = RetrofitClient.instance.addTable(body)
-                if (response.success) {
-                    fetchTables()
-                } else {
-                    _errorMessage.value = response.message
-                }
+                val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+                val body = mapOf("name" to name, "location" to location, "qrCode" to qrCode, "isActive" to true)
+                // Returns Table object
+                RetrofitClient.instance.addTable(body)
+                fetchTables()
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menambah meja: ${e.localizedMessage}"
             }
@@ -123,9 +119,8 @@ class TableViewModel : ViewModel() {
     fun deleteTable(id: Int) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.instance.deleteTable(id)
-                if (response.success) fetchTables()
-                else _errorMessage.value = response.message
+                RetrofitClient.instance.deleteTable(id)
+                fetchTables()
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menghapus meja: ${e.localizedMessage}"
             }
