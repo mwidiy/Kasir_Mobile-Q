@@ -13,6 +13,7 @@ import com.example.kasir.data.model.SingleLocationResponse
 import com.example.kasir.data.model.Table
 import com.example.kasir.data.model.TableResponse
 import com.example.kasir.data.model.SingleTableResponse
+import com.example.kasir.data.model.TableRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -108,8 +109,15 @@ interface ApiService {
     suspend fun getTables(): List<Table>
 
     @POST("api/tables")
-    suspend fun addTable(@Body tableData: Map<String, Any>): Table
+    suspend fun addTable(@Body request: TableRequest): Response<Table>
+
+    @PUT("api/tables/{id}")
+    suspend fun updateTable(@Path("id") id: Int, @Body request: TableRequest): Response<Table>
+
+    // Specific endpoint for toggling status (isActive)
+    @PATCH("api/tables/{id}/status")
+    suspend fun updateTableStatus(@Path("id") id: Int, @Body status: Map<String, Boolean>): Response<Table>
 
     @DELETE("api/tables/{id}")
-    suspend fun deleteTable(@Path("id") id: Int): Table
+    suspend fun deleteTable(@Path("id") id: Int): Response<Unit>
 }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kasir.data.model.Location
 import com.example.kasir.data.model.Table
+import com.example.kasir.data.model.TableRequest
 import com.example.kasir.data.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -98,14 +99,18 @@ class TableViewModel : ViewModel() {
         }
     }
 
-    fun addTable(name: String, location: String) {
+    fun addTable(name: String, locationId: Int) {
         viewModelScope.launch {
             try {
                 val qrCode = "QR-${name}-${System.currentTimeMillis()}"
-                val body = mapOf("name" to name, "location" to location, "qrCode" to qrCode, "isActive" to true)
-                // Returns Table object
-                RetrofitClient.instance.addTable(body)
-                fetchTables()
+                val request = TableRequest(name, locationId, qrCode, true)
+                // Returns Response<Table> now
+                val response = RetrofitClient.instance.addTable(request)
+                if (response.isSuccessful) {
+                    fetchTables()
+                } else {
+                     _errorMessage.value = "Gagal menambah meja: ${response.code()}"
+                }
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menambah meja: ${e.localizedMessage}"
             }

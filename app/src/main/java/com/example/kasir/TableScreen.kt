@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.kasir.data.model.Location
 import com.example.kasir.data.model.Table
+import com.example.kasir.data.model.TableRequest
 import com.example.kasir.data.network.RetrofitClient
 import kotlinx.coroutines.launch
 
@@ -94,6 +95,9 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     var showDeleteTableConfirm by remember { mutableStateOf<Table?>(null) }
     var showQrModal by remember { mutableStateOf<Table?>(null) }
     var showAddTableModal by remember { mutableStateOf(false) }
+
+    // Edit Table State
+    var currentEditingTable by remember { mutableStateOf<Table?>(null) }
     
     // New Dialog States
     var showAddOptionDialog by remember { mutableStateOf(false) }
@@ -227,8 +231,29 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     TableCard(
                                         item = item,
-                                        onToggle = { 
-                                            // Toggle functionality placeholder
+                                        onToggle = { isActive ->
+                                            // Optimistic Update
+                                             val optimisticItem = item.copy(isActive = isActive)
+                                             tableList = tableList.map { if (it.id == item.id) optimisticItem else it }
+
+                                             scope.launch {
+                                                 try {
+                                                     val response = RetrofitClient.instance.updateTableStatus(item.id, mapOf("isActive" to isActive))
+                                                     if (response.isSuccessful && response.body() != null) {
+                                                         // Success: Sync with backend truth
+                                                         val serverItem = response.body()!!
+                                                         tableList = tableList.map { if (it.id == serverItem.id) serverItem else it }
+                                                     } else {
+                                                         // Failed: Revert to original item
+                                                         tableList = tableList.map { if (it.id == item.id) item else it }
+                                                         errorMessage = "Gagal update status: ${response.code()}"
+                                                     }
+                                                 } catch (e: Exception) {
+                                                     // Error: Revert to original item
+                                                     tableList = tableList.map { if (it.id == item.id) item else it }
+                                                     errorMessage = "Error status: ${e.localizedMessage}"
+                                                 }
+                                             }
                                         },
                                         onQrClick = { showQrModal = item },
                                         onOptionClick = { showTableOptions = item }
@@ -306,6 +331,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                         Button(
                             onClick = { 
                                 showAddOptionDialog = false
+                                currentEditingTable = null // Reset edit state
                                 showAddTableModal = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = QrPrimaryYellow),
@@ -397,7 +423,9 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             TableActionSheetModal(
                 title = "Opsi Meja: ${showTableOptions!!.name}",
                 onEdit = { 
+                    currentEditingTable = showTableOptions
                     showTableOptions = null
+                    showAddTableModal = true // Reuse Add Modal for Edit
                 },
                 onDelete = {
                     val item = showTableOptions
@@ -416,10 +444,14 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     val id = showDeleteTableConfirm!!.id
                     scope.launch {
                         try {
-                            RetrofitClient.instance.deleteTable(id)
-                            tableList = tableList.filter { it.id != id }
+                            val response = RetrofitClient.instance.deleteTable(id)
+                            if (response.isSuccessful) {
+                                tableList = tableList.filter { it.id != id }
+                            } else {
+                                errorMessage = "Gagal hapus meja: ${response.code()}"
+                            }
                         } catch(e: Exception) {
-                            // Handle error
+                            errorMessage = "Gagal hapus meja: ${e.localizedMessage}"
                         }
                         showDeleteTableConfirm = null
                     }
@@ -429,28 +461,75 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         }
         
         if (showAddTableModal) {
+            // Determine initial values based on edit mode
+            val initialName = currentEditingTable?.name ?: ""
+            val initialLocation = if (currentEditingTable != null) {
+                 locationList.find { it.id == currentEditingTable!!.location?.id }
+            } else null
+
+            // Only pass actual locations
             AddTableDialog(
-                existingLocations = locationList.filter { it.name != "Semua" }.map { it.name },
-                onSave = { name, location ->
+                locations = locationList.filter { it.name != "Semua" },
+                initialName = initialName,
+                initialLocation = initialLocation,
+                isEditMode = currentEditingTable != null,
+                onSave = { name, locationId ->
                     scope.launch {
                         try {
-                            val qrCode = "QR-${name}-${System.currentTimeMillis()}"
-                             // Map as per ApiService signature
-                            val tableData = mapOf(
-                                "name" to name,
-                                "location" to location,
-                                "qrCode" to qrCode,
-                                "isActive" to true
-                            )
-                            val newTable = RetrofitClient.instance.addTable(tableData)
-                            tableList = tableList + newTable
-                            showAddTableModal = false
+                            if (currentEditingTable != null) {
+                                // UPDATE MODE
+                                val qrCode = currentEditingTable!!.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
+                                val tableRequest = TableRequest(
+                                    name = name,
+                                    locationId = locationId,
+                                    qrCode = qrCode,
+                                    isActive = currentEditingTable!!.isActive
+                                )
+                                val response = RetrofitClient.instance.updateTable(currentEditingTable!!.id, tableRequest)
+                                if (response.isSuccessful && response.body() != null) {
+                                    val updatedItem = response.body()!!
+                                    
+                                    // Live Update Logic
+                                    val index = tableList.indexOfFirst { it.id == updatedItem.id }
+                                    if (index != -1) {
+                                        val mutableList = tableList.toMutableList()
+                                        mutableList[index] = updatedItem
+                                        tableList = mutableList
+                                    }
+                                    
+                                    showAddTableModal = false
+                                    currentEditingTable = null
+                                } else {
+                                    errorMessage = "Gagal update meja: ${response.code()}"
+                                }
+                            } else {
+                                // CREATE MODE
+                                val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+                                val tableRequest = TableRequest(
+                                    name = name,
+                                    locationId = locationId,
+                                    qrCode = qrCode,
+                                    isActive = true
+                                )
+                                val newTableResponse = RetrofitClient.instance.addTable(tableRequest)
+                                if (newTableResponse.isSuccessful && newTableResponse.body() != null) {
+                                    val newItem = newTableResponse.body()!!
+                                    tableList = tableList + newItem
+                                    showAddTableModal = false
+                                } else {
+                                    errorMessage = "Gagal tambah meja: ${newTableResponse.code()}"
+                                }
+                            }
                         } catch(e: Exception) {
                             e.printStackTrace()
+                            errorMessage = "Error: ${e.localizedMessage}"
                         }
                     }
                 },
-                onCancel = { showAddTableModal = false }
+                onCancel = { 
+                    showAddTableModal = false 
+                    currentEditingTable = null
+                }
             )
         }
     }
@@ -542,7 +621,7 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClic
 }
 
 @Composable
-fun TableCard(item: Table, onToggle: () -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+fun TableCard(item: Table, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -614,7 +693,7 @@ fun TableCard(item: Table, onToggle: () -> Unit, onQrClick: () -> Unit, onOption
                 Text(if (item.isActive) "Aktif" else "Nonaktif", fontSize = 11.sp, color = Color(0xFF888888), fontWeight = FontWeight.Medium)
                 Switch(
                     checked = item.isActive,
-                    onCheckedChange = { onToggle() },
+                    onCheckedChange = { onToggle(it) },
                     modifier = Modifier.scaleCustom(0.8f),
                     colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = QrActiveGreen)
                 )
@@ -680,24 +759,24 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTableDialog(
-    existingLocations: List<String>,
-    onSave: (String, String) -> Unit,
+    locations: List<Location>, // Changed to accept List<Location>
+    initialName: String = "",
+    initialLocation: Location? = null,
+    isEditMode: Boolean = false,
+    onSave: (String, Int) -> Unit, // Changed to return Location ID
     onCancel: () -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    
-    // We can add logic to pick from existing locations if we want
-    // For now simple text input for integrated "Dynamic" part where new locations can be created?
-    // User prompts: "createTable: Untuk input meja baru (terima name, location, qrCode)."
-    // Implies we can type any location.
+    var name by remember { mutableStateOf(initialName) }
+    var selectedLocation by remember { mutableStateOf<Location?>(initialLocation) }
+    var expanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(if(isEditMode) "Edit Meja" else "Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Spacer(modifier = Modifier.height(20.dp))
                 
                 Text("Nomor / Nama Meja", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -713,30 +792,52 @@ fun AddTableDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Text("Lokasi (ID/Nama)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-                // Note: User can also use existing locations ideally.
-                OutlinedTextField(
-                    value = location, 
-                    onValueChange = { location = it }, 
-                    placeholder = { Text("Contoh: Lantai 2") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true
-                )
+                
+                // Dropdown Menu
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = selectedLocation?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        placeholder = { Text("Pilih Lokasi") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        locations.forEach { location ->
+                            DropdownMenuItem(
+                                text = { Text(location.name) },
+                                onClick = {
+                                    selectedLocation = location
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Button(
                     onClick = { 
-                        if (name.isNotEmpty() && location.isNotEmpty()) {
-                            onSave(name, location)
+                        if (name.isNotEmpty() && selectedLocation != null) {
+                            onSave(name, selectedLocation!!.id)
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = name.isNotEmpty() && location.isNotEmpty()
+                    enabled = name.isNotEmpty() && selectedLocation != null
                 ) { 
                     Text("Simpan") 
                 }
