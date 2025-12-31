@@ -62,12 +62,9 @@ class TableViewModel : ViewModel() {
     fun addLocation(name: String) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.instance.addLocation(mapOf("name" to name))
-                if (response.success) {
-                    fetchLocations() // Refresh list immediately
-                } else {
-                    _errorMessage.value = response.message
-                }
+                // Returns LocationData directly. If successful, valid object returned.
+                RetrofitClient.instance.addLocation(mapOf("name" to name))
+                fetchLocations() // Refresh list immediately
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menambah lokasi: ${e.localizedMessage}"
             }
@@ -77,9 +74,8 @@ class TableViewModel : ViewModel() {
     fun updateLocation(id: Int, name: String) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
-                if (response.success) fetchLocations()
-                else _errorMessage.value = response.message
+                RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
+                fetchLocations()
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal update lokasi: ${e.localizedMessage}"
             }
@@ -90,11 +86,11 @@ class TableViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val response = RetrofitClient.instance.deleteLocation(id)
-                if (response.success) {
+                if (response.isSuccessful) {
                     fetchLocations()
                     // Logic reset location selection if needed
                 } else {
-                    _errorMessage.value = response.message
+                    _errorMessage.value = "Error: ${response.code()}"
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal menghapus lokasi: ${e.localizedMessage}"

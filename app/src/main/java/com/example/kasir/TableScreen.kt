@@ -7,9 +7,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.kasir.data.model.Location
 import com.example.kasir.data.model.Table
 import com.example.kasir.data.network.RetrofitClient
 import kotlinx.coroutines.launch
@@ -72,8 +75,10 @@ data class QrStatus(
 fun TableScreen(onNavigate: (String) -> Unit) {
     // State Management for Data
     var tableList by remember { mutableStateOf<List<Table>>(emptyList()) }
-    // Location Filter List from API
-    var locationList by remember { mutableStateOf<List<String>>(listOf("Semua")) }
+    
+    // Location Filter List from API (storing Objects now)
+    // Create a dummy Location for "Semua" to simplify the list
+    var locationList by remember { mutableStateOf<List<Location>>(listOf(Location(-1, "Semua"))) }
     
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -82,40 +87,53 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     // Filter State
     var selectedLocation by remember { mutableStateOf("Semua") }
 
-    var isFabExpanded by remember { mutableStateOf(false) }
     var globalStatus by remember { mutableStateOf(QrStatus()) }
 
-    // Modals
+    // Modals & Dialogs
     var showTableOptions by remember { mutableStateOf<Table?>(null) }
     var showDeleteTableConfirm by remember { mutableStateOf<Table?>(null) }
     var showQrModal by remember { mutableStateOf<Table?>(null) }
     var showAddTableModal by remember { mutableStateOf(false) }
+    
+    // New Dialog States
+    var showAddOptionDialog by remember { mutableStateOf(false) }
+    var showAddLocationDialog by remember { mutableStateOf(false) }
 
-    // Fetch Tables and Locations
+    // Location Edit/Delete States
+    var activeLocationMenuId by remember { mutableStateOf<Int?>(null) }
+    var showEditLocationDialog by remember { mutableStateOf<Location?>(null) }
+    var showDeleteLocationConfirm by remember { mutableStateOf<Location?>(null) }
+
+    // Helper to refresh data
+    val refreshData = {
+        scope.launch {
+            try {
+                // Fetch Tables
+                val tables = RetrofitClient.instance.getTables()
+                tableList = tables
+                
+                // Fetch Locations
+                val locations = RetrofitClient.instance.getLocations()
+                // Sort by ID or Name if needed. Assuming server order or alphabetical
+                val sortedLocs = locations.sortedBy { it.name }
+                locationList = listOf(Location(-1, "Semua")) + sortedLocs
+            } catch (e: Exception) {
+                errorMessage = "Gagal memuat ulang data: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    // Fetch Tables and Locations Initial
     LaunchedEffect(Unit) {
         isLoading = true
-        try {
-            // Fetch Tables
-            val tables = RetrofitClient.instance.getTables()
-            tableList = tables
-            
-            // Fetch Locations
-            val locations = RetrofitClient.instance.getLocations()
-            // Map to String list and add "Semua"
-            locationList = listOf("Semua") + locations.map { it.name }.distinct().sorted()
-
-            isLoading = false
-        } catch (e: Exception) {
-            errorMessage = "Gagal memuat data: ${e.localizedMessage}"
-            isLoading = false
-        }
+        refreshData()
+        isLoading = false
     }
 
     // Filter Logic
     val filteredTables = if (selectedLocation == "Semua") {
         tableList
     } else {
-        // Compare with location name from LocationData object
         tableList.filter { it.location?.name == selectedLocation }
     }
 
@@ -159,13 +177,42 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.padding(bottom = 15.dp)
                         ) {
-                            items(locationList) { category ->
-                                FilterPill(
-                                    label = category,
-                                    isActive = selectedLocation == category,
-                                    onClick = { selectedLocation = category },
-                                    onLongClick = {}
-                                )
+                            items(locationList) { location ->
+                                Box {
+                                    FilterPill(
+                                        label = location.name,
+                                        isActive = selectedLocation == location.name,
+                                        onClick = { selectedLocation = location.name },
+                                        onLongClick = {
+                                            if (location.name != "Semua") {
+                                                activeLocationMenuId = location.id
+                                            }
+                                        }
+                                    )
+                                    
+                                    // Dropdown Menu for Edit/Delete
+                                    DropdownMenu(
+                                        expanded = activeLocationMenuId == location.id,
+                                        onDismissRequest = { activeLocationMenuId = null }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Edit") },
+                                            onClick = {
+                                                activeLocationMenuId = null
+                                                showEditLocationDialog = location
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Hapus", color = Color.Red) },
+                                            onClick = {
+                                                activeLocationMenuId = null
+                                                showDeleteLocationConfirm = location
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -206,48 +253,19 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // FAB
-        Box(modifier = Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = isFabExpanded,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.6f)).clickable { isFabExpanded = false })
-            }
-
-            Column(
-                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 170.dp, end = 20.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut()
-                ) {
-                     TableFabSubButton("Tambah Meja", "🪑") { 
-                         isFabExpanded = false
-                         showAddTableModal = true
-                     }
-                }
-            }
-
-            val rotation by animateFloatAsState(if (isFabExpanded) 45f else 0f)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 100.dp, end = 20.dp)
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(QrPrimaryYellow)
-                    .clickable { isFabExpanded = !isFabExpanded }
-                    .shadow(elevation = 4.dp, shape = CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add", tint = QrTextDark, modifier = Modifier.rotate(rotation))
-            }
+        // FAB - Refactored for Multi-Action
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 100.dp, end = 20.dp)
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(QrPrimaryYellow)
+                .clickable { showAddOptionDialog = true }
+                .shadow(elevation = 4.dp, shape = CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add", tint = QrTextDark)
         }
 
         // Bottom Nav
@@ -258,6 +276,116 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         )
 
         // --- MODALS ---
+        
+        // 1. Option Dialog (Selection)
+        if (showAddOptionDialog) {
+            Dialog(onDismissRequest = { showAddOptionDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    modifier = Modifier.fillMaxWidth().padding(20.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text("Pilih Aksi", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = QrTextDark)
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        Button(
+                            onClick = { 
+                                showAddOptionDialog = false
+                                showAddLocationDialog = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = QrPrimaryBlue),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Tambah Lokasi Baru")
+                        }
+                        
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        Button(
+                            onClick = { 
+                                showAddOptionDialog = false
+                                showAddTableModal = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = QrPrimaryYellow),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Tambah Meja / QR", color = QrTextDark)
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 2. Add Location Dialog
+        if (showAddLocationDialog) {
+            AddLocationDialog(
+                onSave = { name ->
+                    scope.launch {
+                        try {
+                            RetrofitClient.instance.addLocation(mapOf("name" to name))
+                            refreshData() // Refresh chips
+                            showAddLocationDialog = false
+                        } catch(e: Exception) {
+                            e.printStackTrace()
+                            errorMessage = "Gagal tambah lokasi: ${e.localizedMessage}"
+                        }
+                    }
+                },
+                onCancel = { showAddLocationDialog = false }
+            )
+        }
+
+        // 3. Edit Location Dialog
+        if (showEditLocationDialog != null) {
+            EditLocationDialog(
+                location = showEditLocationDialog!!,
+                onSave = { id, name ->
+                    scope.launch {
+                        try {
+                            RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
+                            refreshData()
+                            showEditLocationDialog = null
+                        } catch(e: Exception) {
+                            errorMessage = "Gagal update lokasi: ${e.localizedMessage}"
+                        }
+                    }
+                },
+                onCancel = { showEditLocationDialog = null }
+            )
+        }
+
+        // 4. Delete Location Confirm
+        if (showDeleteLocationConfirm != null) {
+            TableConfirmationModal(
+                title = "Hapus Lokasi?",
+                desc = "Menghapus lokasi '${showDeleteLocationConfirm!!.name}' mungkin memengaruhi meja yang ada di sana.",
+                onConfirm = {
+                    val id = showDeleteLocationConfirm!!.id
+                    scope.launch {
+                        try {
+                            val res = RetrofitClient.instance.deleteLocation(id)
+                            if (res.isSuccessful) {
+                                // If current selected location is deleted, reset to "Semua"
+                                if (selectedLocation == showDeleteLocationConfirm!!.name) {
+                                    selectedLocation = "Semua"
+                                }
+                                refreshData()
+                            } else {
+                                errorMessage = "Gagal hapus: ${res.code()}"
+                            }
+                            showDeleteLocationConfirm = null
+                        } catch(e: Exception) {
+                            errorMessage = "Gagal hapus lokasi: ${e.localizedMessage}"
+                        }
+                    }
+                },
+                onCancel = { showDeleteLocationConfirm = null }
+            )
+        }
+
         if (showQrModal != null) {
             QrModal(
                 table = showQrModal!!,
@@ -301,9 +429,8 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         }
         
         if (showAddTableModal) {
-            // Use API locations for suggestion or dropdown
             AddTableDialog(
-                existingLocations = locationList.filter { it != "Semua" },
+                existingLocations = locationList.filter { it.name != "Semua" }.map { it.name },
                 onSave = { name, location ->
                     scope.launch {
                         try {
@@ -391,6 +518,7 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     Surface(
@@ -399,12 +527,10 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClic
         shape = RoundedCornerShape(50.dp),
         border = if (!isActive) BorderStroke(1.dp, Color.Transparent) else null,
         shadowElevation = if (isActive) 4.dp else 1.dp,
-        modifier = Modifier.pointerInput(Unit) {
-            detectTapGestures(
-                onTap = { onClick() },
-                onLongPress = { onLongClick() }
-            )
-        }
+        modifier = Modifier.clip(RoundedCornerShape(50.dp)).combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
     ) {
         Text(
             text = label,
@@ -587,8 +713,9 @@ fun AddTableDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Lokasi (ID/Nama)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
+                // Note: User can also use existing locations ideally.
                 OutlinedTextField(
                     value = location, 
                     onValueChange = { location = it }, 
@@ -619,24 +746,90 @@ fun AddTableDialog(
 }
 
 @Composable
-private fun TableFabSubButton(text: String, icon: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClick() }) {
-        Surface(
-            color = Color.White,
-            shadowElevation = 2.dp,
-            shape = RoundedCornerShape(4.dp),
-            modifier = Modifier.padding(end = 8.dp)
-        ) {
-            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+fun AddLocationDialog(
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text("Tambah Lokasi Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    placeholder = { Text("Contoh: Rooftop") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = { 
+                        if (name.isNotEmpty()) {
+                            onSave(name)
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = name.isNotEmpty()
+                ) { 
+                    Text("Simpan") 
+                }
+            }
         }
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF2D3E50)),
-            contentAlignment = Alignment.Center
-        ) {
-             Text(icon, fontSize = 18.sp, color = Color.White)
+    }
+}
+
+@Composable
+fun EditLocationDialog(
+    location: Location,
+    onSave: (Int, String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf(location.name) }
+
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text("Edit Lokasi", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    placeholder = { Text("Contoh: Rooftop") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = { 
+                        if (name.isNotEmpty()) {
+                            onSave(location.id, name)
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = name.isNotEmpty()
+                ) { 
+                    Text("Simpan Perubahan") 
+                }
+            }
         }
     }
 }

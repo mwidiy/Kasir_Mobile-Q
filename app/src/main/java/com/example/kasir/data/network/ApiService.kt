@@ -7,6 +7,7 @@ import retrofit2.http.*
 import com.example.kasir.data.model.Banner
 import com.example.kasir.data.model.ApiResponse
 import com.example.kasir.data.model.Location
+import com.example.kasir.data.model.LocationData
 import com.example.kasir.data.model.LocationResponse
 import com.example.kasir.data.model.SingleLocationResponse
 import com.example.kasir.data.model.Table
@@ -94,13 +95,13 @@ interface ApiService {
     suspend fun getLocations(): List<Location>
 
     @POST("api/locations")
-    suspend fun addLocation(@Body location: Map<String, String>): SingleLocationResponse
+    suspend fun addLocation(@Body location: Map<String, String>): LocationData
 
     @PUT("api/locations/{id}")
-    suspend fun updateLocation(@Path("id") id: Int, @Body location: Map<String, String>): SingleLocationResponse
+    suspend fun updateLocation(@Path("id") id: Int, @Body location: Map<String, String>): LocationData
 
     @DELETE("api/locations/{id}")
-    suspend fun deleteLocation(@Path("id") id: Int): SingleLocationResponse
+    suspend fun deleteLocation(@Path("id") id: Int): Response<Unit>
 
     // Table Endpoints
     @GET("api/tables")
