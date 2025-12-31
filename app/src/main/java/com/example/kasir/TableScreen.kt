@@ -44,7 +44,14 @@ import androidx.compose.ui.window.Dialog
 import com.example.kasir.data.model.Location
 import com.example.kasir.data.model.Table
 import com.example.kasir.data.model.TableRequest
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.example.kasir.utils.ImageSaver
+import com.example.kasir.utils.QRCodeHelper
 import com.example.kasir.data.network.RetrofitClient
+import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
 
 // --- COLORS ---
@@ -671,14 +678,23 @@ fun TableCard(item: Table, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, o
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_camera),
-                        contentDescription = "QR",
-                        tint = if (item.isActive) QrPrimaryBlue else Color.Gray,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (item.isActive) QrPrimaryBlue else Color.Gray)
+                    if (!item.qrCode.isNullOrBlank() && item.isActive) {
+                         QRCodeImage(
+                            content = item.qrCode,
+                            modifier = Modifier
+                                .size(90.dp)
+                                .padding(8.dp)
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(id = android.R.drawable.ic_menu_camera),
+                            contentDescription = "QR",
+                            tint = if (item.isActive) QrPrimaryBlue else Color.Gray,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (item.isActive) QrPrimaryBlue else Color.Gray)
+                    }
                 }
             }
             
@@ -736,18 +752,39 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
 
                 Box(
                     modifier = Modifier
-                        .size(150.dp)
+                        .size(200.dp)
                         .background(Color(0xFFF8FAFC), RoundedCornerShape(16.dp))
                         .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                      Text("QR CODE", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                      if (!table.qrCode.isNullOrBlank()) {
+                          QRCodeImage(
+                              content = table.qrCode,
+                              modifier = Modifier.fillMaxSize().padding(16.dp)
+                          )
+                      } else {
+                          Text("QR CODE TIDAK TERSEDIA", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                      }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
+
                 Button(
-                    onClick = { /* Download Logic */ },
+                    onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            val bitmap = QRCodeHelper.generateQrBitmap(table.qrCode ?: table.id.toString())
+                            if (bitmap != null) {
+                                val success = ImageSaver.saveBitmapToGallery(context, bitmap, "QR_${table.name}")
+                                withContext(Dispatchers.Main) {
+                                    if (success) Toast.makeText(context, "QR Tersimpan di Galeri!", Toast.LENGTH_SHORT).show()
+                                    else Toast.makeText(context, "Gagal menyimpan QR", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
                     modifier = Modifier.fillMaxWidth()

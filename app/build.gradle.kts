@@ -71,4 +71,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("io.socket:socket.io-client:2.1.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // QR Code Generator
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.2")
 }
