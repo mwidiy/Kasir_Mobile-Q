@@ -54,6 +54,8 @@ import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
 
+private const val BASE_PWA_URL = "http://192.168.1.6:3001"
+
 // --- COLORS ---
 private val QrBg = Color(0xFFF8F9FA)
 private val QrPrimaryBlue = Color(0xFF1E3A5F)
@@ -680,7 +682,7 @@ fun TableCard(item: Table, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, o
                 ) {
                     if (!item.qrCode.isNullOrBlank() && item.isActive) {
                          QRCodeImage(
-                            content = item.qrCode,
+                            content = "$BASE_PWA_URL/?tableId=${item.qrCode}",
                             modifier = Modifier
                                 .size(90.dp)
                                 .padding(8.dp)
@@ -759,7 +761,7 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
                 ) {
                       if (!table.qrCode.isNullOrBlank()) {
                           QRCodeImage(
-                              content = table.qrCode,
+                              content = "$BASE_PWA_URL/?tableId=${table.qrCode}",
                               modifier = Modifier.fillMaxSize().padding(16.dp)
                           )
                       } else {
@@ -775,7 +777,8 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
                 Button(
                     onClick = {
                         scope.launch(Dispatchers.IO) {
-                            val bitmap = QRCodeHelper.generateQrBitmap(table.qrCode ?: table.id.toString())
+                            val qrString = "$BASE_PWA_URL/?tableId=${table.qrCode ?: table.id}"
+                            val bitmap = QRCodeHelper.generateQrBitmap(qrString)
                             if (bitmap != null) {
                                 val success = ImageSaver.saveBitmapToGallery(context, bitmap, "QR_${table.name}")
                                 withContext(Dispatchers.Main) {
