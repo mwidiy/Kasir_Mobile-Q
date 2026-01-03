@@ -14,6 +14,8 @@ import com.example.kasir.data.model.Table
 import com.example.kasir.data.model.TableResponse
 import com.example.kasir.data.model.SingleTableResponse
 import com.example.kasir.data.model.TableRequest
+import com.example.kasir.data.model.Order
+import com.example.kasir.data.model.OrderStatusRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -120,4 +122,11 @@ interface ApiService {
 
     @DELETE("api/tables/{id}")
     suspend fun deleteTable(@Path("id") id: Int): Response<Unit>
+
+    // Order Endpoints
+    @GET("api/orders")
+    suspend fun getOrders(@Query("status") status: String? = null): Response<ApiResponse<List<Order>>>
+
+    @PUT("api/orders/{id}/status")
+    suspend fun updateOrderStatus(@Path("id") id: Int, @Body status: OrderStatusRequest): Response<Any>
 }
