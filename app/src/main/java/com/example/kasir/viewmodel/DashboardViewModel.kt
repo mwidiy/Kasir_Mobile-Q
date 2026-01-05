@@ -62,11 +62,20 @@ class DashboardViewModel : ViewModel() {
                 // Fetch all orders regardless of status
                 val response = apiService.getOrders(null)
                 if (response.isSuccessful) {
-                    val apiResponse = response.body()
-                    val orderList = apiResponse?.data ?: emptyList()
-                    // Reversing to show newest first, assuming backend returns chronological
-                     _orders.value = orderList.reversed()
-                     Log.d("DashboardViewModel", "Data berhasil diambil: ${orderList.size} item")
+                    val orderListResponse = response.body()
+                    // DEBUGGING: Log raw response data
+                    android.util.Log.d("DashboardViewModel", "Raw Data: $orderListResponse")
+                    if (orderListResponse != null && orderListResponse.success) {
+                        _orders.value = orderListResponse.data
+                        android.util.Log.d("DashboardViewModel", "Orders assigned: ${_orders.value.size}")
+                        // Check first order detail
+                        if (_orders.value.isNotEmpty()) {
+                            val first = _orders.value[0]
+                            android.util.Log.d("DashboardViewModel", "Order[0] Table: ${first.table}, TableID: ${first.table?.id}, Loc: ${first.table?.location}")
+                        }
+                    } else {
+                        _error.value = "Gagal memuat data: ${orderListResponse?.message}"
+                    }
                 } else {
                     val msg = "Failed to fetch orders: ${response.message()}"
                     _error.value = msg

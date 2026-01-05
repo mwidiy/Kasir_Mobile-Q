@@ -20,12 +20,14 @@ data class OrderResponse(
     val table: OrderTableResponse?, // Nullable
     val items: List<OrderItemResponse>,
     val createdAt: String,
-    val globalNote: String?
+    val note: String?, // Dulu globalNote
+    val deliveryAddress: String? // New field for address
 )
 
 data class OrderTableResponse(
     val id: Int,
     val name: String,
+    val qrCode: String?, // Added QR Code field
     val location: OrderLocationResponse? // Nullable agar aman jika backend belum kirim
 )
 
