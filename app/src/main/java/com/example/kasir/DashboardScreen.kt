@@ -24,8 +24,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.kasir.data.model.Order
-import com.example.kasir.data.model.OrderStatusRequest
+import com.example.kasir.data.model.OrderResponse
+import com.example.kasir.data.model.OrderTableResponse
+import com.example.kasir.data.model.OrderItemResponse
+import com.example.kasir.data.model.OrderProductResponse
 import com.example.kasir.ui.theme.KasirTheme
 import com.example.kasir.viewmodel.DashboardViewModel
 import java.text.NumberFormat
@@ -47,19 +49,35 @@ val LightYellowBg = Color(0xFFFEF9C3)
 
 @Composable
 fun DashboardScreen(onNavigate: (String) -> Unit, viewModel: DashboardViewModel = viewModel()) {
+    val orders by viewModel.orders.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    
+    DashboardScreenContent(
+        orders = orders,
+        isLoading = isLoading,
+        onNavigate = onNavigate,
+        onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) }
+    )
+}
+
+@Composable
+fun DashboardScreenContent(
+    orders: List<OrderResponse>,
+    isLoading: Boolean,
+    onNavigate: (String) -> Unit,
+    onUpdateStatus: (Int, String) -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
     // Filter by backend status value
     var activeFilter by remember { mutableStateOf<String?>(null) } // null = All
     var showProfileDropdown by remember { mutableStateOf(false) }
 
-    val orders by viewModel.orders.collectAsState()
-
     val filteredOrders = orders.filter { order ->
         (activeFilter == null || order.status == activeFilter) &&
         (searchQuery.isEmpty() ||
-         (order.transactionCode ?: "").contains(searchQuery, ignoreCase = true) ||
-         (order.customerName ?: "").contains(searchQuery, ignoreCase = true) ||
-         (order.items ?: emptyList()).any { it.product.name.contains(searchQuery, ignoreCase = true) })
+         (order.transactionCode).contains(searchQuery, ignoreCase = true) ||
+         (order.customerName).contains(searchQuery, ignoreCase = true) ||
+         (order.items).any { it.product.name.contains(searchQuery, ignoreCase = true) })
     }
 
     Box(modifier = Modifier.fillMaxSize().background(BgBody)) {
@@ -77,19 +95,29 @@ fun DashboardScreen(onNavigate: (String) -> Unit, viewModel: DashboardViewModel 
                     onFilterChange = { activeFilter = it }
                 )
 
-                // Order List
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = 100.dp),
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                ) {
-                    items(filteredOrders) { order ->
-                        KitchenOrderCard(
-                            order = order,
-                            onUpdateStatus = { newStatus ->
-                                viewModel.updateStatus(order.id, newStatus)
-                            }
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
+                // Order List or Loading/Empty State
+                if (isLoading && orders.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = HeaderBg)
+                    }
+                } else if (filteredOrders.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Belum ada pesanan", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = 100.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        items(filteredOrders, key = { it.id }) { order ->
+                            KitchenOrderCard(
+                                order = order,
+                                onUpdateStatus = { newStatus ->
+                                    onUpdateStatus(order.id, newStatus)
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
                 }
             }
@@ -234,7 +262,7 @@ fun FilterChip(text: String, isActive: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
+fun KitchenOrderCard(order: OrderResponse, onUpdateStatus: (String) -> Unit) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
     
     // Parse time
@@ -253,25 +281,21 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
     }
 
     // Helper Mapping (Terjemahan Tipe Pesanan)
-    val typeLabel = when (order.orderType?.lowercase()) {
-        "dinein" -> "🍽️ Makan di Sini"
-        "takeaway" -> "🎁 Bungkus"
-        "delivery" -> "🛵 Antar"
-        else -> order.orderType?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } ?: "Pesanan"
+    val typeLabel = when (order.orderType.lowercase()) {
+        "dinein" -> "🍽️ Dine In"
+        "takeaway" -> "🎁 Takeaway"
+        "delivery" -> "🛵 Delivery"
+        else -> order.orderType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     }
 
-    // Helper Mapping (Identitas Meja)
-    val tableLabel = if (order.table != null) {
-         "${order.table.location?.name ?: ""} ${order.table.name}".trim()
+    // Header Logic: "[Location] [Table] - [Customer]" or "[Customer] ([Type])"
+    val headerTitle = if (order.table != null) {
+        val locName = order.table.location?.name ?: ""
+        val tableName = order.table.name
+        val fullTableName = if (locName.isNotEmpty()) "$locName $tableName" else "Meja $tableName"
+        "$fullTableName - ${order.customerName}"
     } else {
-        ""
-    }
-
-    // Header Logic (Judul Kartu)
-    val locationText = if (order.table != null) {
-        "$typeLabel • $tableLabel"
-    } else {
-        typeLabel
+        "${order.customerName} (${typeLabel})"
     }
 
     Card(
@@ -294,7 +318,7 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = locationText,
+                        text = headerTitle,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -311,12 +335,19 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Customer Name
                 Text(
-                    text = order.customerName ?: "Pelanggan",
+                    text = order.customerName,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 20.sp,
                     color = Color.Black
                 )
                 
+                // Transaction Code
+                Text(
+                    text = "#${order.transactionCode}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+
                 // Global Note (Catatan)
                 val note = order.globalNote
                 if (!note.isNullOrEmpty()) {
@@ -345,7 +376,7 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
                 Text("Menu:", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                order.items?.forEach { item ->
+                order.items.forEach { item ->
                     Column(modifier = Modifier.padding(bottom = 12.dp)) {
                         Row(verticalAlignment = Alignment.Top) {
                             Text(
@@ -398,15 +429,16 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
                         )
                     }
 
-                    // Payment Badge
+                    // Status Badge (Based on status)
+                    val isPaid = order.status == "Paid" || order.status == "Completed"
                     Surface(
-                        color = if (order.paymentStatus == "Paid") Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
+                        color = if (isPaid) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = if (order.paymentStatus == "Paid") "LUNAS" else "BELUM BAYAR",
+                            text = if (isPaid) "LUNAS" else "BELUM BAYAR",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            color = if (order.paymentStatus == "Paid") Color(0xFF15803D) else Color(0xFFB91C1C),
+                            color = if (isPaid) Color(0xFF15803D) else Color(0xFFB91C1C),
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
@@ -423,7 +455,7 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Proses Pesanan")
+                        Text("Terima Pembayaran")
                     }
                 } else if (order.status == "Paid" || order.status == "Processing") {
                      Button(
@@ -440,10 +472,34 @@ fun KitchenOrderCard(order: Order, onUpdateStatus: (String) -> Unit) {
     }
 }
 
+// Preview Note: In real app, you would mock the ViewModel or provide dummy data to content
 @Preview(showBackground = true)
 @Composable
 fun DashboardPreview() {
     KasirTheme {
-        DashboardScreen(onNavigate = {})
+         // Using dummy data just for preview purposes, the real screen uses VM
+         val dummyOrders = listOf(
+             OrderResponse(
+                id = 1,
+                transactionCode = "TRX-123",
+                customerName = "Budi (Preview)",
+                table = OrderTableResponse(1, "01", com.example.kasir.data.model.OrderLocationResponse("Indoor")),
+                status = "Pending",
+                paymentStatus = "Unpaid",
+                orderType = "dinein",
+                totalAmount = 50000,
+                globalNote = "Jangan pedas",
+                createdAt = "2023-10-27T10:00:00",
+                items = listOf(
+                    OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
+                )
+            )
+         )
+        DashboardScreenContent(
+            orders = dummyOrders,
+            isLoading = false,
+            onNavigate = {},
+            onUpdateStatus = { _, _ -> }
+        )
     }
 }

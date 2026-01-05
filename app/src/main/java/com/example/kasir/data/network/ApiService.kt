@@ -15,6 +15,7 @@ import com.example.kasir.data.model.TableResponse
 import com.example.kasir.data.model.SingleTableResponse
 import com.example.kasir.data.model.TableRequest
 import com.example.kasir.data.model.Order
+import com.example.kasir.data.model.OrderResponse
 import com.example.kasir.data.model.OrderStatusRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -123,9 +124,8 @@ interface ApiService {
     @DELETE("api/tables/{id}")
     suspend fun deleteTable(@Path("id") id: Int): Response<Unit>
 
-    // Order Endpoints
     @GET("api/orders")
-    suspend fun getOrders(@Query("status") status: String? = null): Response<ApiResponse<List<Order>>>
+    suspend fun getOrders(@Query("status") status: String? = null): Response<com.example.kasir.data.model.OrderListResponse>
 
     @PUT("api/orders/{id}/status")
     suspend fun updateOrderStatus(@Path("id") id: Int, @Body status: OrderStatusRequest): Response<Any>

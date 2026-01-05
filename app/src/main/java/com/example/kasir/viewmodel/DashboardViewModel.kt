@@ -1,8 +1,9 @@
 package com.example.kasir.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.kasir.data.model.Order
+import com.example.kasir.data.model.OrderResponse
 import com.example.kasir.data.model.OrderStatusRequest
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.SocketHandler
@@ -14,65 +15,89 @@ import kotlinx.coroutines.launch
 class DashboardViewModel : ViewModel() {
     private val apiService = RetrofitClient.instance
 
-    private val _orders = MutableStateFlow<List<Order>>(emptyList())
-    val orders: StateFlow<List<Order>> = _orders.asStateFlow()
+    // State Management
+    private val _orders = MutableStateFlow<List<OrderResponse>>(emptyList())
+    val orders: StateFlow<List<OrderResponse>> = _orders.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
-        initializeSocket()
+        initSocket()
         fetchOrders()
     }
 
-    private fun initializeSocket() {
+    private fun initSocket() {
         try {
             SocketHandler.setSocket()
             SocketHandler.establishConnection()
             val socket = SocketHandler.getSocket()
 
+            // Listen for "new_order" event from backend
             socket.on("new_order") {
+                Log.d("DashboardViewModel", "Socket event received: new_order")
                 fetchOrders()
             }
-
+            
+            // Listen for update status event if consistent with backend
             socket.on("order_status_updated") {
+                Log.d("DashboardViewModel", "Socket event received: order_status_updated")
                 fetchOrders()
             }
+            
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "Socket Error: ${e.message}"
         }
     }
 
     fun fetchOrders() {
         viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
             try {
-                // Fetch all orders regardless of status, or we can filter in the backend if API supports it
-                // Calling getOrders(null) to get all
+                // Fetch all orders regardless of status
                 val response = apiService.getOrders(null)
                 if (response.isSuccessful) {
                     val apiResponse = response.body()
-                    // Assuming ApiResponse has a 'data' field. Use safe call/elvis.
                     val orderList = apiResponse?.data ?: emptyList()
-                    // Sort by createdAt descending (newest first)
-                    // createdAt is String, maybe ISO format?
-                    // For now, reverse list or rely on backend sort. 
-                    // Let's reverse to show newest if backend returns oldest first.
-                    // Or parsing string date.
-                    // Just updating state.
-                    _orders.value = orderList.reversed() 
+                    // Reversing to show newest first, assuming backend returns chronological
+                     _orders.value = orderList.reversed()
+                     Log.d("DashboardViewModel", "Data berhasil diambil: ${orderList.size} item")
+                } else {
+                    val msg = "Failed to fetch orders: ${response.message()}"
+                    _error.value = msg
+                    Log.e("DashboardViewModel", msg)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                val msg = "Error: ${e.localizedMessage}"
+                _error.value = msg
+                Log.e("DashboardViewModel", "Gagal fetch data: ${e.message}")
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
     fun updateStatus(orderId: Int, newStatus: String) {
         viewModelScope.launch {
+            _isLoading.value = true
             try {
                 val response = apiService.updateOrderStatus(orderId, OrderStatusRequest(newStatus))
                 if (response.isSuccessful) {
-                    fetchOrders()
+                    fetchOrders() // Refresh list on success
+                } else {
+                     _error.value = "Failed to update status: ${response.message()}"
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _error.value = "Error update: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -80,9 +105,12 @@ class DashboardViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         try {
-            SocketHandler.closeConnection()
-            SocketHandler.getSocket().off("new_order")
-            SocketHandler.getSocket().off("order_status_updated")
+            val socket = SocketHandler.getSocket()
+            if (socket.connected()) {
+                 socket.off("new_order")
+                 socket.off("order_status_updated")
+                 SocketHandler.closeConnection()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
