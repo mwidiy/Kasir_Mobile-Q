@@ -65,15 +65,23 @@ val InfoAddressText = Color(0xFF1E40AF)
 val InfoAddressBorder = Color(0xFFDBEAFE)
 
 @Composable
-fun DashboardScreen(onNavigate: (String) -> Unit, viewModel: DashboardViewModel = viewModel()) {
+fun DashboardScreen(
+    onNavigate: (String) -> Unit, 
+    viewModel: DashboardViewModel = viewModel(),
+    profileViewModel: com.example.kasir.viewmodel.ProfileViewModel = viewModel() // Inject ProfileViewModel
+) {
     val orders by viewModel.orders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    
+    // Collect Store State
+    val storeState by profileViewModel.storeState.collectAsState()
 
     DashboardScreenContent(
         orders = orders,
         isLoading = isLoading,
         error = error,
+        store = storeState, // Pass store data
         onNavigate = onNavigate,
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) }
     )
@@ -84,6 +92,7 @@ fun DashboardScreenContent(
     orders: List<OrderResponse>,
     isLoading: Boolean,
     error: String?,
+    store: Store?, // Receive store data
     onNavigate: (String) -> Unit,
     onUpdateStatus: (Int, String) -> Unit
 ) {
@@ -109,7 +118,11 @@ fun DashboardScreenContent(
         Scaffold(
             containerColor = Color.Transparent, 
             topBar = {
-DashboardTopBar(onProfileClick = { onNavigate("profile") })
+                DashboardTopBar(
+                    storeName = store?.name ?: "Dapur QuackXel",
+                    logoUrl = store?.logo,
+                    onProfileClick = { onNavigate("profile") }
+                )
             }
         ) { paddingValues ->
             Column(
@@ -158,7 +171,11 @@ DashboardTopBar(onProfileClick = { onNavigate("profile") })
 }
 
 @Composable
-fun DashboardTopBar(onProfileClick: () -> Unit) {
+fun DashboardTopBar(
+    storeName: String,
+    logoUrl: String?,
+    onProfileClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -171,7 +188,7 @@ fun DashboardTopBar(onProfileClick: () -> Unit) {
             Icon(Icons.Default.Menu, contentDescription = null, tint = BadgeNewBg)
             Column {
                 Text(
-                    text = "Dapur QuackXel",
+                    text = storeName,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -193,7 +210,21 @@ fun DashboardTopBar(onProfileClick: () -> Unit) {
                 .clickable { onProfileClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)
+             val imageUrl = if (!logoUrl.isNullOrEmpty()) {
+                if (logoUrl.startsWith("http")) logoUrl 
+                else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
+            } else null
+
+            if (imageUrl != null) {
+                 coil.compose.AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Profile",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)
+            }
         }
     }
 }
@@ -555,5 +586,5 @@ fun DashboardPreview() {
             OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
         )
     )
-    DashboardScreenContent(listOf(sampleOrder), false, null, {}, { _, _ -> })
+    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> })
 }
