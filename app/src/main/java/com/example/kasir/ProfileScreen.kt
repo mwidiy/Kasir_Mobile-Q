@@ -1,5 +1,8 @@
 package com.example.kasir
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,16 +24,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel // Add dependency if missing
 import coil.compose.rememberAsyncImagePainter
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import com.example.kasir.viewmodel.ProfileViewModel
+import com.example.kasir.utils.FileUtils
+import androidx.compose.ui.platform.LocalContext
 
 // --- COLORS ---
 val Navy = Color(0xFF2C3E50)
@@ -41,31 +47,73 @@ val SurfaceLight = Color(0xFFFFFFFF)
 val Danger = Color(0xFFEF4444)
 
 @Composable
-fun ProfileScreen(onNavigate: (String) -> Unit) {
+fun ProfileScreen(
+    onNavigate: (String) -> Unit,
+    viewModel: ProfileViewModel = viewModel()
+) {
+    val storeState by viewModel.storeState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    
+    val context = LocalContext.current
+    
+    // Launchers
+    val logoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri -> 
+        if (uri != null) viewModel.uploadLogo(uri, context)
+    }
+
+    val qrisLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri -> 
+        if (uri != null) viewModel.uploadQris(uri, context)
+    }
+
     Scaffold(
         topBar = {
             ProfileTopBar(onBack = { onNavigate("dashboard") })
         },
         containerColor = BackgroundLight
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Section 1: Restaurant Identity
-            RestaurantIdentitySection()
+        if (isLoading) {
+             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                 CircularProgressIndicator(color = Navy)
+             }
+        } else {
+             Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Section 1: Restaurant Identity
+                RestaurantIdentitySection(
+                    name = storeState?.name ?: "Nama Resto",
+                    logoUrl = storeState?.logo,
+                    onNameChange = { /* handled in button or on value change */ }, // simplified
+                    onLogoClick = { logoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    viewModel = viewModel
+                )
 
-            // Section 2: QRIS Management
-            QrisManagementSection()
+                // Section 2: QRIS Management
+                QrisManagementSection(
+                    qrisUrl = storeState?.qrisImage,
+                    onUploadClick = { qrisLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                )
 
-            // Section 3: Footer Actions
-            Spacer(modifier = Modifier.weight(1f)) // Push to bottom if content is short
-            FooterActions(onNavigate)
+                // Error Message
+                if (errorMessage != null) {
+                    Text(text = errorMessage!!, color = Danger, style = MaterialTheme.typography.bodySmall)
+                }
+
+                // Section 3: Footer Actions
+                Spacer(modifier = Modifier.weight(1f)) // Push to bottom if content is short
+                FooterActions(onNavigate)
+            }
         }
     }
 }
@@ -85,7 +133,6 @@ fun ProfileTopBar(onBack: () -> Unit) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                //.background(Color.White.copy(alpha = 0.1f)) // Optional hover effect
         ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
@@ -111,7 +158,13 @@ fun ProfileTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-fun RestaurantIdentitySection() {
+fun RestaurantIdentitySection(
+    name: String, 
+    logoUrl: String?, 
+    onNameChange: (String) -> Unit,
+    onLogoClick: () -> Unit,
+    viewModel: ProfileViewModel
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -119,7 +172,7 @@ fun RestaurantIdentitySection() {
     ) {
         // Logo Upload
         Box(
-            modifier = Modifier.clickable { /* TODO: Implement Image Picker */ }
+            modifier = Modifier.clickable { onLogoClick() }
         ) {
             Box(
                 modifier = Modifier
@@ -128,8 +181,13 @@ fun RestaurantIdentitySection() {
                     .border(4.dp, Color.White, CircleShape)
                     .background(Color.Gray) // Placeholder bg
             ) {
+                val imageUrl = if (!logoUrl.isNullOrEmpty()) {
+                    if (logoUrl.startsWith("http")) logoUrl 
+                    else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for demo, better inject base URL
+                } else null
+
                 Image(
-                    painter = rememberAsyncImagePainter("https://lh3.googleusercontent.com/aida-public/AB6AXuAEh5lgY19V90cD-UCzN8VRKApZwi2xxEBdfpYtFqe8FzQ6Kjj3n13sJtXEqXeaaMAF7zLXnzXwxXjqWvOjOuYwJB0SaB4yD2uZIDUmT1Wx0Rs9UC1JsksyDjrSfCmLdGW2rp-cDrI4dKDXyjWsRtpUhtlIuN5yYYaV54r3X1cmrgt-bO7Opbmr5XN7PZFwhAi9BqUFZigVtzAgKx7zY7esbg8EXVeZPrjSjJkwlHHEu_wtBMn3a9bvkaLi9pZ_ajX7zkVSJq1qYUc9"),
+                    painter = rememberAsyncImagePainter(imageUrl ?: "https://via.placeholder.com/150"),
                     contentDescription = "Restaurant Logo",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -164,11 +222,14 @@ fun RestaurantIdentitySection() {
                 modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
             )
             
-            var text by remember { mutableStateOf("Dapur QuackXel") }
+            var text by remember(name) { mutableStateOf(name) }
             
             TextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { 
+                    text = it
+                    // Optional: Auto save or wait for button. Implementing simple auto-save or call viewmodel
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
@@ -182,7 +243,9 @@ fun RestaurantIdentitySection() {
                     unfocusedTextColor = Navy
                 ),
                 trailingIcon = {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF9CA3AF))
+                     IconButton(onClick = { viewModel.updateName(text) }) {
+                        Icon(Icons.Default.Check, contentDescription = "Save Name", tint = Navy)
+                     }
                 },
                 singleLine = true
             )
@@ -191,7 +254,10 @@ fun RestaurantIdentitySection() {
 }
 
 @Composable
-fun QrisManagementSection() {
+fun QrisManagementSection(
+    qrisUrl: String?,
+    onUploadClick: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceLight),
@@ -201,47 +267,31 @@ fun QrisManagementSection() {
             .border(1.dp, Color(0xFFF3F4F6), RoundedCornerShape(16.dp)) // Gray-100
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            // Header
+            // Header...
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
+                 verticalAlignment = Alignment.CenterVertically,
+                 horizontalArrangement = Arrangement.spacedBy(12.dp),
+                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Navy.copy(alpha = 0.05f)), // Navy/5
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.List, contentDescription = null, tint = Navy)
-                }
-                Column {
-                    Text(
-                        text = "Metode Pembayaran",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Navy
-                        )
-                    )
-                    Text(
-                        text = "Upload QRIS Toko untuk pembayaran non-tunai",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF6B7280) // Gray-500
-                        )
-                    )
-                }
+                 Box(
+                     modifier = Modifier.size(40.dp).clip(CircleShape).background(Navy.copy(alpha=0.05f)),
+                     contentAlignment = Alignment.Center
+                 ) {
+                      Icon(Icons.Default.List, contentDescription = null, tint = Navy)
+                 }
+                 Column {
+                     Text("Metode Pembayaran", style=MaterialTheme.typography.titleMedium.copy(fontWeight=FontWeight.Bold, color=Navy))
+                     Text("Upload QRIS Toko", style=MaterialTheme.typography.bodySmall.copy(color=Color.Gray))
+                 }
             }
 
             // Upload Zone
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(2.dp, Color(0xFFD1D5DB), RoundedCornerShape(12.dp)) // Gray-300 (Dashed logic would fail here in simple Compose, using solid)
-                    //Ideally needs a DrawModifier for Dashed Border
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF9FAFB).copy(alpha = 0.5f)) // Gray-50/50
-                    .clickable { /* TODO: Upload Logic */ }
+                    .background(Color(0xFFF9FAFB))
+                    .clickable { onUploadClick() }
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -249,50 +299,36 @@ fun QrisManagementSection() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    val imageUrl = if (!qrisUrl.isNullOrEmpty()) {
+                         if (qrisUrl.startsWith("http")) qrisUrl 
+                         else "http://192.168.1.4:3000/uploads/$qrisUrl" 
+                    } else null
+                    
                     // QR Preview
                     Box(
                         modifier = Modifier
                             .size(128.dp)
                             .background(Color.White, RoundedCornerShape(8.dp))
                             .padding(8.dp)
-                            .shadow(2.dp, RoundedCornerShape(8.dp)) // Helper shadow
+                            .shadow(2.dp, RoundedCornerShape(8.dp))
                     ) {
-                         Image(
-                            painter = rememberAsyncImagePainter("https://lh3.googleusercontent.com/aida-public/AB6AXuAnWg7-cysbnkUL5bdDmxytCueYFQ0G23Gl94yZwpxAOOAVWz3pDzr_3zVbl6caDSS58NoB2PcBzDlvLrUZQy_Ab5a1zlgkd6YJfiIRGtG37TsqXfd6Mut9Suib8RJ2DUScFKEWxwAltWcKET6PwuLv6INS-5OJrj6cJ-AkKOYmYLuo7veET6i1QzDMH3kGacqKkXXHAGxpC_OF9kbqvqHIsun3yunKnsckmdjf3NOLFUPFwz79UXNDqE25eLogMUmwMDrfCHR8JVvX"),
+                        Image(
+                            painter = rememberAsyncImagePainter(imageUrl ?: "https://via.placeholder.com/150?text=No+QRIS"),
                             contentDescription = "QRIS Preview",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize().alpha(0.8f)
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
 
-                    // Button & Text
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Button(
+                        onClick = onUploadClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Navy),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
                     ) {
-                        Button(
-                            onClick = { /* TODO: Upload Logic */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Navy
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Ganti / Upload QRIS", fontWeight = FontWeight.Bold)
-                        }
-                        
-                        Text(
-                            text = "Pastikan kode QRIS terlihat jelas dan valid.",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color(0xFF9CA3AF), // Gray-400
-                                fontWeight = FontWeight.Medium
-                            ),
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Ganti / Upload QRIS", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -303,26 +339,9 @@ fun QrisManagementSection() {
 @Composable
 fun FooterActions(onNavigate: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Save Button
-        Button(
-            onClick = { /* TODO: Save Logic */ },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = QuackYellow,
-                contentColor = Navy
-            ),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-        ) {
-            Icon(Icons.Default.Check, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Simpan Perubahan", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-
         // Logout Button
         TextButton(
-            onClick = { onNavigate("login") }, // Assuming Login screen exists
+            onClick = { onNavigate("login") }, 
             colors = ButtonDefaults.textButtonColors(contentColor = Danger),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
@@ -339,5 +358,5 @@ fun FooterActions(onNavigate: (String) -> Unit) {
 @Preview(showBackground = true)
 @Composable
 fun ProfileScreenPreview() {
-    ProfileScreen(onNavigate = {})
+    // Preview won't work well due to ViewModel dependency without mocking
 }

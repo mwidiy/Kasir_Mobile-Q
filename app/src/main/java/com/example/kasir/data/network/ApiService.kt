@@ -12,6 +12,7 @@ import com.example.kasir.data.model.LocationResponse
 import com.example.kasir.data.model.SingleLocationResponse
 import com.example.kasir.data.model.Table
 import com.example.kasir.data.model.TableResponse
+import com.example.kasir.data.model.StoreResponse
 import com.example.kasir.data.model.SingleTableResponse
 import com.example.kasir.data.model.TableRequest
 import com.example.kasir.data.model.Order
@@ -129,4 +130,19 @@ interface ApiService {
 
     @PUT("api/orders/{id}/status")
     suspend fun updateOrderStatus(@Path("id") id: Int, @Body status: OrderStatusRequest): Response<Any>
+
+    // Store Endpoints
+    @GET("api/store")
+    suspend fun getStore(): StoreResponse
+
+    @PUT("api/store")
+    suspend fun updateStore(@Body store: Map<String, String>): StoreResponse
+
+    @Multipart
+    @POST("api/store/upload-logo")
+    suspend fun uploadLogo(@Part image: MultipartBody.Part): StoreResponse
+
+    @Multipart
+    @POST("api/store/upload-qris")
+    suspend fun uploadQris(@Part image: MultipartBody.Part): StoreResponse
 }
