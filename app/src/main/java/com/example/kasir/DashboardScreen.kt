@@ -109,7 +109,7 @@ fun DashboardScreenContent(
         Scaffold(
             containerColor = Color.Transparent, 
             topBar = {
-                DashboardTopBar()
+DashboardTopBar(onProfileClick = { onNavigate("profile") })
             }
         ) { paddingValues ->
             Column(
@@ -158,7 +158,7 @@ fun DashboardScreenContent(
 }
 
 @Composable
-fun DashboardTopBar() {
+fun DashboardTopBar(onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -189,7 +189,8 @@ fun DashboardTopBar() {
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(Color(0xFFFFE4E6))
-                .border(2.dp, Color(0x33FFFFFF), CircleShape),
+                .border(2.dp, Color(0x33FFFFFF), CircleShape)
+                .clickable { onProfileClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)

@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                         "menu" -> MenuScreen(onNavigate = { screen -> currentScreen = screen })
                         "meja" -> TableScreen(onNavigate = { screen -> currentScreen = screen })
                         "bayar" -> ScanScreen(onNavigate = { screen -> currentScreen = screen })
+                        "profile" -> ProfileScreen(onNavigate = { screen -> currentScreen = screen })
                         else -> DashboardScreen(onNavigate = { screen -> currentScreen = screen }) 
                     }
                 }

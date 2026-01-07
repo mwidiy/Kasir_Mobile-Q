@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Restaurant Settings - QuackXel</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "navy": "#2C3E50",
+                        "navy-dark": "#1a252f",
+                        "quack-yellow": "#F7DC6F",
+                        "quack-yellow-dark": "#f0c92f",
+                        "background-light": "#F9FAFB",
+                        "background-dark": "#111827",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1F2937",
+                        "danger": "#EF4444",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"],
+                        "sans": ["Plus Jakarta Sans", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Hide scrollbar for clean UI */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-navy dark:text-gray-100 font-display min-h-screen flex flex-col antialiased">
+<!-- Header -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-navy h-[60px] flex items-center px-4 shadow-md safe-top">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors text-white mr-2">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="text-white text-lg font-bold flex-1 text-center pr-12">Pengaturan Resto</h1>
+</header>
+<!-- Main Content -->
+<main class="flex-1 w-full max-w-md mx-auto pt-[84px] pb-8 px-5 flex flex-col gap-8">
+<!-- Section 1: Restaurant Identity -->
+<section class="flex flex-col items-center gap-6">
+<!-- Logo Upload -->
+<div class="relative group cursor-pointer">
+<div class="w-[100px] h-[100px] rounded-full overflow-hidden border-4 border-white shadow-soft bg-gray-100 relative">
+<img alt="Restaurant logo showing a stylized wok pan with food" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEh5lgY19V90cD-UCzN8VRKApZwi2xxEBdfpYtFqe8FzQ6Kjj3n13sJtXEqXeaaMAF7zLXnzXwxXjqWvOjOuYwJB0SaB4yD2uZIDUmT1Wx0Rs9UC1JsksyDjrSfCmLdGW2rp-cDrI4dKDXyjWsRtpUhtlIuN5yYYaV54r3X1cmrgt-bO7Opbmr5XN7PZFwhAi9BqUFZigVtzAgKx7zY7esbg8EXVeZPrjSjJkwlHHEu_wtBMn3a9bvkaLi9pZ_ajX7zkVSJq1qYUc9"/>
+</div>
+<div class="absolute bottom-0 right-0 bg-navy text-white rounded-full p-2 border-[3px] border-background-light dark:border-background-dark shadow-sm flex items-center justify-center transform transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+</div>
+</div>
+<!-- Name Input -->
+<div class="w-full">
+<label class="block text-navy dark:text-gray-200 text-sm font-semibold mb-2 ml-1">Nama Restoran</label>
+<div class="relative flex items-center w-full">
+<input class="w-full bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3.5 text-navy dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy transition-all shadow-sm placeholder:text-gray-400" type="text" value="Dapur QuackXel"/>
+<div class="absolute right-4 text-gray-400 pointer-events-none">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: QRIS Management -->
+<section class="bg-surface-light dark:bg-surface-dark rounded-2xl p-5 shadow-soft border border-gray-100 dark:border-gray-700">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-full bg-navy/5 flex items-center justify-center text-navy">
+<span class="material-symbols-outlined">qr_code_2</span>
+</div>
+<div>
+<h2 class="text-navy dark:text-white font-bold text-lg leading-tight">Metode Pembayaran</h2>
+<p class="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Upload QRIS Toko untuk pembayaran non-tunai</p>
+</div>
+</div>
+<!-- Upload Zone -->
+<div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50/50 dark:bg-gray-800/30 p-6 flex flex-col items-center gap-4 transition-colors hover:border-navy/50 hover:bg-navy/5 group cursor-pointer">
+<!-- QR Preview -->
+<div class="relative w-32 h-32 bg-white p-2 rounded-lg shadow-sm">
+<img alt="Preview of the current QRIS code for digital payments" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnWg7-cysbnkUL5bdDmxytCueYFQ0G23Gl94yZwpxAOOAVWz3pDzr_3zVbl6caDSS58NoB2PcBzDlvLrUZQy_Ab5a1zlgkd6YJfiIRGtG37TsqXfd6Mut9Suib8RJ2DUScFKEWxwAltWcKET6PwuLv6INS-5OJrj6cJ-AkKOYmYLuo7veET6i1QzDMH3kGacqKkXXHAGxpC_OF9kbqvqHIsun3yunKnsckmdjf3NOLFUPFwz79UXNDqE25eLogMUmwMDrfCHR8JVvX"/>
+<div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors flex items-center justify-center">
+<!-- Overlay effect on hover -->
+</div>
+</div>
+<div class="flex flex-col items-center text-center gap-1">
+<button class="text-navy dark:text-sky-400 font-bold text-sm bg-white dark:bg-gray-700 px-4 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">upload</span>
+                        Ganti / Upload QRIS
+                    </button>
+<p class="text-gray-400 text-xs mt-2 font-medium">Pastikan kode QRIS terlihat jelas dan valid.</p>
+</div>
+</div>
+</section>
+<!-- Section 3: Footer Actions -->
+<footer class="mt-auto flex flex-col gap-4">
+<button class="w-full bg-quack-yellow hover:bg-quack-yellow-dark text-navy font-bold text-[15px] py-4 rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">save</span>
+                Simpan Perubahan
+            </button>
+<button class="w-full bg-transparent hover:bg-red-50 dark:hover:bg-red-900/10 text-danger font-semibold text-[15px] py-3 rounded-xl transition-colors flex items-center justify-center gap-2 border border-transparent hover:border-danger/20">
+<span class="material-symbols-outlined">logout</span>
+                Keluar Akun
+            </button>
+</footer>
+</main>
+</body></html>
