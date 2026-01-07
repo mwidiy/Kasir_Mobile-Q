@@ -1,6 +1,7 @@
 package com.example.kasir.utils
 
 import io.socket.client.IO
+import com.example.kasir.BuildConfig
 import io.socket.client.Socket
 import java.net.URISyntaxException
 
@@ -10,8 +11,8 @@ object SocketHandler {
     @Synchronized
     fun setSocket() {
         try {
-            // Using the base URL as requested
-            mSocket = IO.socket("http://192.168.1.6:3000/")
+            // Using the base URL from local.properties
+            mSocket = IO.socket(BuildConfig.API_BASE_URL)
         } catch (e: URISyntaxException) {
             e.printStackTrace()
         }

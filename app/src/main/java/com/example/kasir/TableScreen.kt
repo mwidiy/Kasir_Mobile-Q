@@ -54,7 +54,7 @@ import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
 
-private const val BASE_PWA_URL = "http://192.168.1.6:3001"
+private val BASE_PWA_URL = BuildConfig.PWA_BASE_URL.removeSuffix("/")
 
 // --- COLORS ---
 private val QrBg = Color(0xFFF8F9FA)

@@ -1,6 +1,7 @@
 package com.example.kasir.ui.banner
 
 import androidx.compose.foundation.background
+import com.example.kasir.BuildConfig
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -161,7 +162,7 @@ fun BannerCard(
             ) {
                 // IMAGE WITH COIL
                 Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray)) {
-                    val model = if (banner.image.startsWith("http")) banner.image else "http://192.168.1.6:3000${banner.image}"
+                    val model = if (banner.image.startsWith("http")) banner.image else "${BuildConfig.API_BASE_URL.removeSuffix("/")}${banner.image}"
                     AsyncImage(
                         model = model,
                         contentDescription = banner.title,
@@ -318,7 +319,7 @@ fun BannerFormScreen(
                        if (selectedImageUri != null) {
                             AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                        } else if (initialBanner != null && initialBanner.image.isNotEmpty()) {
-                            val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "http://192.168.1.6:3000${initialBanner.image}"
+                            val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "${BuildConfig.API_BASE_URL.removeSuffix("/")}${initialBanner.image}"
                             AsyncImage(model = model, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                        } else {
                             Icon(painter = painterResource(android.R.drawable.ic_menu_gallery), contentDescription = null, tint = Color.White.copy(alpha=0.3f))
@@ -352,7 +353,7 @@ fun BannerFormScreen(
                          if (selectedImageUri != null) {
                               AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                          } else if (initialBanner != null && initialBanner.image.isNotEmpty()) {
-                              val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "http://192.168.1.6:3000${initialBanner.image}"
+                              val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "${BuildConfig.API_BASE_URL.removeSuffix("/")}${initialBanner.image}"
                               AsyncImage(model = model, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                               // Overlay hint to change
                               Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.3f)), contentAlignment=Alignment.Center) {

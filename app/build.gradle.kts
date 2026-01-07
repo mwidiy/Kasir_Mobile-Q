@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,6 +13,11 @@ android {
         version = release(36)
     }
 
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.example.kasir"
         minSdk = 24
@@ -18,6 +26,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Load API_BASE_URL from local.properties
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+        var apiBaseUrl = localProperties.getProperty("API_BASE_URL") ?: "http://192.168.1.4:3000/"
+        apiBaseUrl = apiBaseUrl.replace("\"", "")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+
+        var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL") ?: "http://192.168.1.4:3001/"
+        pwaBaseUrl = pwaBaseUrl.replace("\"", "")
+        buildConfigField("String", "PWA_BASE_URL", "\"$pwaBaseUrl\"")
     }
 
     buildTypes {
@@ -35,9 +57,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
-    }
-    buildFeatures {
-        compose = true
     }
 }
 
