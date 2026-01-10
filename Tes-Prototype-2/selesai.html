@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html class="dark" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Payment Success Confirmation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#f3e6a8", // Pale yellow button color
+                        "background-light": "#f8fafc",
+                        "background-dark": "#1a2c4e", // Deep navy blue
+                        "success-mint": "#4ade80",
+                    },
+                    fontFamily: {
+                        display: ["Plus Jakarta Sans", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "1rem",
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+        .gradient-bg {
+            background: radial-gradient(circle at top, #2d4168 0%, #1a2c4e 100%);
+        }
+        .glow-circle {
+            background: radial-gradient(circle, rgba(74, 222, 128, 0.2) 0%, rgba(74, 222, 128, 0) 70%);
+        }
+        .material-symbols-rounded {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-display bg-background-light dark:bg-background-dark min-h-screen flex justify-center items-center">
+<div class="relative w-full max-w-[430px] h-full min-h-screen gradient-bg dark:bg-background-dark overflow-hidden flex flex-col px-6 pt-12 pb-8">
+<div class="absolute top-10 left-10 w-4 h-4 bg-yellow-400 opacity-60 rounded-sm rotate-12"></div>
+<div class="absolute top-40 right-10 w-3 h-3 bg-purple-400 opacity-40 rounded-full"></div>
+<div class="absolute top-[20%] left-[15%] w-2 h-2 bg-blue-300 opacity-40 rounded-full"></div>
+<div class="absolute top-[45%] right-8 w-6 h-6 bg-white/5 rounded-sm rotate-45"></div>
+<div class="absolute bottom-[20%] left-12 w-2 h-2 bg-blue-400 opacity-40 rounded-full"></div>
+<div class="relative flex flex-col items-center text-center mt-4 mb-8">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 glow-circle rounded-full pointer-events-none"></div>
+<div class="relative z-10 w-32 h-32 bg-[#bbf7d0] rounded-full flex items-center justify-center mb-8 shadow-2xl shadow-green-500/20">
+<span class="material-symbols-rounded text-6xl text-[#22c55e]">check</span>
+</div>
+<h1 class="text-3xl font-extrabold text-white mb-2 tracking-tight">Pembayaran Berhasil!</h1>
+<p class="text-blue-100/70 text-lg">Terima kasih atas pembayaran Anda.</p>
+</div>
+<div class="relative z-10 flex-grow">
+<div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-8 flex flex-col items-center shadow-xl">
+<span class="text-blue-100/60 font-medium mb-4">Total Pembayaran</span>
+<div class="flex flex-col items-center mb-8">
+<span class="text-4xl font-extrabold text-success-mint">Rp</span>
+<span class="text-6xl font-extrabold text-success-mint tracking-tighter">156.500</span>
+</div>
+<div class="w-full space-y-5 border-t border-white/10 pt-6">
+<div class="flex items-center justify-center space-x-2 text-white/90">
+<span class="material-symbols-rounded text-xl opacity-60">receipt_long</span>
+<span class="text-base font-semibold">ID Pesanan: <span class="font-bold">#0510</span></span>
+</div>
+<div class="flex items-start justify-center space-x-3 text-white/70">
+<span class="material-symbols-rounded text-lg mt-0.5">schedule</span>
+<span class="text-sm leading-relaxed text-center">Transaksi berhasil pada 10 Mei 2024, 14:32</span>
+</div>
+</div>
+<div class="w-full mt-8 bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center space-x-4">
+<div class="flex-shrink-0 w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/20">
+<span class="material-symbols-rounded text-background-dark text-xl font-bold">shield</span>
+</div>
+<p class="text-sm text-white/80 leading-snug">
+                        Pembayaran Anda telah diverifikasi dan aman
+                    </p>
+</div>
+</div>
+</div>
+<div class="mt-8 mb-4">
+<button class="w-full py-5 bg-primary hover:brightness-95 active:scale-[0.98] transition-all rounded-[1.25rem] text-background-dark font-extrabold text-lg shadow-xl shadow-yellow-900/10">
+                Selesai
+            </button>
+</div>
+<div class="mx-auto w-32 h-1.5 bg-white/20 rounded-full mt-4"></div>
+</div>
+
+</body></html>

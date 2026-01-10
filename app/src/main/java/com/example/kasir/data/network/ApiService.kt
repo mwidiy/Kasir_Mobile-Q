@@ -145,4 +145,7 @@ interface ApiService {
     @Multipart
     @POST("api/store/upload-qris")
     suspend fun uploadQris(@Part image: MultipartBody.Part): StoreResponse
+
+    @GET("api/orders/code/{code}")
+    suspend fun getOrderByCode(@Path("code") code: String): Response<com.example.kasir.data.model.SingleOrderResponse>
 }

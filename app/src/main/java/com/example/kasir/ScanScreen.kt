@@ -1,20 +1,12 @@
 package com.example.kasir
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,32 +14,35 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kasir.ui.components.PaymentConfirmationDialog
+import com.example.kasir.ui.components.PaymentSuccessDialog
+import com.example.kasir.viewmodel.ScanViewModel
+import com.google.zxing.ResultPoint
+import com.journeyapps.barcodescanner.BarcodeCallback
+import com.journeyapps.barcodescanner.BarcodeResult
+import com.journeyapps.barcodescanner.CompoundBarcodeView
+import kotlinx.coroutines.delay
 
 // --- COLORS ---
 private val ScanBg = Color(0xFF121212)
@@ -60,17 +55,43 @@ private val ScanButtonBg = Color(0xFF2C2C2C)
 private val ScanPrimaryBtn = Color(0xFF1F2937)
 
 @Composable
-fun ScanScreen(onNavigate: (String) -> Unit) {
+fun ScanScreen(
+    onNavigate: (String) -> Unit,
+    viewModel: ScanViewModel = viewModel()
+) {
     var showManualInput by remember { mutableStateOf(false) }
     var hasCameraPermission by remember { mutableStateOf(false) }
+    var isScanning by remember { mutableStateOf(true) } // Control scanning state
 
+    val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted -> hasCameraPermission = granted }
     )
 
     LaunchedEffect(Unit) {
-        permissionLauncher.launch(Manifest.permission.CAMERA)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            hasCameraPermission = true
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // ViewModel State
+    val scannedOrder by viewModel.scannedOrder.collectAsState()
+    val isPaymentSuccess by viewModel.paymentSuccess.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    // Effects for Error
+    LaunchedEffect(error) {
+        if (error != null) {
+            android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
+            // Resume scanning after error delay?
+            delay(2000)
+            isScanning = true // Allow rescan
+            viewModel.resetState()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(ScanBg)) {
@@ -82,7 +103,6 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
                     .padding(top = 24.dp, bottom = 20.dp, start = 20.dp, end = 20.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                // Back button (Functional but maybe less relevant in bottom nav mode, kept for design fidelity)
                 IconButton(onClick = { onNavigate("dashboard") }, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ScanTextWhite)
                 }
@@ -91,7 +111,7 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
                     Text("Pembayaran Kasir", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = ScanTextWhite)
                     Text("Restaurant Admin", fontSize = 12.sp, color = ScanTextGray)
                 }
-                Spacer(modifier = Modifier.width(40.dp)) // Balance layout
+                Spacer(modifier = Modifier.width(40.dp))
             }
 
             // Main Content
@@ -104,7 +124,7 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
                 Text("Scan QR Code", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = ScanTextWhite)
                 Text("Arahkan kamera ke kode QR pelanggan", fontSize = 14.sp, color = ScanTextGray, modifier = Modifier.padding(bottom = 40.dp))
 
-                // Scan Frame (Camera View)
+                // Scan Frame (Real Scanner)
                 Box(
                     modifier = Modifier
                         .size(280.dp)
@@ -114,18 +134,26 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     if (hasCameraPermission) {
-                        CameraPreview()
+                        ZXingScannerView(
+                            isScanning = isScanning,
+                            onScanResult = { code ->
+                                isScanning = false // Pause scanning
+                                viewModel.fetchOrderByCode(code)
+                            }
+                        )
                     } else {
-                        Text("Izin Kamera Diperlukan", color = ScanTextGray, fontSize = 12.sp)
+                         Text("Izin Kamera Diperlukan", color = ScanTextGray, fontSize = 12.sp)
                     }
                     
-                    // Loading Animation Overlay
-                    ScanLoader()
+                    // Loading Overlay
+                    if (isLoading) {
+                        CircularProgressIndicator(color = ScanYellow)
+                    } else {
+                        ScanLoader()
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(30.dp))
-
-                // Tips Card
                 TipsCard()
             }
 
@@ -134,17 +162,51 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 20.dp)
-                    .padding(bottom = 80.dp), // Extra padding for bottom nav
+                    .padding(bottom = 80.dp),
                 horizontalArrangement = Arrangement.spacedBy(15.dp)
             ) {
                 ScanActionButton("Manual Input", android.R.drawable.ic_menu_edit, Modifier.weight(1f)) { showManualInput = true }
-                ScanActionButton("Recent Scans", android.R.drawable.ic_menu_recent_history, Modifier.weight(1f)) { /* Logic */ }
+                ScanActionButton("Reset Scan", android.R.drawable.ic_menu_rotate, Modifier.weight(1f)) { 
+                    viewModel.resetState()
+                    isScanning = true 
+                }
             }
         }
         
         // Manual Input Sheet
         if (showManualInput) {
-            ManualInputSheet(onDismiss = { showManualInput = false })
+            ManualInputSheet(
+                onDismiss = { showManualInput = false },
+                onSubmit = { code ->
+                    showManualInput = false
+                    viewModel.fetchOrderByCode(code)
+                }
+            )
+        }
+
+        // Dialogs
+        if (scannedOrder != null && !isPaymentSuccess) {
+            PaymentConfirmationDialog(
+                order = scannedOrder!!,
+                onDismiss = { 
+                    viewModel.resetState()
+                    isScanning = true 
+                },
+                onConfirm = {
+                    viewModel.confirmPayment(scannedOrder!!.id)
+                }
+            )
+        }
+        
+        if (isPaymentSuccess && scannedOrder != null) {
+            PaymentSuccessDialog(
+                totalAmount = scannedOrder!!.totalAmount,
+                transactionCode = scannedOrder!!.transactionCode,
+                onDismiss = {
+                    viewModel.resetState()
+                    isScanning = true
+                }
+            )
         }
 
         // Bottom Nav
@@ -157,41 +219,45 @@ fun ScanScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun CameraPreview() {
+fun ZXingScannerView(isScanning: Boolean, onScanResult: (String) -> Unit) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // Remember the scanner view to control it
+    val compoundBarcodeView = remember {
+        CompoundBarcodeView(context).apply {
+            val settings = cameraSettings
+            settings.isAutoTorchEnabled = false
+            cameraSettings = settings
+        }
+    }
+    
+    // Manage lifecycle
+    DisposableEffect(Unit) {
+        compoundBarcodeView.resume()
+        onDispose {
+            compoundBarcodeView.pause()
+        }
+    }
+
+    // Handle scanning logic
+    LaunchedEffect(isScanning) {
+        if (isScanning) {
+            compoundBarcodeView.decodeSingle(object : BarcodeCallback {
+                override fun barcodeResult(result: BarcodeResult?) {
+                    result?.text?.let {
+                        onScanResult(it)
+                    }
+                }
+                override fun possibleResultPoints(resultPoints: MutableList<ResultPoint>?) {}
+            })
+        } else {
+            compoundBarcodeView.barcodeView.stopDecoding()
+        }
+    }
 
     AndroidView(
-        factory = { ctx ->
-            PreviewView(ctx).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-            }
-        },
-        modifier = Modifier.fillMaxSize(),
-        update = { previewView ->
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-                
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview
-                    )
-                } catch (e: Exception) {
-                    Log.e("CameraPreview", "Binding failed", e)
-                }
-            }, ContextCompat.getMainExecutor(context))
-        }
+        factory = { compoundBarcodeView },
+        modifier = Modifier.fillMaxSize()
     )
 }
 
@@ -268,25 +334,20 @@ fun ScanActionButton(text: String, iconId: Int, modifier: Modifier = Modifier, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ManualInputSheet(onDismiss: () -> Unit) {
-    // Mimic bottom sheet using a Dialog aligned to bottom to avoid complex scaffold state handling for one feature
-    // Ideally use data or modal bottom sheet
+fun ManualInputSheet(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.BottomCenter
         ) {
-            // Dismiss area
             Box(modifier = Modifier.fillMaxSize().clickable { onDismiss() })
             
-            // Sheet Content
             Card(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier.fillMaxWidth().clickable(enabled = false) {} // Prevent click through
+                modifier = Modifier.fillMaxWidth().clickable(enabled = false) {} 
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
-                    // Handle
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Box(modifier = Modifier.width(40.dp).height(4.dp).background(Color(0xFFE0E0E0), CircleShape))
                     }
@@ -320,7 +381,7 @@ fun ManualInputSheet(onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(24.dp))
                     
                     Button(
-                        onClick = onDismiss,
+                        onClick = { onSubmit(text) },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = ScanPrimaryBtn),
                         shape = RoundedCornerShape(12.dp)

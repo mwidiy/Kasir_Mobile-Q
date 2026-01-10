@@ -1,5 +1,7 @@
 package com.example.kasir
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,14 +19,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.data.model.*
+import com.example.kasir.ui.components.PaymentConfirmationDialog
+import com.example.kasir.ui.components.PaymentSuccessDialog
 import com.example.kasir.viewmodel.DashboardViewModel
-import java.util.Locale
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 
 // --- COLOR PALETTE ---
 val HeaderBg = Color(0xFF1F2937)
@@ -76,6 +82,14 @@ fun DashboardScreen(
     
     // Collect Store State
     val storeState by profileViewModel.storeState.collectAsState()
+    
+    // State for QR Scanning
+    var scannedOrder by remember { mutableStateOf<OrderResponse?>(null) }
+    var showConfirmationDialog by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+
+    // scanLauncher removed - Moved to ScanScreen
+
 
     DashboardScreenContent(
         orders = orders,
@@ -83,8 +97,36 @@ fun DashboardScreen(
         error = error,
         store = storeState, // Pass store data
         onNavigate = onNavigate,
-        onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) }
+        onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },
+        onScanClick = { onNavigate("bayar") }
     )
+    
+    
+    // Dialogs
+    if (showConfirmationDialog && scannedOrder != null) {
+        PaymentConfirmationDialog(
+            order = scannedOrder!!,
+            onDismiss = { showConfirmationDialog = false },
+            onConfirm = {
+                 // Trigger status update to Processing (or Paid)
+                 viewModel.updateStatus(scannedOrder!!.id, "Processing") 
+                
+                showConfirmationDialog = false
+                showSuccessDialog = true
+            }
+        )
+    }
+    
+    if (showSuccessDialog && scannedOrder != null) {
+        PaymentSuccessDialog(
+            totalAmount = scannedOrder!!.totalAmount,
+            transactionCode = scannedOrder!!.transactionCode,
+            onDismiss = {
+                showSuccessDialog = false
+                scannedOrder = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -94,7 +136,8 @@ fun DashboardScreenContent(
     error: String?,
     store: Store?, // Receive store data
     onNavigate: (String) -> Unit,
-    onUpdateStatus: (Int, String) -> Unit
+    onUpdateStatus: (Int, String) -> Unit,
+    onScanClick: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("all") } // all, Pending, Processing, Completed
@@ -121,9 +164,10 @@ fun DashboardScreenContent(
                 DashboardTopBar(
                     storeName = store?.name ?: "Dapur QuackXel",
                     logoUrl = store?.logo,
-                    onProfileClick = { onNavigate("profile") }
-                )
-            }
+                    onProfileClick = { onNavigate("profile") },
+        onScanClick = { onNavigate("bayar") }
+    )
+            },
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -174,7 +218,8 @@ fun DashboardScreenContent(
 fun DashboardTopBar(
     storeName: String,
     logoUrl: String?,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onScanClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -200,30 +245,42 @@ fun DashboardTopBar(
                 )
             }
         }
-        // Avatar Placeholder
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFFFE4E6))
-                .border(2.dp, Color(0x33FFFFFF), CircleShape)
-                .clickable { onProfileClick() },
-            contentAlignment = Alignment.Center
-        ) {
-             val imageUrl = if (!logoUrl.isNullOrEmpty()) {
-                if (logoUrl.startsWith("http")) logoUrl 
-                else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
-            } else null
+        
+        // Right Side: Scan + Profile
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Scan Button
+            FilledIconButton(
+                onClick = onScanClick,
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF374151))
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan", tint = Color.White)
+            }
 
-            if (imageUrl != null) {
-                 coil.compose.AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Profile",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            } else {
-                Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)
+            // Avatar Placeholder
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFE4E6))
+                    .border(2.dp, Color(0x33FFFFFF), CircleShape)
+                    .clickable { onProfileClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                 val imageUrl = if (!logoUrl.isNullOrEmpty()) {
+                    if (logoUrl.startsWith("http")) logoUrl 
+                    else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
+                } else null
+    
+                if (imageUrl != null) {
+                     coil.compose.AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Profile",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)
+                }
             }
         }
     }
@@ -465,7 +522,7 @@ fun OrderItemRow(item: OrderItemResponse) {
                 .size(28.dp)
                 .clip(CircleShape)
                 .background(QtyBg),
-            contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center
         ) {
             Text("${item.quantity}x", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = QtyText))
         }
@@ -586,5 +643,5 @@ fun DashboardPreview() {
             OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
         )
     )
-    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> })
+    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {})
 }
