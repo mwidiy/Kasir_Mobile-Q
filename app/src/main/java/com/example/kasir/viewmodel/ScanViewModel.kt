@@ -57,7 +57,7 @@ class ScanViewModel : ViewModel() {
                 // Payment is separate.
                 // User said "konfirmasi aja".
                 // I will send "Processing" to move it forward.
-                val response = apiService.updateOrderStatus(orderId, OrderStatusRequest("Processing"))
+                val response = apiService.updateOrderStatus(orderId, OrderStatusRequest("Processing", "Paid"))
                 if (response.isSuccessful) {
                     _paymentSuccess.value = true
                 } else {

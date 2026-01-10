@@ -36,5 +36,6 @@ data class OrderItem(
 )
 
 data class OrderStatusRequest(
-    val status: String
+    val status: String?,
+    val paymentStatus: String? = null
 )
