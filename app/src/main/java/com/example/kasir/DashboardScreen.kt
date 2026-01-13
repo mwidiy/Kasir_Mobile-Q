@@ -705,7 +705,7 @@ fun DashboardPreview() {
         deliveryAddress = null,
         createdAt = "2023-10-27T10:00:00",
         items = listOf(
-            OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
+            OrderItemResponse(1, 2, "Tanpa sayur", 15000, OrderProductResponse("Nasi Goreng", 15000, null))
         )
     )
     DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {}, {}, {})

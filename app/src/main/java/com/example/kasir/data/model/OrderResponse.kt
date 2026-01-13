@@ -24,7 +24,9 @@ data class OrderResponse(
     val deliveryAddress: String?, // New field for address
     val cancellationStatus: String? = null,
     val cancellationReason: String? = null,
-    val refundStatus: String? = null
+    val refundStatus: String? = null,
+    val queueNumber: Int? = null,
+    val paymentMethod: String? = null
 )
 
 data class OrderTableResponse(
@@ -42,6 +44,7 @@ data class OrderItemResponse(
     val id: Int,
     val quantity: Int,
     val note: String?,
+    @SerializedName("priceSnapshot") val priceSnapshot: Int?, // Added to capture historical price
     val product: OrderProductResponse
 )
 

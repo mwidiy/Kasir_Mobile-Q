@@ -24,8 +24,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
 import com.example.kasir.ui.theme.KasirTheme
+import com.example.kasir.ui.components.FilterHistoryDialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kasir.viewmodel.RiwayatViewModel
+import com.example.kasir.data.model.OrderResponse
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.text.NumberFormat
 
 // --- COLOR PALETTE (Scoped to History) ---
 private val HistoryCardBg = Color(0xFF2D3E50)
@@ -37,59 +51,39 @@ private val HistoryTextDark = Color(0xFF1F2937)
 private val HistoryTextGray = Color(0xFF6B7280)
 private val HistoryTextLightGray = Color(0xFF9CA3AF)
 
+
+
 // --- DATA MODELS ---
-data class Transaction(
-    val id: String,
-    val time: String,
-    val description: String,
-    val price: String,
-    val isIncome: Boolean, // true = green, false = red
-    val details: TransactionDetails? = null
-)
+// Moved to using OrderResponse directly, but keeping helpers for mapping if needed
+// Or preferably, we map OrderResponse directly in the UI items
 
-data class TransactionDetails(
-    val table: String,
-    val cashier: String,
-    val type: String,
-    val fullTime: String,
-    val status: String,
-    val items: List<Pair<String, String>>, // Name, Price
-    val subtotal: String,
-    val tax: String,
-    val total: String,
-    val paymentMethod: String
-)
 
-val sampleTransactions = listOf(
-    Transaction("0510", "14:30", "2x Nasi Gudeg, 1x Es Teh Manis", "Rp 85.000", true, 
-        TransactionDetails("12", "Ahmed Ridlo", "Makan Di Tempat", "28 Okt 2025, 14:30 WIB", "Selesai",
-            listOf("2x Nasi Gudeg" to "Rp 70.000", "1x Es Teh Manis" to "Rp 15.000"), "Rp 85.000", "Rp 0", "Rp 85.000", "Tunai")),
-    Transaction("0509", "14:15", "1x Ayam Bakar, 2x Nasi Putih, 1x Jus Jeruk", "Rp 125.000", true, null),
-    Transaction("0508", "13:45", "3x Soto Ayam, 3x Es Teh", "Rp 90.000", true, null),
-    Transaction("0507", "13:20", "1x Rendang, 1x Nasi Goreng", "Rp 75.000", false, null),
-    Transaction("0506", "12:55", "2x Gado-Gado, 2x Teh Botol", "Rp 60.000", true, null),
-    Transaction("0505", "12:30", "1x Nasi Campur, 1x Kopi Susu", "Rp 55.000", true, null)
-)
+
 
 @Composable
-fun RiwayatScreen(onNavigate: (String) -> Unit) {
+fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = viewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) }
-    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
-    
-    val totalIncome = when(selectedTab) {
-        0 -> "Rp 8.542.000"
-        1 -> "Rp 42.100.000"
-        else -> "Rp 150.500.000"
-    }
-    val transCount = when(selectedTab) { 0 -> "142" 1 -> "850" else -> "3200" }
-    val avgIncome = when(selectedTab) { 0 -> "Rp 60k" 1 -> "Rp 58k" else -> "Rp 62k" }
+    var selectedTransaction by remember { mutableStateOf<OrderResponse?>(null) }
+    var showFilterDialog by remember { mutableStateOf(false) } // State for Filter Dialog
 
-    val filteredList = sampleTransactions.filter { 
-        it.id.contains(searchQuery, true) || it.description.contains(searchQuery, true)
+    val transactions by viewModel.displayedOrders.collectAsState()
+    val analysis by viewModel.analysis.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(selectedTab) {
+        viewModel.applyFilter(selectedTab)
+    }
+
+    LaunchedEffect(searchQuery) {
+        viewModel.search(searchQuery)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFFF8F9FA))) {
+        if (isLoading) {
+             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Row(
@@ -105,7 +99,27 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
                     shape = RoundedCornerShape(6.dp),
                     border = BorderStroke(1.dp, HistoryTextDark),
                     color = Color.Transparent,
-                    modifier = Modifier.clickable { /* Export logic */ }
+                    modifier = Modifier.clickable { 
+                        // EXPORT PDF LOGIC
+                        val baseUrl = com.example.kasir.data.network.RetrofitClient.BASE_URL
+                        val url = "${baseUrl}api/orders/export-pdf?status=${viewModel.statusFilter}&type=${viewModel.typeFilter}&search=${viewModel.currentQuery}"
+                        
+                        val request = DownloadManager.Request(Uri.parse(url))
+                            .setTitle("Laporan Riwayat")
+                            .setDescription("Mengunduh laporan PDF...")
+                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Laporan_Riwayat_${System.currentTimeMillis()}.pdf")
+                            .setAllowedOverMetered(true)
+                            .setAllowedOverRoaming(true)
+
+                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                        try {
+                            downloadManager.enqueue(request)
+                            Toast.makeText(context, "Mulai mengunduh...", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Gagal mengunduh: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -145,7 +159,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(if (isActive) Color(0x40FFFFFF) else Color.Transparent)
-                                                .clickable { selectedTab = index }
+                                                .clickable { viewModel.setTabFilter(index); selectedTab = index } // Use VM setter
                                                 .padding(vertical = 6.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -156,19 +170,19 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
 
                                 Spacer(modifier = Modifier.height(20.dp))
                                 Text("Total Pendapatan", color = Color(0xFFBDC3C7), fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                                Text(totalIncome, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                                Text(analysis.totalIncome, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                                 Spacer(modifier = Modifier.height(20.dp))
                                 
                                 UtilDivider(color = Color(0x1AFFFFFF))
                                 
                                 Row(modifier = Modifier.padding(top = 15.dp)) {
                                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(transCount, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text(analysis.transactionCount, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                         Text("Transaksi", color = Color(0xFFBDC3C7), fontSize = 11.sp)
                                     }
                                     Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0x33FFFFFF)))
                                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(avgIncome, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text(analysis.avgIncome, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                         Text("Rata-rata", color = Color(0xFFBDC3C7), fontSize = 11.sp)
                                     }
                                 }
@@ -205,7 +219,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
                             shape = RoundedCornerShape(10.dp),
                             color = Color.White,
                             border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                            modifier = Modifier.size(46.dp).clickable { }
+                            modifier = Modifier.size(46.dp).clickable { showFilterDialog = true }
                         ) {
                              Box(contentAlignment = Alignment.Center) {
                                  Text("⚙️", fontSize = 20.sp)
@@ -215,7 +229,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                items(filteredList) { item ->
+                items(transactions) { item ->
                     TransactionItem(item) { selectedTransaction = item }
                 }
             }
@@ -233,11 +247,21 @@ fun RiwayatScreen(onNavigate: (String) -> Unit) {
                 onDismiss = { selectedTransaction = null }
             )
         }
+        
+        if (showFilterDialog) {
+            FilterHistoryDialog(
+                onDismiss = { showFilterDialog = false },
+                onApply = { status, type ->
+                    viewModel.setAdvancedFilter(status, type)
+                    showFilterDialog = false
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun TransactionItem(item: Transaction, onClick: () -> Unit) {
+fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -248,36 +272,55 @@ fun TransactionItem(item: Transaction, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        val date = try {
+             val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+             val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+             parser.parse(item.createdAt)?.let { formatter.format(it) } ?: "-"
+        } catch (e: Exception) { "-" }
+
+        val isIncome = item.status == "Completed"
+        val color = if (isIncome) HistoryPriceGreen else HistoryPriceRed
+
         Column(modifier = Modifier.width(50.dp)) {
-            Text(item.time, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-            Text("#${item.id}", fontSize = 11.sp, color = HistoryTextLightGray)
+            Text(date, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
+            Text("#${item.queueNumber ?: item.id}", fontSize = 11.sp, color = HistoryTextLightGray)
         }
+        
+        // Item Summary
+        val itemSummary = if (item.items.isNotEmpty()) {
+            val first = item.items[0]
+            val others = item.items.size - 1
+            "${first.quantity}x ${first.product?.name ?: "-"}" + if (others > 0) ", +$others lainnya" else ""
+        } else "No items"
+
         Text(
-            item.description,
+            itemSummary,
             fontSize = 13.sp,
             color = Color(0xFF4B5563),
             maxLines = 2,
             modifier = Modifier.weight(1f).padding(horizontal = 15.dp)
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+            val priceStr = fmt.format(item.totalAmount).replace("Rp", "Rp ").replace(",00", "")
             Text(
-                item.price, 
+                priceStr, 
                 fontSize = 14.sp, 
                 fontWeight = FontWeight.Bold, 
-                color = if (item.isIncome) HistoryPriceBlack else HistoryPriceRed
+                color = if (isIncome) HistoryPriceBlack else HistoryPriceRed
             )
             Box(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(if (item.isIncome) HistoryPriceGreen else HistoryPriceRed)
+                    .background(color)
             )
         }
     }
 }
 
 @Composable
-fun ReceiptModal(transaction: Transaction, onDismiss: () -> Unit) {
+fun ReceiptModal(transaction: OrderResponse, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -299,25 +342,35 @@ fun ReceiptModal(transaction: Transaction, onDismiss: () -> Unit) {
                 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                val details = transaction.details ?: TransactionDetails(
-                    "12", "Ahmed Ridlo", "Makan Di Tempat", "28 Okt 2025, ${transaction.time} WIB", "Selesai",
-                    listOf("Item Summary" to transaction.description), transaction.price, "Rp 0", transaction.price, "Tunai"
-                )
+                val dateStr = try {
+                     val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                     val formatter = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+                     parser.parse(transaction.createdAt)?.let { formatter.format(it) } ?: "-"
+                } catch (e: Exception) { "-" }
 
-                DetailRow("Meja:", details.table)
-                DetailRow("Kasir:", details.cashier)
-                DetailRow("Tipe:", details.type)
-                DetailRow("Waktu:", details.fullTime)
+                val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+                val totalStr = fmt.format(transaction.totalAmount).replace("Rp", "Rp ").replace(",00", "")
+
+                DetailRow("Meja:", transaction.table?.id?.toString() ?: "Takeaway")
+                DetailRow("Nama:", transaction.customerName)
+                DetailRow("Tipe:", transaction.orderType ?: "-")
+                DetailRow("Waktu:", dateStr)
+                DetailRow("Status:", transaction.status)
 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Surface(
-                    color = Color(0xFFDCFCE7),
-                    contentColor = Color(0xFF166534),
+                    color = if (transaction.status == "Completed") Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
+                    contentColor = if (transaction.status == "Completed") Color(0xFF166534) else Color(0xFF991B1B),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text("Selesai", fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    Text(
+                        if (transaction.status == "Completed") "Selesai" else if (transaction.status == "Cancelled") "Dibatalkan" else transaction.status, 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 12.sp, 
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -326,10 +379,12 @@ fun ReceiptModal(transaction: Transaction, onDismiss: () -> Unit) {
                 
                 Text("Rincian Pesanan", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
                 Spacer(modifier = Modifier.height(8.dp))
-                details.items.forEach { (name, price) ->
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(name, fontSize = 13.sp, color = Color(0xFF4B5563))
-                        Text(price, fontSize = 13.sp, color = Color(0xFF4B5563))
+                
+                transaction.items.forEach { item ->
+                     val pPrice = fmt.format((item.priceSnapshot ?: 0)).replace("Rp", "Rp ").replace(",00", "")
+                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${item.quantity}x ${item.product?.name}", fontSize = 13.sp, color = Color(0xFF4B5563))
+                        Text(pPrice, fontSize = 13.sp, color = Color(0xFF4B5563))
                     }
                 }
                 
@@ -340,13 +395,13 @@ fun ReceiptModal(transaction: Transaction, onDismiss: () -> Unit) {
                 Text("Rincian Pembayaran", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
                  Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Subtotal", fontSize = 13.sp, color = HistoryTextLightGray)
-                    Text(details.subtotal, fontSize = 13.sp, color = HistoryTextLightGray)
+                    Text(totalStr, fontSize = 13.sp, color = HistoryTextLightGray)
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-                    Text(details.total, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
+                    Text(totalStr, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
                 }
-                Text(details.paymentMethod, fontSize = 12.sp, color = HistoryTextLightGray, modifier = Modifier.align(Alignment.End))
+                Text(transaction.paymentMethod ?: "-", fontSize = 12.sp, color = HistoryTextLightGray, modifier = Modifier.align(Alignment.End))
 
                 Spacer(modifier = Modifier.height(24.dp))
                 OutlinedButton(

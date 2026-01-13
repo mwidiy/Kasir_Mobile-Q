@@ -5,6 +5,7 @@ import com.example.kasir.BuildConfig
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
+    const val BASE_URL = BuildConfig.API_BASE_URL
     
     val instance: ApiService by lazy {
         Retrofit.Builder()
