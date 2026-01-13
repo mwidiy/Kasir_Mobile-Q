@@ -29,6 +29,7 @@ import com.example.kasir.data.model.*
 import com.example.kasir.ui.components.PaymentConfirmationDialog
 import com.example.kasir.ui.components.PaymentSuccessDialog
 import com.example.kasir.ui.components.CancellationReviewDialog
+import com.example.kasir.ui.components.ForceCancelDialog
 import com.example.kasir.viewmodel.DashboardViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -93,6 +94,7 @@ fun DashboardScreen(
 
 
     var cancellationOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for cancellation review
+    var forceCancelOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for force cancel
 
     DashboardScreenContent(
         orders = orders,
@@ -102,8 +104,20 @@ fun DashboardScreen(
         onNavigate = onNavigate,
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },
         onScanClick = { onNavigate("bayar") },
-        onReviewCancellation = { order -> cancellationOrder = order }
+        onReviewCancellation = { order -> cancellationOrder = order },
+        onForceCancel = { order -> forceCancelOrder = order }
     )
+    
+    // Force Cancel Dialog
+    if (forceCancelOrder != null) {
+        ForceCancelDialog(
+            onDismiss = { forceCancelOrder = null },
+            onConfirm = { reason ->
+                viewModel.rejectCancellation(forceCancelOrder!!.id, reason)
+                forceCancelOrder = null
+            }
+        )
+    }
     
     // Cancellation Review Dialog
     if (cancellationOrder != null) {
@@ -158,7 +172,8 @@ fun DashboardScreenContent(
     onNavigate: (String) -> Unit,
     onUpdateStatus: (Int, String) -> Unit,
     onScanClick: () -> Unit,
-    onReviewCancellation: (OrderResponse) -> Unit
+    onReviewCancellation: (OrderResponse) -> Unit,
+    onForceCancel: (OrderResponse) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("all") } // all, Pending, Processing, Completed
@@ -222,7 +237,8 @@ fun DashboardScreenContent(
                             KitchenOrderCard(
                                 order = order, 
                                 onUpdateStatus = onUpdateStatus,
-                                onReviewCancellation = onReviewCancellation
+                                onReviewCancellation = onReviewCancellation,
+                                onForceCancel = onForceCancel
                             )
                         }
                     }
@@ -367,7 +383,8 @@ fun FilterChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
 fun KitchenOrderCard(
     order: OrderResponse, 
     onUpdateStatus: (Int, String) -> Unit,
-    onReviewCancellation: (OrderResponse) -> Unit
+    onReviewCancellation: (OrderResponse) -> Unit,
+    onForceCancel: (OrderResponse) -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -431,7 +448,7 @@ fun KitchenOrderCard(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // ACTION BUTTONS
-                ActionButtons(order, onUpdateStatus, onReviewCancellation)
+                ActionButtons(order, onUpdateStatus, onReviewCancellation, onForceCancel)
             }
         }
     }
@@ -591,7 +608,8 @@ fun InfoBox(icon: ImageVector, text: String, bgColor: Color, textColor: Color, b
 fun ActionButtons(
     order: OrderResponse, 
     onUpdateStatus: (Int, String) -> Unit,
-    onReviewCancellation: (OrderResponse) -> Unit
+    onReviewCancellation: (OrderResponse) -> Unit,
+    onForceCancel: (OrderResponse) -> Unit
 ) {
     if (order.cancellationStatus == "Requested") {
         Button(
@@ -609,7 +627,7 @@ fun ActionButtons(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (order.status == "Pending") {
             Button(
-                onClick = { /* Handle Reject Logic later */ },
+                onClick = { onForceCancel(order) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.weight(1f).height(45.dp),
@@ -690,5 +708,5 @@ fun DashboardPreview() {
             OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
         )
     )
-    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {}, {})
+    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {}, {}, {})
 }

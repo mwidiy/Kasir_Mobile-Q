@@ -129,11 +129,14 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    fun rejectCancellation(orderId: Int) {
+    fun rejectCancellation(orderId: Int, reason: String? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val response = apiService.rejectCancel(orderId)
+                // Construct body
+                val body = if (reason != null) mapOf("reason" to reason) else emptyMap()
+                
+                val response = apiService.rejectCancel(orderId, body)
                 if (response.isSuccessful) {
                     fetchOrders()
                 } else {
