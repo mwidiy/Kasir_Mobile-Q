@@ -111,6 +111,42 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    fun approveCancellation(orderId: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = apiService.approveCancel(orderId)
+                if (response.isSuccessful) {
+                    fetchOrders()
+                } else {
+                    _error.value = "Gagal menyetujui pembatalan"
+                }
+            } catch (e: Exception) {
+                _error.value = "Error: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun rejectCancellation(orderId: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = apiService.rejectCancel(orderId)
+                if (response.isSuccessful) {
+                    fetchOrders()
+                } else {
+                    _error.value = "Gagal menolak pembatalan"
+                }
+            } catch (e: Exception) {
+                _error.value = "Error: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         try {

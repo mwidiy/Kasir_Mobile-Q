@@ -25,6 +25,13 @@ class ScanViewModel : ViewModel() {
     private val _paymentSuccess = MutableStateFlow(false)
     val paymentSuccess: StateFlow<Boolean> = _paymentSuccess.asStateFlow()
 
+    // Refund State
+    private val _refundOrder = MutableStateFlow<OrderResponse?>(null)
+    val refundOrder: StateFlow<OrderResponse?> = _refundOrder.asStateFlow()
+
+    private val _refundSuccess = MutableStateFlow(false)
+    val refundSuccess: StateFlow<Boolean> = _refundSuccess.asStateFlow()
+
     fun fetchOrderByCode(code: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -33,7 +40,15 @@ class ScanViewModel : ViewModel() {
             try {
                 val response = apiService.getOrderByCode(code)
                 if (response.isSuccessful && response.body()?.success == true) {
-                    _scannedOrder.value = response.body()?.data
+                    val order = response.body()?.data
+                    if (order != null) {
+                        // Check if this is a Refund Case
+                        if (order.status == "Cancelled" && order.paymentStatus == "Paid" && order.refundStatus != "Refunded") {
+                            _refundOrder.value = order
+                        } else {
+                            _scannedOrder.value = order
+                        }
+                    }
                 } else {
                     _error.value = "Pesanan tidak ditemukan atau error: ${response.message()}"
                 }
@@ -71,9 +86,29 @@ class ScanViewModel : ViewModel() {
         }
     }
 
+    fun processRefund(transactionCode: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = apiService.verifyRefund(mapOf("transactionCode" to transactionCode))
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _refundSuccess.value = true
+                } else {
+                    _error.value = response.body()?.message ?: "Gagal memproses refund"
+                }
+            } catch (e: Exception) {
+                _error.value = "Error: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun resetState() {
         _scannedOrder.value = null
+        _refundOrder.value = null
         _paymentSuccess.value = false
+        _refundSuccess.value = false
         _error.value = null
     }
 }

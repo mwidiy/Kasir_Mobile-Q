@@ -148,4 +148,14 @@ interface ApiService {
 
     @GET("api/orders/code/{code}")
     suspend fun getOrderByCode(@Path("code") code: String): Response<com.example.kasir.data.model.SingleOrderResponse>
+
+    // Cancellation & Refund
+    @PUT("api/orders/{id}/cancel-approve")
+    suspend fun approveCancel(@Path("id") id: Int): Response<Any>
+
+    @PUT("api/orders/{id}/cancel-reject")
+    suspend fun rejectCancel(@Path("id") id: Int): Response<Any>
+
+    @POST("api/orders/refund-verify")
+    suspend fun verifyRefund(@Body body: Map<String, String>): Response<com.example.kasir.data.model.RefundResponse>
 }

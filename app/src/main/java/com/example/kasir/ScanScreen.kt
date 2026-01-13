@@ -37,6 +37,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.ui.components.PaymentConfirmationDialog
 import com.example.kasir.ui.components.PaymentSuccessDialog
+import com.example.kasir.ui.components.RefundConfirmationDialog
+import com.example.kasir.ui.components.RefundSuccessDialog
 import com.example.kasir.viewmodel.ScanViewModel
 import com.google.zxing.ResultPoint
 import com.journeyapps.barcodescanner.BarcodeCallback
@@ -78,8 +80,13 @@ fun ScanScreen(
     }
 
     // ViewModel State
+    // ViewModel State
     val scannedOrder by viewModel.scannedOrder.collectAsState()
     val isPaymentSuccess by viewModel.paymentSuccess.collectAsState()
+    
+    val refundOrder by viewModel.refundOrder.collectAsState()
+    val isRefundSuccess by viewModel.refundSuccess.collectAsState()
+
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
@@ -202,6 +209,29 @@ fun ScanScreen(
             PaymentSuccessDialog(
                 totalAmount = scannedOrder!!.totalAmount,
                 transactionCode = scannedOrder!!.transactionCode,
+                onDismiss = {
+                    viewModel.resetState()
+                    isScanning = true
+                }
+            )
+        }
+
+        // REFUND DIALOGS
+        if (refundOrder != null && !isRefundSuccess) {
+            RefundConfirmationDialog(
+                order = refundOrder!!,
+                onDismiss = {
+                    viewModel.resetState()
+                    isScanning = true
+                },
+                onConfirm = {
+                    viewModel.processRefund(refundOrder!!.transactionCode)
+                }
+            )
+        }
+
+        if (isRefundSuccess) {
+            RefundSuccessDialog(
                 onDismiss = {
                     viewModel.resetState()
                     isScanning = true

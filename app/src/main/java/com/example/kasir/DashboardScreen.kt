@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.data.model.*
 import com.example.kasir.ui.components.PaymentConfirmationDialog
 import com.example.kasir.ui.components.PaymentSuccessDialog
+import com.example.kasir.ui.components.CancellationReviewDialog
 import com.example.kasir.viewmodel.DashboardViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -91,6 +92,8 @@ fun DashboardScreen(
     // scanLauncher removed - Moved to ScanScreen
 
 
+    var cancellationOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for cancellation review
+
     DashboardScreenContent(
         orders = orders,
         isLoading = isLoading,
@@ -98,8 +101,25 @@ fun DashboardScreen(
         store = storeState, // Pass store data
         onNavigate = onNavigate,
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },
-        onScanClick = { onNavigate("bayar") }
+        onScanClick = { onNavigate("bayar") },
+        onReviewCancellation = { order -> cancellationOrder = order }
     )
+    
+    // Cancellation Review Dialog
+    if (cancellationOrder != null) {
+        CancellationReviewDialog(
+            order = cancellationOrder!!,
+            onDismiss = { cancellationOrder = null },
+            onApprove = {
+                viewModel.approveCancellation(cancellationOrder!!.id)
+                cancellationOrder = null
+            },
+            onReject = {
+                viewModel.rejectCancellation(cancellationOrder!!.id)
+                cancellationOrder = null
+            }
+        )
+    }
     
     
     // Dialogs
@@ -137,7 +157,8 @@ fun DashboardScreenContent(
     store: Store?, // Receive store data
     onNavigate: (String) -> Unit,
     onUpdateStatus: (Int, String) -> Unit,
-    onScanClick: () -> Unit
+    onScanClick: () -> Unit,
+    onReviewCancellation: (OrderResponse) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("all") } // all, Pending, Processing, Completed
@@ -198,7 +219,11 @@ fun DashboardScreenContent(
                         contentPadding = PaddingValues(bottom = 120.dp) // Space for Bottom Nav
                     ) {
                         items(filteredOrders, key = { it.id }) { order ->
-                            KitchenOrderCard(order = order, onUpdateStatus = onUpdateStatus)
+                            KitchenOrderCard(
+                                order = order, 
+                                onUpdateStatus = onUpdateStatus,
+                                onReviewCancellation = onReviewCancellation
+                            )
                         }
                     }
                 }
@@ -339,7 +364,11 @@ fun FilterChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun KitchenOrderCard(order: OrderResponse, onUpdateStatus: (Int, String) -> Unit) {
+fun KitchenOrderCard(
+    order: OrderResponse, 
+    onUpdateStatus: (Int, String) -> Unit,
+    onReviewCancellation: (OrderResponse) -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -402,7 +431,7 @@ fun KitchenOrderCard(order: OrderResponse, onUpdateStatus: (Int, String) -> Unit
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // ACTION BUTTONS
-                ActionButtons(order, onUpdateStatus)
+                ActionButtons(order, onUpdateStatus, onReviewCancellation)
             }
         }
     }
@@ -559,9 +588,26 @@ fun InfoBox(icon: ImageVector, text: String, bgColor: Color, textColor: Color, b
 }
 
 @Composable
-fun ActionButtons(order: OrderResponse, onUpdateStatus: (Int, String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (order.status == "Pending") {
+fun ActionButtons(
+    order: OrderResponse, 
+    onUpdateStatus: (Int, String) -> Unit,
+    onReviewCancellation: (OrderResponse) -> Unit
+) {
+    if (order.cancellationStatus == "Requested") {
+        Button(
+            onClick = { onReviewCancellation(order) },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth().height(45.dp),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Tinjau Permintaan Batal", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (order.status == "Pending") {
             Button(
                 onClick = { /* Handle Reject Logic later */ },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
@@ -607,6 +653,7 @@ fun ActionButtons(order: OrderResponse, onUpdateStatus: (Int, String) -> Unit) {
             ) {
                 Text("Pesanan Selesai", color = Color.White, fontSize = 14.sp)
             }
+            }
         }
     }
 }
@@ -643,5 +690,5 @@ fun DashboardPreview() {
             OrderItemResponse(1, 2, "Tanpa sayur", OrderProductResponse("Nasi Goreng", 15000, null))
         )
     )
-    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {})
+    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {}, {})
 }
