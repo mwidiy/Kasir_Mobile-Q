@@ -158,4 +158,8 @@ interface ApiService {
 
     @POST("api/orders/refund-verify")
     suspend fun verifyRefund(@Body body: Map<String, String>): Response<com.example.kasir.data.model.RefundResponse>
+
+    // Auth
+    @POST("api/auth/google-login")
+    suspend fun googleLogin(@Body request: com.example.kasir.data.model.LoginRequest): Response<com.example.kasir.data.model.LoginResponse>
 }

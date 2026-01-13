@@ -40,6 +40,11 @@ android {
         var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL") ?: "http://192.168.1.4:3001/"
         pwaBaseUrl = pwaBaseUrl.replace("\"", "")
         buildConfigField("String", "PWA_BASE_URL", "\"$pwaBaseUrl\"")
+
+        // Load WEB_CLIENT_ID for Google Login
+        var webClientId = localProperties.getProperty("WEB_CLIENT_ID") ?: ""
+        webClientId = webClientId.replace("\"", "")
+        buildConfigField("String", "WEB_CLIENT_ID", "\"$webClientId\"")
     }
 
     buildTypes {
@@ -95,4 +100,15 @@ dependencies {
     // QR Code Generator
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.zxing:core:3.5.2")
+
+    // Credential Manager (Google Sign In)
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
+    
+    // Legacy Google Sign In (Debug Savior)
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
+
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }

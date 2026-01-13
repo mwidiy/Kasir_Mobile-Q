@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by remember { mutableStateOf("login") }
 
                     when (currentScreen) {
-                        "login" -> LoginScreen(onGoogleLoginClick = { currentScreen = "dashboard" })
+                        "login" -> LoginScreen(onLoginSuccess = { currentScreen = "dashboard" })
                         "dashboard" -> DashboardScreen(onNavigate = { screen -> currentScreen = screen })
                         "riwayat" -> RiwayatScreen(onNavigate = { screen -> currentScreen = screen })
                         "menu" -> MenuScreen(onNavigate = { screen -> currentScreen = screen })
