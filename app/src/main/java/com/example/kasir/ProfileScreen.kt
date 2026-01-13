@@ -183,7 +183,7 @@ fun RestaurantIdentitySection(
             ) {
                 val imageUrl = if (!logoUrl.isNullOrEmpty()) {
                     if (logoUrl.startsWith("http")) logoUrl 
-                    else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for demo, better inject base URL
+                    else "http://192.168.1.8:3000/uploads/$logoUrl" // IP hardcoded for demo, better inject base URL
                 } else null
 
                 Image(
@@ -301,7 +301,7 @@ fun QrisManagementSection(
                 ) {
                     val imageUrl = if (!qrisUrl.isNullOrEmpty()) {
                          if (qrisUrl.startsWith("http")) qrisUrl 
-                         else "http://192.168.1.4:3000/uploads/$qrisUrl" 
+                         else "http://192.168.1.8:3000/uploads/$qrisUrl" 
                     } else null
                     
                     // QR Preview

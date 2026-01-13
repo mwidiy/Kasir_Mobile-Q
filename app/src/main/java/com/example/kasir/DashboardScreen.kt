@@ -268,7 +268,7 @@ fun DashboardTopBar(
             ) {
                  val imageUrl = if (!logoUrl.isNullOrEmpty()) {
                     if (logoUrl.startsWith("http")) logoUrl 
-                    else "http://192.168.1.4:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
+                    else "http://192.168.1.8:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
                 } else null
     
                 if (imageUrl != null) {
