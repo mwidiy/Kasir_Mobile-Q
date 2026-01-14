@@ -24,9 +24,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             KasirTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    var currentScreen by remember { mutableStateOf("login") }
+                    var currentScreen by remember { mutableStateOf("splash") }
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
+                    // Auto-Login Check Check
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        com.example.kasir.utils.SessionManager.loadSession(context)
+                        if (com.example.kasir.utils.SessionManager.isLoggedIn()) {
+                            currentScreen = "dashboard"
+                        } else {
+                            currentScreen = "login"
+                        }
+                    }
 
                     when (currentScreen) {
+                        "splash" -> androidx.compose.foundation.layout.Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            Text("Loading...", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+                        }
                         "login" -> LoginScreen(onLoginSuccess = { currentScreen = "dashboard" })
                         "dashboard" -> DashboardScreen(onNavigate = { screen -> currentScreen = screen })
                         "riwayat" -> RiwayatScreen(onNavigate = { screen -> currentScreen = screen })

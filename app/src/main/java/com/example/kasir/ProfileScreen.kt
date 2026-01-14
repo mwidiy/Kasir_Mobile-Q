@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.shadow
 import com.example.kasir.viewmodel.ProfileViewModel
 import com.example.kasir.utils.FileUtils
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 // --- COLORS ---
 val Navy = Color(0xFF2C3E50)
@@ -56,6 +57,11 @@ fun ProfileScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     
     val context = LocalContext.current
+
+    // Force Refresh Profile Data on Enter
+    LaunchedEffect(Unit) {
+        viewModel.fetchStore()
+    }
     
     // Launchers
     val logoLauncher = rememberLauncherForActivityResult(
@@ -338,10 +344,24 @@ fun QrisManagementSection(
 
 @Composable
 fun FooterActions(onNavigate: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Logout Button
         TextButton(
-            onClick = { onNavigate("login") }, 
+            onClick = {
+                // Professional Logout Sequence
+                scope.launch {
+                    // 1. Clear Local Session
+                    com.example.kasir.utils.SessionManager.clear(context)
+                    
+                    // 2. Revoke Google Access & Navigate
+                    com.example.kasir.utils.SessionManager.logout(context) {
+                         onNavigate("login")
+                    }
+                }
+            }, 
             colors = ButtonDefaults.textButtonColors(contentColor = Danger),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier

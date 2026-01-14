@@ -86,9 +86,16 @@ fun DashboardScreen(
     val storeState by profileViewModel.storeState.collectAsState()
     
     // State for QR Scanning
-    var scannedOrder by remember { mutableStateOf<OrderResponse?>(null) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
+
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var scannedOrder by remember { mutableStateOf<OrderResponse?>(null) }
+
+    // Force Refresh Data on Screen Enter (Fix Stale Data Issue)
+    LaunchedEffect(Unit) {
+        viewModel.fetchOrders()
+        profileViewModel.fetchStore()
+    }
 
     // scanLauncher removed - Moved to ScanScreen
 
