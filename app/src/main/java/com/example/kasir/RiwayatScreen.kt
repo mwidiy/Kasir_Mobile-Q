@@ -70,6 +70,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     val transactions by viewModel.displayedOrders.collectAsState()
     val analysis by viewModel.analysis.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(selectedTab) {
@@ -83,7 +84,24 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFFF8F9FA))) {
         if (isLoading) {
              CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        } else if (error != null) {
+             // ERROR STATE
+             Column(
+                 modifier = Modifier.align(Alignment.Center).padding(20.dp),
+                 horizontalAlignment = Alignment.CenterHorizontally
+             ) {
+                 Text("Gagal Memuat Data", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 16.sp)
+                 Spacer(modifier = Modifier.height(8.dp))
+                 Text(error ?: "Unknown Error", color = Color.Gray, textAlign = TextAlign.Center)
+                 Spacer(modifier = Modifier.height(16.dp))
+                 Button(onClick = { viewModel.fetchHistory() }) {
+                     Text("Coba Lagi")
+                 }
+             }
         }
+        
+        // Show Content only if no error (or even if error, maybe show cached, but here we block to force attention)
+        if (error == null) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Row(
@@ -233,7 +251,8 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                     TransactionItem(item) { selectedTransaction = item }
                 }
             }
-        }
+        } // End of Column Content
+        } // End of if (error == null)
 
         AppBottomNavigation(
             currentScreen = "riwayat",

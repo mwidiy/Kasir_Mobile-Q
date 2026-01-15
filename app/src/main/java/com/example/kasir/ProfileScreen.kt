@@ -187,10 +187,8 @@ fun RestaurantIdentitySection(
                     .border(4.dp, Color.White, CircleShape)
                     .background(Color.Gray) // Placeholder bg
             ) {
-                val imageUrl = if (!logoUrl.isNullOrEmpty()) {
-                    if (logoUrl.startsWith("http")) logoUrl 
-                    else "http://192.168.1.8:3000/uploads/$logoUrl" // IP hardcoded for demo, better inject base URL
-                } else null
+                // Use ImageUtils for dynamic IP
+                val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(logoUrl)
 
                 Image(
                     painter = rememberAsyncImagePainter(imageUrl ?: "https://via.placeholder.com/150"),
@@ -305,10 +303,8 @@ fun QrisManagementSection(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    val imageUrl = if (!qrisUrl.isNullOrEmpty()) {
-                         if (qrisUrl.startsWith("http")) qrisUrl 
-                         else "http://192.168.1.8:3000/uploads/$qrisUrl" 
-                    } else null
+                    // Use ImageUtils for dynamic IP
+                    val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(qrisUrl)
                     
                     // QR Preview
                     Box(

@@ -602,9 +602,8 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
             contentAlignment = Alignment.Center
         ) {
              if (!item.image.isNullOrBlank()) {
-                 var model = item.image
-                 // If using local emulator with localhost address, replace localhost with 10.0.2.2 or proper IP
-                 // But typically user provides full IP. Assuming item.image is full URL.
+                 // Use ImageUtils to fix IP address dynamically
+                 val model = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(item.image)
                  
                 coil.compose.AsyncImage(
                     model = model,

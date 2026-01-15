@@ -91,7 +91,8 @@ class BannerViewModel : ViewModel() {
         title: String,
         subtitle: String?,
         highlightText: String?,
-        isActive: Boolean
+        isActive: Boolean,
+        onSuccess: () -> Unit // Callback added
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -106,6 +107,16 @@ class BannerViewModel : ViewModel() {
                 if (selectedImageUri != null) {
                     val file = FileUtils.getFileFromUri(context, selectedImageUri!!)
                     if (file != null) {
+                        // VALIDASI UKURAN FILE (Max 5MB)
+                        val fileSizeInBytes = file.length()
+                        val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                        
+                        if (fileSizeInBytes > 5 * 1024 * 1024) {
+                             _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                             _isLoading.value = false
+                             return@launch
+                        }
+
                         val contentResolver = context.contentResolver
                         val type = contentResolver.getType(selectedImageUri!!) ?: "image/jpeg"
                         val requestFile = RequestBody.create(type.toMediaTypeOrNull(), file)
@@ -126,6 +137,7 @@ class BannerViewModel : ViewModel() {
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
                         fetchBanners()
+                        onSuccess() // Trigger navigation
                     } else {
                         _errorMessage.value = response.body()?.message ?: "Gagal menambah banner"
                     }
@@ -139,6 +151,7 @@ class BannerViewModel : ViewModel() {
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
                         fetchBanners()
+                        onSuccess() // Trigger navigation
                     } else {
                         _errorMessage.value = response.body()?.message ?: "Gagal update banner"
                     }

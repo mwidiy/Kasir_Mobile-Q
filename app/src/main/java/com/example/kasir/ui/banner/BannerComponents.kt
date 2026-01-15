@@ -82,26 +82,38 @@ fun BannerListScreen(
             }
 
             // Banner List
-            LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                items(banners) { banner ->
-                    BannerCard(
-                        banner = banner,
-                        onToggle = {
-                             viewModel.saveBanner(
-                                context = context, 
-                                id = banner.id,
-                                title = banner.title,
-                                subtitle = banner.subtitle,
-                                highlightText = banner.highlightText,
-                                isActive = !banner.isActive
-                            )
-                        },
-                        onEdit = { onNavigateToEdit(banner) },
-                        onDelete = { showDeleteConfirm = banner }
-                    )
+            if (banners.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = 100.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📭", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Belum ada Banner", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Gray)
+                        Text("Buat banner promosi pertamamu!", fontSize = 14.sp, color = Color.LightGray)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    items(banners) { banner ->
+                        BannerCard(
+                            banner = banner,
+                            onToggle = {
+                                 viewModel.saveBanner(
+                                    context = context, 
+                                    id = banner.id,
+                                    title = banner.title,
+                                    subtitle = banner.subtitle,
+                                    highlightText = banner.highlightText,
+                                    isActive = !banner.isActive,
+                                    onSuccess = {}
+                                )
+                            },
+                            onEdit = { onNavigateToEdit(banner) },
+                            onDelete = { showDeleteConfirm = banner }
+                        )
+                    }
                 }
             }
         }
@@ -375,6 +387,19 @@ fun BannerFormScreen(
                 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Error & Loading UI
+                val isLoading by viewModel.isLoading.collectAsState()
+                val errorMessage by viewModel.errorMessage.collectAsState()
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage ?: "", 
+                        color = Color.Red, 
+                        fontSize = 14.sp, 
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                }
+
                 Button(
                     onClick = {
                         viewModel.saveBanner(
@@ -383,15 +408,21 @@ fun BannerFormScreen(
                             title = bannerTitle,
                             subtitle = bannerDesc,
                             highlightText = bannerPromo,
-                            isActive = initialBanner?.isActive ?: true
+                            isActive = initialBanner?.isActive ?: true,
+                            onSuccess = { onSave() } // Navigate ONLY on success
                         )
-                         onSave()
+                         // Removed immediate onSave()
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    enabled = !isLoading // Disable double click
                 ) {
-                    Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold)
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(100.dp))

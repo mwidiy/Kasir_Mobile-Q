@@ -314,11 +314,9 @@ fun DashboardTopBar(
                     .clickable { onProfileClick() },
                 contentAlignment = Alignment.Center
             ) {
-                 val imageUrl = if (!logoUrl.isNullOrEmpty()) {
-                    if (logoUrl.startsWith("http")) logoUrl 
-                    else "http://192.168.1.8:3000/uploads/$logoUrl" // IP hardcoded for now, ideal inject from BuildConfig
-                } else null
-    
+                 // Use ImageUtils for dynamic IP
+                 val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(logoUrl)
+                 
                 if (imageUrl != null) {
                      coil.compose.AsyncImage(
                         model = imageUrl,
