@@ -80,7 +80,7 @@ fun LoginScreen(
     }
 
     // --- LEGACY GOOGLE SIGN IN SETUP ---
-    val webClientId = "526373562764-kfrduc1arsle2i491kj2idp3pf78ii9e.apps.googleusercontent.com"
+    val webClientId = BuildConfig.WEB_CLIENT_ID
     
     val gso = remember {
         com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
