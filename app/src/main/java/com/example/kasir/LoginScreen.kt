@@ -42,10 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.data.model.LoginRequest
@@ -79,7 +75,7 @@ fun LoginScreen(
         }
     }
 
-    // --- LEGACY GOOGLE SIGN IN SETUP ---
+    // --- LEGACY GOOGLE SIGN IN SETUP (TARGET LOGIC PRESERVED) ---
     val webClientId = BuildConfig.WEB_CLIENT_ID
     
     val gso = remember {
@@ -126,7 +122,6 @@ fun LoginScreen(
             }
         } catch (e: com.google.android.gms.common.api.ApiException) {
             Log.e("Login", "SignInResult:failed code=" + e.statusCode)
-            // SHOW THE REAL ERROR CODE
             val errorMsg = when(e.statusCode) {
                 10 -> "Error 10: SHA-1 Mismatch / Config Salah. Cek Google Console!"
                 12500 -> "Error 12500: HP Gak Support / Update Play Services"
@@ -149,10 +144,7 @@ fun LoginScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // --- BACKGROUND DECORATIONS ---
-        
-        // Kotak Krem di Kanan Atas
-        // .bg-deco-top { width: 65%; height: 35%; ... border-bottom-left-radius: 40px; }
+        // --- BACKGROUND DECORATIONS (FROM SOURCE) ---
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -162,12 +154,10 @@ fun LoginScreen(
                 .background(BgAccent)
         )
 
-        // Lingkaran Samar di Bawah Kiri
-        // .bg-deco-bottom { ... width: 250px; height: 250px; ... border-radius: 50%; opacity: 0.6; }
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .offset(x = (-50).dp, y = 50.dp) // Adjust offset to match CSS 'bottom: -50px; left: -50px' logic roughly
+                .offset(x = (-50).dp, y = 50.dp)
                 .size(250.dp)
                 .clip(CircleShape)
                 .background(Color(0xFFF4F6F8).copy(alpha = 0.6f))
@@ -177,13 +167,12 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(40.dp), // padding: 40px 30px
+                .padding(40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             
-            // Logo
-            // .logo-img { width: 120px; ... margin-bottom: 40px; }
+            // Logo (Static - matches Position of Splash Animation end)
             Image(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "QuackXel Logo",
@@ -194,7 +183,6 @@ fun LoginScreen(
             )
 
             // Teks Judul
-            // h1 { font-size: 26px; ... margin-bottom: 15px; }
             Text(
                 text = "Kelola Dasbor Anda",
                 color = PrimaryBlue,
@@ -205,30 +193,27 @@ fun LoginScreen(
             )
 
             // Teks Sub-judul
-            // p.subtitle { font-size: 14px; ... margin-bottom: 50px; }
             Text(
                 text = "Masuk dengan akun Google Anda untuk melanjutkan.",
                 color = TextGrey,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .width(280.dp) // Max width constraint
+                    .width(280.dp)
                     .padding(bottom = 50.dp)
             )
 
-            // --- GOOGLE BUTTON ---
+            // --- GOOGLE BUTTON (NEW COMPONENT, TARGET LOGIC) ---
             if (isLoading) {
                  androidx.compose.material3.CircularProgressIndicator(color = PrimaryBlue)
             } else {
-                 GoogleSignInButton(onClick = { onGoogleLoginClick() })
+                 com.example.kasir.ui.components.GoogleButton(onClick = { onGoogleLoginClick() })
             }
         }
     }
 }
 
-
-
-// --- DIAGNOSTIC HELPER ---
+// --- DIAGNOSTIC HELPER (Optional, kept for debugging if needed) ---
 fun getAppSignature(context: android.content.Context): String {
     try {
         val packageInfo = context.packageManager.getPackageInfo(
@@ -242,64 +227,6 @@ fun getAppSignature(context: android.content.Context): String {
         return digest.joinToString(":") { "%02X".format(it) }
     } catch (e: Exception) {
         return "Error: ${e.message}"
-    }
-}
-
-@Composable
-fun GoogleSignInButton(onClick: () -> Unit) {
-    val context = LocalContext.current
-    // DEBUG: Get Real SHA-1
-    val realSha1 = remember { getAppSignature(context) }
-    Log.d("LoginDiag", "REAL SHA-1: $realSha1")
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Surface(
-            onClick = onClick,
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDADCE0)),
-            color = Color.White,
-            modifier = Modifier.fillMaxWidth().height(55.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(15.dp)
-            ) {
-                 Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .background(Color.White)
-                ) {
-                     Text("G", color = GoogleBlue, fontWeight = FontWeight.Bold)
-                }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
-                Text(
-                    text = "Sign in with Google",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF3C4043)
-                )
-            }
-        }
-        
-        // --- VISIBLE DIAGNOSTIC FOR USER ---
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(
-            text = "DEBUG INFO:\nPkg: ${context.packageName}\nSHA-1: $realSha1",
-            fontSize = 10.sp,
-            color = Color.Red,
-            textAlign = TextAlign.Center,
-            lineHeight = 12.sp,
-            modifier = Modifier
-                .background(Color.Yellow.copy(alpha = 0.3f))
-                .padding(4.dp)
-                .clickable { 
-                    // Copy to clipboard logic could go here, but visual is enough
-                    Toast.makeText(context, "Cek SHA-1 ini di Google Console!", Toast.LENGTH_LONG).show()
-                }
-        )
     }
 }
 
