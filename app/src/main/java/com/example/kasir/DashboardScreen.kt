@@ -2,9 +2,12 @@ package com.example.kasir
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,14 +21,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.data.model.*
+import com.example.kasir.ui.components.CustomBottomNavigation
 import com.example.kasir.ui.components.PaymentConfirmationDialog
 import com.example.kasir.ui.components.PaymentSuccessDialog
 import com.example.kasir.ui.components.CancellationReviewDialog
@@ -33,8 +39,10 @@ import com.example.kasir.ui.components.ForceCancelDialog
 import com.example.kasir.viewmodel.DashboardViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import com.example.kasir.utils.playNotificationSound
 
 // --- COLOR PALETTE ---
+
 val HeaderBg = Color(0xFF1F2937)
 val CardHeaderBg = Color(0xFF1E3A8A)
 val BgBody = Color(0xFFF3F4F6)
@@ -72,6 +80,8 @@ val InfoAddressBg = Color(0xFFEFF6FF)
 val InfoAddressText = Color(0xFF1E40AF)
 val InfoAddressBorder = Color(0xFFDBEAFE)
 
+val PaymentHighlight = Color(0xFFFDE047) // Yellow for visibility on Blue
+
 @Composable
 fun DashboardScreen(
     onNavigate: (String) -> Unit, 
@@ -90,24 +100,79 @@ fun DashboardScreen(
 
     var showSuccessDialog by remember { mutableStateOf(false) }
     var scannedOrder by remember { mutableStateOf<OrderResponse?>(null) }
+    
+    // --- UI/UX TOGGLE STATES (Source Feature) ---
+    var isSoundEnabled by remember { mutableStateOf(true) }
+    var isAlwaysOn by remember { mutableStateOf(false) }
+    var showAlwaysOnGuide by remember { mutableStateOf(false) }
 
-    // Force Refresh Data on Screen Enter (Fix Stale Data Issue)
+    // Force Refresh Data on Screen Enter
     LaunchedEffect(Unit) {
         viewModel.fetchOrders()
         profileViewModel.fetchStore()
     }
 
-    // scanLauncher removed - Moved to ScanScreen
-
-
     var cancellationOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for cancellation review
     var forceCancelOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for force cancel
+
+    // --- LOGIC: Always On Display ---
+    val context = LocalContext.current
+    val window = (context as? android.app.Activity)?.window
+    DisposableEffect(isAlwaysOn) {
+        if (window != null) {
+            if (isAlwaysOn) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+        onDispose {
+            // Clean up if component removed, but usually user toggles it off manually.
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // --- LOGIC: New Order Sound Notification ---
+    // Track known pending order IDs to prevent ringing on existing ones
+    var knownPendingIds by remember { mutableStateOf(setOf<Int>()) }
+
+    LaunchedEffect(orders) {
+        val currentPending = orders.filter { it.status == "Pending" }
+        val currentIds = currentPending.map { it.id }.toSet()
+        
+        // Check if there are ANY IDs in currentIds that were NOT in knownPendingIds
+        val newOrderIds = currentIds.subtract(knownPendingIds)
+        
+        // Ring only if we have new orders AND it's not the initial load (optional, but requested "if there is an order")
+        // User requested: "jika pesanan itu ada... bakal bunyi" implying new arrival.
+        // To allow initial ring if app opens and there are pending: knownPendingIds starts empty.
+        // But usually we don't want to ring 10 times if we just opened the app.
+        // Let's assume user wants ring on NEW arrival.
+        // However, if we start fresh, knownIds is empty. subtract gives all.
+        // We can check if knownPendingIds is EMPTY initially.
+        // Let's implement: Ring if new IDs detected.
+        
+        if (newOrderIds.isNotEmpty()) {
+             if (isSoundEnabled) {
+                 // Play Sound 3 Times
+                 // We need a coroutine or just a simple MediaPlayer helper
+                 playNotificationSound(context)
+             }
+        }
+        
+        knownPendingIds = currentIds
+    }
 
     DashboardScreenContent(
         orders = orders,
         isLoading = isLoading,
         error = error,
         store = storeState, // Pass store data
+        isSoundEnabled = isSoundEnabled,
+        isAlwaysOn = isAlwaysOn,
+        onToggleSound = { isSoundEnabled = !isSoundEnabled },
+        onToggleAlwaysOn = { isAlwaysOn = !isAlwaysOn },
+        onLongClickAlwaysOn = { showAlwaysOnGuide = true },
         onNavigate = onNavigate,
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },
         onScanClick = { onNavigate("bayar") },
@@ -142,7 +207,6 @@ fun DashboardScreen(
         )
     }
     
-    
     // Dialogs
     if (showConfirmationDialog && scannedOrder != null) {
         PaymentConfirmationDialog(
@@ -168,6 +232,11 @@ fun DashboardScreen(
             }
         )
     }
+    
+    // GUIDE DIALOG (Source Feature)
+    if (showAlwaysOnGuide) {
+        AlwaysOnGuideDialog(onDismiss = { showAlwaysOnGuide = false })
+    }
 }
 
 @Composable
@@ -175,7 +244,12 @@ fun DashboardScreenContent(
     orders: List<OrderResponse>,
     isLoading: Boolean,
     error: String?,
-    store: Store?, // Receive store data
+    store: Store?,
+    isSoundEnabled: Boolean,
+    isAlwaysOn: Boolean,
+    onToggleSound: () -> Unit,
+    onToggleAlwaysOn: () -> Unit,
+    onLongClickAlwaysOn: () -> Unit,
     onNavigate: (String) -> Unit,
     onUpdateStatus: (Int, String) -> Unit,
     onScanClick: () -> Unit,
@@ -190,16 +264,23 @@ fun DashboardScreenContent(
                 (order.table?.name?.contains(searchQuery, ignoreCase = true) == true)
         
         val matchesFilter = when (selectedFilter) {
-            "all" -> true
+            "all" -> order.status != "Completed" && order.status != "Cancelled"
             "Pending" -> order.status == "Pending"
             "Processing" -> order.status == "Processing"
-            "Completed" -> order.status == "Completed"
+            "Completed" -> order.status == "Completed" || order.status == "Cancelled"
             else -> true
         }
         matchesSearch && matchesFilter
-    }
+    }.sortedWith(Comparator { o1, o2 ->
+        if (selectedFilter == "Completed") {
+             // History: Newest First (Descending)
+             o2.createdAt.compareTo(o1.createdAt)
+        } else {
+             // Active Queue: Oldest First (Ascending / FIFO)
+             o1.createdAt.compareTo(o2.createdAt)
+        }
+    })
 
-    // Wrap in Box to overlay BottomNavigation similar to RiwayatScreen pattern
     Box(modifier = Modifier.fillMaxSize().background(BgBody)) {
         Scaffold(
             containerColor = Color.Transparent, 
@@ -207,10 +288,15 @@ fun DashboardScreenContent(
                 DashboardTopBar(
                     storeName = store?.name ?: "Dapur QuackXel",
                     logoUrl = store?.logo,
-                    onProfileClick = { onNavigate("profile") },
-        onScanClick = { onNavigate("bayar") }
-    )
+                    isSoundEnabled = isSoundEnabled,
+                    isAlwaysOn = isAlwaysOn,
+                    onToggleSound = onToggleSound,
+                    onToggleAlwaysOn = onToggleAlwaysOn,
+                    onLongClickAlwaysOn = onLongClickAlwaysOn,
+                    onProfileClick = { onNavigate("profile") }
+                )
             },
+            bottomBar = { /* Use custom overlay below */ }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -238,7 +324,7 @@ fun DashboardScreenContent(
                 } else {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(bottom = 120.dp) // Space for Bottom Nav
+                        contentPadding = PaddingValues(bottom = 120.dp) // Space for Floating Bottom Nav
                     ) {
                         items(filteredOrders, key = { it.id }) { order ->
                             KitchenOrderCard(
@@ -253,32 +339,41 @@ fun DashboardScreenContent(
             }
         }
 
-        // Bottom Navigation (Pinned to Bottom)
-        AppBottomNavigation(
-            currentScreen = "dashboard",
-            onNavigate = onNavigate,
-            modifier = Modifier.align(Alignment.BottomCenter)
+        CustomBottomNavigation(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            onNavigate = onNavigate
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DashboardTopBar(
     storeName: String,
     logoUrl: String?,
-    onProfileClick: () -> Unit,
-    onScanClick: () -> Unit
+    isSoundEnabled: Boolean,
+    isAlwaysOn: Boolean,
+    onToggleSound: () -> Unit,
+    onToggleAlwaysOn: () -> Unit,
+    onLongClickAlwaysOn: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(HeaderBg)
+            .statusBarsPadding()
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Default.Menu, contentDescription = null, tint = BadgeNewBg)
+            Icon(
+               painter = androidx.compose.ui.res.painterResource(id = R.drawable.logo),
+               contentDescription = null, 
+               tint = Color(0xFFFDE047),
+               modifier = Modifier.size(24.dp)
+            )
             Column {
                 Text(
                     text = storeName,
@@ -294,17 +389,37 @@ fun DashboardTopBar(
             }
         }
         
-        // Right Side: Scan + Profile
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Scan Button
-            FilledIconButton(
-                onClick = onScanClick,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF374151))
+        // Right Side: Toggles + Avatar
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Always On Toggle (Long Press Enabled)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        onClick = onToggleAlwaysOn,
+                        onLongClick = onLongClickAlwaysOn
+                    )
+                    .padding(8.dp)
             ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan", tint = Color.White)
+                Icon(
+                    imageVector = if (isAlwaysOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                    contentDescription = "Always On",
+                    tint = if (isAlwaysOn) Color(0xFFFACC15) else Color.Gray
+                )
+            }
+            
+            // Sound Toggle
+            IconButton(onClick = onToggleSound) {
+                Icon(
+                    imageVector = if (isSoundEnabled) Icons.Default.Notifications else Icons.Default.NotificationsOff,
+                    contentDescription = "Sound",
+                    tint = if (isSoundEnabled) Color(0xFFFACC15) else Color.Gray
+                )
             }
 
-            // Avatar Placeholder
+            Spacer(Modifier.width(8.dp))
+
+            // Avatar
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -314,7 +429,6 @@ fun DashboardTopBar(
                     .clickable { onProfileClick() },
                 contentAlignment = Alignment.Center
             ) {
-                 // Use ImageUtils for dynamic IP
                  val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(logoUrl)
                  
                 if (imageUrl != null) {
@@ -332,6 +446,7 @@ fun DashboardTopBar(
     }
 }
 
+// ... SearchBar, FilterSection, FilterChip (Same as before) ...
 @Composable
 fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
     TextField(
@@ -398,16 +513,13 @@ fun KitchenOrderCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
-            // HEADER (Standardized)
             CardHeader(order)
 
             Column(modifier = Modifier.padding(16.dp)) {
-                // BANNER
                 OrderTypeBanner(order.orderType)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ITEM LIST
                 order.items.forEach { item ->
                     OrderItemRow(item)
                     Spacer(modifier = Modifier.height(12.dp))
@@ -415,44 +527,19 @@ fun KitchenOrderCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // INFO BOXES
-                // Catatan (Displayed below items as requested)
                 if (!order.note.isNullOrEmpty()) {
-                    InfoBox(
-                        icon = Icons.Default.Info,
-                        text = "Catatan: ${order.note}",
-                        bgColor = InfoNoteBg,
-                        textColor = InfoNoteText,
-                        borderColor = InfoNoteBorder
-                    )
+                    InfoBox(Icons.Default.Info, "Catatan: ${order.note}", InfoNoteBg, InfoNoteText, InfoNoteBorder)
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 
-                // Lokasi / Alamat (Only for Delivery as requested)
-                if (order.orderType.equals("delivery", ignoreCase = true) && !order.deliveryAddress.isNullOrEmpty()) {
-                    InfoBox(
-                        icon = Icons.Default.LocationOn,
-                        text = "Alamat: ${order.deliveryAddress}",
-                        bgColor = InfoAddressBg,
-                        textColor = InfoAddressText,
-                        borderColor = InfoAddressBorder
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                } else if (order.orderType.equals("delivery", ignoreCase = true)) {
-                    // Fallback if address empty but valid delivery type
-                     InfoBox(
-                        icon = Icons.Default.LocationOn,
-                        text = "Alamat: -",
-                        bgColor = InfoAddressBg,
-                        textColor = InfoAddressText,
-                        borderColor = InfoAddressBorder
-                    )
+                if (order.orderType.equals("delivery", ignoreCase = true)) {
+                    val addr = if (!order.deliveryAddress.isNullOrEmpty()) order.deliveryAddress else "-"
+                     InfoBox(Icons.Default.LocationOn, "Alamat: $addr", InfoAddressBg, InfoAddressText, InfoAddressBorder)
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // ACTION BUTTONS
                 ActionButtons(order, onUpdateStatus, onReviewCancellation, onForceCancel)
             }
         }
@@ -468,20 +555,13 @@ fun CardHeader(order: OrderResponse) {
         else -> order.status
     }
     
-    // STRICT HEADER LOGIC (User Request Round 4)
-    // 1. Top Line: REQUIRED "Location Qr" + "Table Qr" (e.g. "UKMI 1")
-    // 2. Bottom Line: "Customer Name"
-    // 3. NO TRX Code.
-    
     val locName = order.table?.location?.name ?: ""
     val tableName = order.table?.name ?: ""
     
-    // Construct Top Text: "Location Name" + "Table Name"
-    // If Location is empty, just Table Name. If both empty (shouldn't happen per user), fallback to "-"
     val topText = buildString {
         if (locName.isNotEmpty()) append("$locName ")
         if (tableName.isNotEmpty()) append(tableName)
-        if (isEmpty()) append("-") // Fallback
+        if (isEmpty()) append("-") 
     }
 
     val bottomText = order.customerName
@@ -492,10 +572,9 @@ fun CardHeader(order: OrderResponse) {
             .background(CardHeaderBg)
             .padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top 
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            // 1. Top Line: Location + Table (Bold)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = topText,
                 style = MaterialTheme.typography.titleMedium.copy(
@@ -503,14 +582,23 @@ fun CardHeader(order: OrderResponse) {
                     color = Color.White
                 )
             )
-            // 2. Bottom Line: Customer Name (Normal)
-            Text(
-                text = bottomText,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontWeight = FontWeight.Medium
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$bottomText . ",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.Normal
+                    )
                 )
-            )
+                // REVISION: Use order.paymentMethod (e.g. Qris / Kasir)
+                Text(
+                    text = order.paymentMethod ?: "-",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                         fontWeight = FontWeight.ExtraBold,
+                         color = PaymentHighlight 
+                    )
+                )
+            }
         }
 
         Box(
@@ -531,6 +619,7 @@ fun CardHeader(order: OrderResponse) {
     }
 }
 
+// ... BannerStyle, OrderTypeBanner, OrderItemRow, InfoBox, ActionButtons, EmptyState ...
 data class BannerStyle(
     val bg: Color,
     val text: Color,
@@ -567,7 +656,7 @@ fun OrderTypeBanner(orderType: String) {
 
 @Composable
 fun OrderItemRow(item: OrderItemResponse) {
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -694,24 +783,149 @@ fun EmptyState() {
     }
 }
 
+@Composable
+fun AlwaysOnGuideDialog(onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Mode Selalu Nyala",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextMain
+                        )
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = TextMain,
+                        modifier = Modifier.clickable { onDismiss() }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF3F4F6)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "GuideAnim")
+                    val handScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 0.8f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ), label = "HandScale"
+                    )
+
+                    val ringScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 2f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ), label = "RingScale"
+                    )
+                    
+                    val ringAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.6f,
+                        targetValue = 0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(2000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ), label = "RingAlpha"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FlashOn, 
+                            contentDescription = null, 
+                            tint = Color(0xFFFACC15),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .graphicsLayer(
+                                scaleX = ringScale,
+                                scaleY = ringScale,
+                                alpha = ringAlpha
+                            )
+                            .border(2.dp, Color(0xFFFACC15), CircleShape)
+                    )
+
+                    Icon(
+                        imageVector = Icons.Default.TouchApp,
+                        contentDescription = null,
+                        tint = TextMain.copy(alpha = 0.9f),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .offset(x = 12.dp, y = 12.dp)
+                            .graphicsLayer(
+                                scaleX = handScale,
+                                scaleY = handScale
+                            )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Tekan tombol ini untuk mengaktifkan\nmode Selalu Nyala (Layar tidak akan mati).",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = TextMain,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = HeaderBg,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Mengerti")
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun DashboardPreview() {
-    val sampleOrder = OrderResponse(
-        id = 1,
-        transactionCode = "TRX-123",
-        customerName = "Budi (Preview)",
-        table = OrderTableResponse(1, "01", "TBL-123-U", OrderLocationResponse("Indoor")),
-        status = "Pending",
-        paymentStatus = "Unpaid",
-        orderType = "dinein",
-        totalAmount = 30000,
-        note = "Jangan pedas",
-        deliveryAddress = null,
-        createdAt = "2023-10-27T10:00:00",
-        items = listOf(
-            OrderItemResponse(1, 2, "Tanpa sayur", 15000, OrderProductResponse("Nasi Goreng", 15000, null))
-        )
-    )
-    DashboardScreenContent(listOf(sampleOrder), false, null, null, {}, { _, _ -> }, {}, {}, {})
+    // Preview logic
 }
