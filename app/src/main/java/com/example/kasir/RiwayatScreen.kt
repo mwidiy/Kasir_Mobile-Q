@@ -11,7 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,11 +20,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import android.app.DownloadManager
@@ -32,47 +34,44 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
-import com.example.kasir.ui.theme.KasirTheme
-import com.example.kasir.ui.components.FilterHistoryDialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.viewmodel.RiwayatViewModel
 import com.example.kasir.data.model.OrderResponse
+import com.example.kasir.data.model.OrderItemResponse // Import OrderItemResponse
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.text.NumberFormat
 
-// --- COLOR PALETTE (Scoped to History) ---
-private val HistoryCardBg = Color(0xFF2D3E50)
-private val HistoryTabBg = Color(0x1AFFFFFF) // rgba(255,255,255,0.1)
-private val HistoryPriceGreen = Color(0xFF2ECC71)
-private val HistoryPriceRed = Color(0xFFEF4444)
-private val HistoryPriceBlack = Color(0xFF111827)
-private val HistoryTextDark = Color(0xFF1F2937)
-private val HistoryTextGray = Color(0xFF6B7280)
-private val HistoryTextLightGray = Color(0xFF9CA3AF)
-
-
-
-// --- DATA MODELS ---
-// Moved to using OrderResponse directly, but keeping helpers for mapping if needed
-// Or preferably, we map OrderResponse directly in the UI items
-
-
-
+// --- COLORS (From Source) ---
+val RiwayatBgBody = Color(0xFFF8F9FA)
+val RiwayatCardBg = Color(0xFF2D3E50)
+val RiwayatTabBg = Color(0x1AFFFFFF) // rgba(255,255,255,0.1)
+val RiwayatTabActive = Color(0x40FFFFFF) // rgba(255,255,255,0.25)
+val RiwayatBorder = Color(0xFFE5E7EB)
+val RiwayatYellow = Color(0xFFFDE047)
+val PriceGreen = Color(0xFF2ECC71)
+val PriceRed = Color(0xFFEF4444)
+val PriceBlack = Color(0xFF111827)
+val RiwayatTextMain = Color(0xFF1F2937)
+val RiwayatTextMuted = Color(0xFF6B7280)
 
 @Composable
 fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = viewModel()) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedTab by remember { mutableStateOf(0) }
-    var selectedTransaction by remember { mutableStateOf<OrderResponse?>(null) }
-    var showFilterDialog by remember { mutableStateOf(false) } // State for Filter Dialog
-
+    // STATE BINDING
     val transactions by viewModel.displayedOrders.collectAsState()
     val analysis by viewModel.analysis.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf(0) } // 0=Today, 1=Week, 2=Month (Logic adapter)
+    
+    var selectedTransaction by remember { mutableStateOf<OrderResponse?>(null) }
+    var showFilterDialog by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
 
+    // Logic Effects
     LaunchedEffect(selectedTab) {
         viewModel.applyFilter(selectedTab)
     }
@@ -81,44 +80,13 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
         viewModel.search(searchQuery)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFFF8F9FA))) {
-        if (isLoading) {
-             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-        } else if (error != null) {
-             // ERROR STATE
-             Column(
-                 modifier = Modifier.align(Alignment.Center).padding(20.dp),
-                 horizontalAlignment = Alignment.CenterHorizontally
-             ) {
-                 Text("Gagal Memuat Data", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 16.sp)
-                 Spacer(modifier = Modifier.height(8.dp))
-                 Text(error ?: "Unknown Error", color = Color.Gray, textAlign = TextAlign.Center)
-                 Spacer(modifier = Modifier.height(16.dp))
-                 Button(onClick = { viewModel.fetchHistory() }) {
-                     Text("Coba Lagi")
-                 }
-             }
-        }
-        
-        // Show Content only if no error (or even if error, maybe show cached, but here we block to force attention)
-        if (error == null) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Riwayat & Laporan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, HistoryTextDark),
-                    color = Color.Transparent,
-                    modifier = Modifier.clickable { 
-                        // EXPORT PDF LOGIC
+    Box(modifier = Modifier.fillMaxSize().background(RiwayatBgBody)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = { 
+                RiwayatHeader(
+                   onExportClick = {
+                        // LOGIC: Export PDF
                         val baseUrl = com.example.kasir.data.network.RetrofitClient.BASE_URL
                         val url = "${baseUrl}api/orders/export-pdf?status=${viewModel.statusFilter}&type=${viewModel.typeFilter}&search=${viewModel.currentQuery}"
                         
@@ -137,138 +105,128 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                         } catch (e: Exception) {
                             Toast.makeText(context, "Gagal mengunduh: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                         Text("📄", fontSize = 12.sp)
-                         Text("Ekspor PDF", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = HistoryTextDark)
-                    }
-                }
-            }
-
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 100.dp),
-                modifier = Modifier.weight(1f)
+                   }
+                ) 
+            },
+            bottomBar = { /* Custom Bottom Nav via Box */ }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(bottom = 100.dp) // Space for bottom nav
             ) {
-                item {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = HistoryCardBg),
-                            elevation = CardDefaults.cardElevation(4.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(HistoryTabBg, RoundedCornerShape(8.dp))
-                                        .padding(4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    listOf("Hari Ini", "Minggu Ini", "Bulan Ini").forEachIndexed { index, title ->
-                                        val isActive = selectedTab == index
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isActive) Color(0x40FFFFFF) else Color.Transparent)
-                                                .clickable { viewModel.setTabFilter(index); selectedTab = index } // Use VM setter
-                                                .padding(vertical = 6.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(title, color = if (isActive) Color.White else Color(0xFFCCCCCC), fontSize = 12.sp)
-                                        }
-                                    }
-                                }
+                // SUMMARY CARD (Bound to Analysis)
+                SummarySection(
+                    selectedTabIdx = selectedTab, 
+                    totalIncome = analysis.totalIncome, 
+                    transactionCount = analysis.transactionCount, 
+                    avgIncome = analysis.avgIncome,
+                    onTabSelect = { index -> 
+                         selectedTab = index 
+                         viewModel.setTabFilter(index)
+                    }
+                )
 
-                                Spacer(modifier = Modifier.height(20.dp))
-                                Text("Total Pendapatan", color = Color(0xFFBDC3C7), fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                                Text(analysis.totalIncome, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                                Spacer(modifier = Modifier.height(20.dp))
-                                
-                                UtilDivider(color = Color(0x1AFFFFFF))
-                                
-                                Row(modifier = Modifier.padding(top = 15.dp)) {
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(analysis.transactionCount, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                        Text("Transaksi", color = Color(0xFFBDC3C7), fontSize = 11.sp)
-                                    }
-                                    Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0x33FFFFFF)))
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(analysis.avgIncome, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                        Text("Rata-rata", color = Color(0xFFBDC3C7), fontSize = 11.sp)
-                                    }
-                                }
-                            }
+                // FILTER BAR (Bound to Search)
+                FilterBar(
+                    query = searchQuery, 
+                    onFilterClick = { showFilterDialog = true }, 
+                    onQueryChange = { searchQuery = it }
+                )
+
+                // TRANSACTION LIST
+                 if (isLoading) {
+                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                         CircularProgressIndicator(color = RiwayatCardBg)
+                     }
+                } else if (error != null) {
+                      // Error State
+                      Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                          Text("Gagal memuat data: $error", color = PriceRed)
+                      }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(transactions) { item ->
+                            TransactionItem(item) { selectedTransaction = item }
                         }
                     }
-                }
-
-                item {
-                    Row(modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                            modifier = Modifier.weight(1f).height(46.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                BasicTextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    decorationBox = { inner ->
-                                        if (searchQuery.isEmpty()) Text("Cari Order ID...", color = Color.Gray, fontSize = 13.sp)
-                                        inner()
-                                    }
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-                            modifier = Modifier.size(46.dp).clickable { showFilterDialog = true }
-                        ) {
-                             Box(contentAlignment = Alignment.Center) {
-                                 Text("⚙️", fontSize = 20.sp)
-                             }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                items(transactions) { item ->
-                    TransactionItem(item) { selectedTransaction = item }
                 }
             }
-        } // End of Column Content
-        } // End of if (error == null)
+        }
 
-        AppBottomNavigation(
-            currentScreen = "riwayat",
-            onNavigate = onNavigate,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        // BOTTOM NAV (Custom for Riwayat with Active State)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.Transparent) 
+                .navigationBarsPadding() 
+                .height(100.dp)
+        ) {
+            // White Background Bar
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .shadow(elevation = 20.dp),
+                color = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RiwayatNavItem(Icons.Filled.Dashboard, "Dasbor", false) { onNavigate("dashboard") }
+                    RiwayatNavItem(Icons.Filled.ListAlt, "Riwayat", true) { /* Already here */ }
+                    Spacer(modifier = Modifier.width(56.dp)) // Space for Middle Button
+                    RiwayatNavItem(Icons.Filled.MenuBook, "Menu", false) { onNavigate("menu") }
+                    RiwayatNavItem(Icons.Filled.QrCode, "Meja", false) { onNavigate("qr") }
+                }
+            }
 
-        if (selectedTransaction != null) {
-            ReceiptModal(
-                transaction = selectedTransaction!!,
-                onDismiss = { selectedTransaction = null }
+            // Floating Middle Button (Bayar)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 10.dp)
+                    .size(70.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
+                    .clickable { onNavigate("bayar") }
+                    .shadow(8.dp, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
+                }
+            }
+
+            // Text for Middle Button
+            Text(
+                text = "Bayar",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RiwayatTextMain),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
             )
         }
-        
+
+        // RECEIPT MODAL
+        if (selectedTransaction != null) {
+            ReceiptModal(data = selectedTransaction!!, onDismiss = { selectedTransaction = null })
+        }
+
+        // FILTER MODAL
         if (showFilterDialog) {
-            FilterHistoryDialog(
+            com.example.kasir.ui.components.FilterHistoryDialog(
                 onDismiss = { showFilterDialog = false },
                 onApply = { status, type ->
                     viewModel.setAdvancedFilter(status, type)
@@ -279,157 +237,339 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     }
 }
 
+// --- COMPONENTS ---
+
 @Composable
-fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
+fun RiwayatHeader(onExportClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-            .background(Color.White, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .background(Color.White)
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val date = try {
-             val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-             val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
-             parser.parse(item.createdAt)?.let { formatter.format(it) } ?: "-"
-        } catch (e: Exception) { "-" }
-
-        val isIncome = item.status == "Completed"
-        val color = if (isIncome) HistoryPriceGreen else HistoryPriceRed
-
-        Column(modifier = Modifier.width(50.dp)) {
-            Text(date, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-            Text("#${item.queueNumber ?: item.id}", fontSize = 11.sp, color = HistoryTextLightGray)
-        }
-        
-        // Item Summary
-        val itemSummary = if (item.items.isNotEmpty()) {
-            val first = item.items[0]
-            val others = item.items.size - 1
-            "${first.quantity}x ${first.product?.name ?: "-"}" + if (others > 0) ", +$others lainnya" else ""
-        } else "No items"
-
         Text(
-            itemSummary,
-            fontSize = 13.sp,
-            color = Color(0xFF4B5563),
-            maxLines = 2,
-            modifier = Modifier.weight(1f).padding(horizontal = 15.dp)
+            text = "Riwayat & Laporan",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF111111)
+            )
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-            val priceStr = fmt.format(item.totalAmount).replace("Rp", "Rp ").replace(",00", "")
+
+        // Export Button
+        Row(
+            modifier = Modifier
+                .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(6.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .clickable { onExportClick() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = RiwayatTextMain)
+            Text("Ekspor PDF", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain))
+        }
+    }
+}
+
+@Composable
+fun SummarySection(
+    selectedTabIdx: Int, 
+    totalIncome: String, 
+    transactionCount: String, 
+    avgIncome: String,
+    onTabSelect: (Int) -> Unit
+) {
+    Column(modifier = Modifier.padding(20.dp)) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = RiwayatCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                // TABS
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(RiwayatTabBg, RoundedCornerShape(8.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TabItem("Hari Ini", selectedTabIdx == 0) { onTabSelect(0) }
+                    TabItem("Bulan Ini", selectedTabIdx == 1) { onTabSelect(1) }
+                    TabItem("Semua", selectedTabIdx == 2) { onTabSelect(2) }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // INCOME
+                Text("Total Pendapatan", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Color(0xFFBDC3C7), fontSize = 12.sp)
+                Text(totalIncome, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                HorizontalDivider(color = Color(0x33FFFFFF), thickness = 1.dp)
+
+                Spacer(modifier = Modifier.height(15.dp))
+
+                // STATS GRID
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(transactionCount, style = MaterialTheme.typography.titleSmall.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                        Text("Transaksi", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFBDC3C7), fontSize = 11.sp))
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0x33FFFFFF)))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(avgIncome, style = MaterialTheme.typography.titleSmall.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                        Text("Rata-rata", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFBDC3C7), fontSize = 11.sp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RowScope.TabItem(label: String, isActive: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isActive) RiwayatTabActive else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                color = if (isActive) Color.White else Color(0xFFCCCCCC)
+            )
+        )
+    }
+}
+
+@Composable
+fun FilterBar(query: String, onFilterClick: () -> Unit, onQueryChange: (String) -> Unit) {
+    Row(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Search Input
+        Box(modifier = Modifier.weight(1f)) {
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { Text("Cari Order ID...", fontSize = 13.sp, color = RiwayatTextMuted) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFFAAAAAA), modifier = Modifier.size(18.dp)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, RiwayatBorder, RoundedCornerShape(10.dp)),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                singleLine = true
+            )
+        }
+
+        // Filter Button
+        Box(
+            modifier = Modifier
+                .size(width = 46.dp, height = 56.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White)
+                .border(1.dp, RiwayatBorder, RoundedCornerShape(10.dp))
+                .clickable(onClick = onFilterClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = RiwayatTextMain, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
+    val date = try {
+         val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+         val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+         parser.parse(item.createdAt)?.let { formatter.format(it) } ?: "-"
+    } catch (e: Exception) { "-" }
+
+    val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    val totalStr = fmt.format(item.totalAmount).replace("Rp", "Rp ").replace(",00", "")
+    
+    val isSuccess = item.status == "Completed"
+    
+     // Item Summary (First item + count)
+    val itemSummary = if (item.items.isNotEmpty()) {
+        val first = item.items[0]
+        val others = item.items.size - 1
+        "${first.quantity}x ${first.product?.name ?: "-"}" + if (others > 0) ", +$others lainnya" else ""
+    } else "No items"
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Meta (Left)
+        Column(modifier = Modifier.width(50.dp)) {
+            Text(date, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RiwayatTextMain))
+            Text("#${item.queueNumber ?: item.id}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, color = Color(0xFF9CA3AF)))
+        }
+
+        // Desc (Middle)
+        Text(
+            text = itemSummary,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 13.sp, 
+                color = Color(0xFF4B5563),
+                lineHeight = 18.sp 
+            ),
+            maxLines = 2
+        )
+
+        // End (Right)
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                priceStr, 
-                fontSize = 14.sp, 
-                fontWeight = FontWeight.Bold, 
-                color = if (isIncome) HistoryPriceBlack else HistoryPriceRed
+                text = totalStr,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 14.sp,
+                    color = if (isSuccess) PriceBlack else PriceRed
+                )
             )
             Box(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(color)
+                    .background(if (isSuccess) PriceGreen else PriceRed)
             )
         }
     }
 }
 
 @Composable
-fun ReceiptModal(transaction: OrderResponse, onDismiss: () -> Unit) {
+fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).heightIn(max = 600.dp)
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                         Text("📄", fontSize = 24.sp)
-                         Text("Detail Transaksi", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                     }
-                     Row(verticalAlignment = Alignment.CenterVertically) {
-                         Text("#${transaction.id}", fontSize = 14.sp, color = HistoryTextGray)
-                         Spacer(modifier = Modifier.width(8.dp))
-                         Text("✕", fontSize = 20.sp, modifier = Modifier.clickable { onDismiss() })
-                     }
+                // HEADER
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(RiwayatCardBg.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                             Icon(Icons.Filled.Receipt, contentDescription = null, tint = RiwayatCardBg, modifier = Modifier.size(24.dp))
+                        }
+                        Text("Detail Transaksi", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RiwayatTextMain))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("#${data.id}", style = MaterialTheme.typography.bodySmall.copy(color = RiwayatTextMuted))
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(20.dp).clickable { onDismiss() }, tint = RiwayatTextMuted)
+                    }
                 }
-                
-                Spacer(modifier = Modifier.height(20.dp))
 
+                // DETAILS GRID
                 val dateStr = try {
                      val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                      val formatter = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
-                     parser.parse(transaction.createdAt)?.let { formatter.format(it) } ?: "-"
+                     parser.parse(data.createdAt)?.let { formatter.format(it) } ?: "-"
                 } catch (e: Exception) { "-" }
 
-                val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-                val totalStr = fmt.format(transaction.totalAmount).replace("Rp", "Rp ").replace(",00", "")
-
-                DetailRow("Meja:", transaction.table?.id?.toString() ?: "Takeaway")
-                DetailRow("Nama:", transaction.customerName)
-                DetailRow("Tipe:", transaction.orderType ?: "-")
-                DetailRow("Waktu:", dateStr)
-                DetailRow("Status:", transaction.status)
-
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Surface(
-                    color = if (transaction.status == "Completed") Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
-                    contentColor = if (transaction.status == "Completed") Color(0xFF166534) else Color(0xFF991B1B),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Text(
-                        if (transaction.status == "Completed") "Selesai" else if (transaction.status == "Cancelled") "Dibatalkan" else transaction.status, 
-                        fontWeight = FontWeight.Bold, 
-                        fontSize = 12.sp, 
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                    DetailRow("Meja:", data.table?.name ?: "Takeaway")
+                    DetailRow("Nama:", data.customerName)
+                    DetailRow("Tipe:", data.orderType ?: "-")
+                    DetailRow("Waktu:", dateStr)
                 }
+
+                // STATUS BADGE
+                val isCompleted = data.status == "Completed"
+                val statusColor = if (isCompleted) Color(0xFF166534) else if (data.status == "Cancelled") Color(0xFFB91C1C) else Color(0xFF854D0E)
+                val statusBg = if (isCompleted) Color(0xFFDCFCE7) else if (data.status == "Cancelled") Color(0xFFFEE2E2) else Color(0xFFFEF08A)
                 
-                Spacer(modifier = Modifier.height(16.dp))
-                UtilDivider()
-                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(statusBg)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(if(isCompleted) Icons.Filled.Check else Icons.Filled.Info, contentDescription = null, tint = statusColor, modifier = Modifier.size(14.dp))
+                        Text(
+                            if(data.status == "Completed") "Selesai" else if(data.status == "Cancelled") "Dibatalkan" else data.status, 
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = statusColor)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFF3F4F6))
                 
-                Text("Rincian Pesanan", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                transaction.items.forEach { item ->
-                     val pPrice = fmt.format((item.priceSnapshot ?: 0)).replace("Rp", "Rp ").replace(",00", "")
-                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${item.quantity}x ${item.product?.name}", fontSize = 13.sp, color = Color(0xFF4B5563))
-                        Text(pPrice, fontSize = 13.sp, color = Color(0xFF4B5563))
+                // ORDER SUMMARY
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                    Text("Rincian Pesanan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain), modifier = Modifier.padding(bottom = 12.dp))
+                    val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+                    data.items.forEach { item ->
+                        val pPrice = fmt.format((item.priceSnapshot ?: 0)).replace("Rp", "Rp ").replace(",00", "")
+                        OrderRow("${item.quantity}x ${item.product?.name}", pPrice)
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
-                UtilDivider()
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text("Rincian Pembayaran", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Subtotal", fontSize = 13.sp, color = HistoryTextLightGray)
-                    Text(totalStr, fontSize = 13.sp, color = HistoryTextLightGray)
-                }
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Total", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-                    Text(totalStr, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HistoryTextDark)
-                }
-                Text(transaction.paymentMethod ?: "-", fontSize = 12.sp, color = HistoryTextLightGray, modifier = Modifier.align(Alignment.End))
+                HorizontalDivider(color = Color(0xFFF3F4F6))
 
-                Spacer(modifier = Modifier.height(24.dp))
-                OutlinedButton(
+                // PAYMENT DETAILS
+                val totalStr = NumberFormat.getCurrencyInstance(Locale("id", "ID")).format(data.totalAmount).replace("Rp", "Rp ").replace(",00", "")
+                
+                Column(modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)) {
+                    Text("Rincian Pembayaran", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain), modifier = Modifier.padding(bottom = 12.dp))
+                    PaymentRow("Subtotal", totalStr, false) // Needs separate subtotal if available, using total for now
+                    PaymentRow("Total", totalStr, true)
+                    PaymentRow(data.paymentMethod ?: "-", totalStr, false, fontSize = 12.sp)
+                }
+                
+                // CLOSE BTN
+                Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = RiwayatTextMain),
+                    border = BorderStroke(1.dp, RiwayatBorder),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
-                    Text("Tutup", color = HistoryTextDark, fontWeight = FontWeight.Bold)
+                    Text("Tutup", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -438,14 +578,55 @@ fun ReceiptModal(transaction: OrderResponse, onDismiss: () -> Unit) {
 
 @Composable
 fun DetailRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, modifier = Modifier.width(80.dp), color = HistoryTextLightGray, fontSize = 13.sp)
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(value, fontWeight = FontWeight.Medium, color = HistoryTextDark, fontSize = 13.sp, textAlign = TextAlign.Right, modifier = Modifier.weight(1f))
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(label, modifier = Modifier.width(80.dp), style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF9CA3AF), fontSize = 13.sp))
+        Text(value, modifier = Modifier.weight(1f), textAlign = TextAlign.Right, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, color = RiwayatTextMain, fontSize = 13.sp))
     }
 }
 
 @Composable
-fun UtilDivider(color: Color = Color(0xFFF3F4F6)) {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(color))
+fun OrderRow(item: String, price: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(item, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563), fontSize = 13.sp))
+        Text(price, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563), fontSize = 13.sp))
+    }
+}
+
+@Composable
+fun PaymentRow(label: String, price: String, isTotal: Boolean, fontSize: TextUnit = 13.sp) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = if(isTotal) 8.dp else 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall.copy(color = if(isTotal) RiwayatTextMain else Color(0xFF9CA3AF), fontSize = if(isTotal) 16.sp else fontSize, fontWeight = if(isTotal) FontWeight.Bold else FontWeight.Normal))
+        Text(price, style = MaterialTheme.typography.bodySmall.copy(color = if(isTotal) RiwayatTextMain else Color(0xFF9CA3AF), fontSize = if(isTotal) 16.sp else fontSize, fontWeight = if(isTotal) FontWeight.Bold else FontWeight.Normal))
+    }
+}
+
+@Composable
+fun RiwayatNavItem(icon: ImageVector, label: String, isActive: Boolean, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .width(60.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (isActive) RiwayatTextMain else Color(0xFF9CA3AF),
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.sp,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                color = if (isActive) RiwayatTextMain else Color(0xFF9CA3AF)
+            )
+        )
+    }
 }

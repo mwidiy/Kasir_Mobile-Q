@@ -121,8 +121,8 @@ class RiwayatViewModel : ViewModel() {
             // If query empty, use tabs.
              result = when (currentFilterTab) {
                 0 -> result.filter { isSameDay(it.createdAt, now) }
-                1 -> result.filter { isThisWeek(it.createdAt, now) }
-                2 -> result.filter { isSameMonth(it.createdAt, now) }
+                1 -> result.filter { isSameMonth(it.createdAt, now) }
+                2 -> result // Semua (All History)
                 else -> result
             }
         }

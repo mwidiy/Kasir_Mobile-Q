@@ -135,32 +135,28 @@ fun DashboardScreen(
     // --- LOGIC: New Order Sound Notification ---
     // Track known pending order IDs to prevent ringing on existing ones
     var knownPendingIds by remember { mutableStateOf(setOf<Int>()) }
+    var isFirstLoad by remember { mutableStateOf(true) } // PREVENT RING ON START
 
     LaunchedEffect(orders) {
         val currentPending = orders.filter { it.status == "Pending" }
         val currentIds = currentPending.map { it.id }.toSet()
         
-        // Check if there are ANY IDs in currentIds that were NOT in knownPendingIds
-        val newOrderIds = currentIds.subtract(knownPendingIds)
-        
-        // Ring only if we have new orders AND it's not the initial load (optional, but requested "if there is an order")
-        // User requested: "jika pesanan itu ada... bakal bunyi" implying new arrival.
-        // To allow initial ring if app opens and there are pending: knownPendingIds starts empty.
-        // But usually we don't want to ring 10 times if we just opened the app.
-        // Let's assume user wants ring on NEW arrival.
-        // However, if we start fresh, knownIds is empty. subtract gives all.
-        // We can check if knownPendingIds is EMPTY initially.
-        // Let's implement: Ring if new IDs detected.
-        
-        if (newOrderIds.isNotEmpty()) {
-             if (isSoundEnabled) {
-                 // Play Sound 3 Times
-                 // We need a coroutine or just a simple MediaPlayer helper
-                 playNotificationSound(context)
-             }
+        if (isFirstLoad) {
+            // First load: Just initialize known IDs, DO NOT RING
+            knownPendingIds = currentIds
+            isFirstLoad = false
+        } else {
+            // Subsequent updates: Check for NEW IDs
+            val newOrderIds = currentIds.subtract(knownPendingIds)
+            
+            if (newOrderIds.isNotEmpty()) {
+                 if (isSoundEnabled) {
+                     // Play Sound 3 Times
+                     playNotificationSound(context)
+                 }
+            }
+            knownPendingIds = currentIds
         }
-        
-        knownPendingIds = currentIds
     }
 
     DashboardScreenContent(
