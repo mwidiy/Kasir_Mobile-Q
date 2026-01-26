@@ -20,10 +20,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Help
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -139,6 +148,15 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     var currentScreen by remember { mutableStateOf("menu_list") } // "menu_list", "add_product", "edit_product"
     var selectedProductId by remember { mutableStateOf<String?>(null) } // For edit
 
+    // Logic Effects: Force Dark Status Bar Icons
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as android.app.Activity).window
+            androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+        }
+    }
+
     var selectedBannerToEdit by remember { mutableStateOf<Banner?>(null) }
     var selectedMenuToEdit by remember { mutableStateOf<MenuItem?>(null) }
     
@@ -173,7 +191,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             // Only show Header and Tabs if in List mode for both Tabs
             if (bannerScreenState == "list" && currentScreen == "menu_list") {
                 // Header (Shared)
-                Column(modifier = Modifier.background(Color.White).padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
+                Column(modifier = Modifier.background(Color.White).statusBarsPadding().padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
                     Text("Manajemen Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MenuPrimaryBlue)
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(modifier = Modifier.fillMaxWidth().border(0.dp, Color.Transparent)) {
@@ -240,7 +258,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     }
 
                     // Search & Filter
-                    Column(modifier = Modifier.background(Color.White).padding(bottom = 10.dp)) {
+                    Column(modifier = Modifier.background(Color.White).padding(bottom = 10.dp, top = 16.dp)) {
                         // Search
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -299,7 +317,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
                     // Product List
                     LazyColumn(
-                        contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp),
+                        contentPadding = PaddingValues(top = 10.dp, bottom = 160.dp),
                         modifier = Modifier.padding(horizontal = 20.dp)
                     ) {
                         items(
@@ -390,12 +408,15 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         }
             }
 
-        // Floating Action Button (FAB) Area - ONLY for Menu Tab & List View
-        if (activeTab == "menu" && currentScreen == "menu_list") {
+        // Floating Action Button (FAB) Area
+        val isMenuTabActive = activeTab == "menu" && currentScreen == "menu_list"
+        val isBannerTabActive = activeTab == "banner" && bannerScreenState == "list"
+        
+        if (isMenuTabActive || isBannerTabActive) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Overlay
                  AnimatedVisibility(
-                    visible = isFabExpanded,
+                    visible = isFabExpanded && isMenuTabActive, // Only expand on Menu tab
                     enter = fadeIn(),
                     exit = fadeOut(),
                     modifier = Modifier.fillMaxSize()
@@ -403,45 +424,55 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.6f)).clickable { isFabExpanded = false })
                 }
     
-                // FAB Items
-                Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 170.dp, end = 20.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                     AnimatedVisibility(
-                        visible = isFabExpanded,
-                        enter = slideInVertically { it } + fadeIn(),
-                        exit = slideOutVertically { it } + fadeOut()
+                // FAB Items (Only for Menu)
+                if (isMenuTabActive) {
+                    Column(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 240.dp, end = 20.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        FabSubButton("Tambah Produk", "🍳") { 
-                           isFabExpanded = false
-                           currentScreen = "add_product"
+                         AnimatedVisibility(
+                            visible = isFabExpanded,
+                            enter = slideInVertically { it } + fadeIn(),
+                            exit = slideOutVertically { it } + fadeOut()
+                        ) {
+                            FabSubButton("Tambah Produk", "🍳") { 
+                               isFabExpanded = false
+                               currentScreen = "add_product"
+                            }
                         }
-                    }
-                    AnimatedVisibility(
-                        visible = isFabExpanded,
-                        enter = slideInVertically { it } + fadeIn(),
-                        exit = slideOutVertically { it } + fadeOut()
-                    ) {
-                         FabSubButton("Tambah Kategori", "📁") { 
-                             isFabExpanded = false
-                             showAddCategoryModal = true 
-                         }
+                        AnimatedVisibility(
+                            visible = isFabExpanded,
+                            enter = slideInVertically { it } + fadeIn(),
+                            exit = slideOutVertically { it } + fadeOut()
+                        ) {
+                             FabSubButton("Tambah Kategori", "📁") { 
+                                 isFabExpanded = false
+                                 showAddCategoryModal = true 
+                             }
+                        }
                     }
                 }
     
                 // Main FAB
-                val rotation by animateFloatAsState(if (isFabExpanded) 45f else 0f)
+                // Rotate only if expanded (Menu logic)
+                val rotation by animateFloatAsState(if (isFabExpanded && isMenuTabActive) 45f else 0f)
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(bottom = 100.dp, end = 20.dp)
+                        .padding(bottom = 170.dp, end = 20.dp)
                         .size(56.dp)
+                        .shadow(elevation = 6.dp, shape = CircleShape)
                         .clip(CircleShape)
                         .background(MenuPrimaryYellow)
-                        .clickable { isFabExpanded = !isFabExpanded }
-                        .shadow(elevation = 4.dp, shape = CircleShape),
+                        .clickable { 
+                            if (isMenuTabActive) {
+                                isFabExpanded = !isFabExpanded 
+                            } else {
+                                // Banner Action -> Go to Add Banner
+                                bannerScreenState = "add"
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add", tint = MenuTextDark, modifier = Modifier.rotate(rotation))
@@ -449,13 +480,80 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // Bottom Nav - Hide when in full screen forms
+        // Bottom Nav (Custom)
         if (bannerScreenState == "list" && currentScreen == "menu_list") {
-            AppBottomNavigation(
-                currentScreen = "menu",
-                onNavigate = onNavigate,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            val navBg = Color(0xFF1F2937)
+             Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(100.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) // Total height including system bars
+            ) {
+                // Background Filler for System Bars
+                 Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .background(Color.White)
+                )
+
+                // White Background Bar
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up by system bar height
+                        .height(80.dp)
+                        .shadow(elevation = 20.dp),
+                    color = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Reuse RiwayatNavItem if accessible, otherwise define inline logic or duplicates
+                        // Assuming RiwayatNavItem is public from RiwayatScreen.kt
+                        RiwayatNavItem(Icons.Filled.Dashboard, "Dasbor", false) { onNavigate("dashboard") }
+                        RiwayatNavItem(Icons.Filled.ListAlt, "Riwayat", false) { onNavigate("riwayat") }
+                        Spacer(modifier = Modifier.width(56.dp)) 
+                        RiwayatNavItem(Icons.Filled.MenuBook, "Menu", true) { /* Current */ }
+                        RiwayatNavItem(Icons.Filled.QrCode, "Meja", false) { onNavigate("qr") }
+                    }
+                }
+    
+                // Floating Middle Button (Bayar)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up
+                        .offset(y = 10.dp)
+                        .size(70.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
+                        .clickable { onNavigate("bayar") }
+                        .shadow(8.dp, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
+                    }
+                }
+    
+                // Text for Middle Button
+                Text(
+                    text = "Bayar",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = navBg),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up
+                        .padding(bottom = 12.dp)
+                )
+            }
         }
 
         // --- MODALS ---
@@ -654,7 +752,7 @@ fun FabSubButton(text: String, icon: String, onClick: () -> Unit) {
             shape = RoundedCornerShape(4.dp),
             modifier = Modifier.padding(end = 8.dp)
         ) {
-            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
         }
         Box(
             modifier = Modifier
@@ -677,7 +775,7 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, on
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
         ) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 20.dp))
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 20.dp), color = Color(0xFF1F2937))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onEdit() }.padding(vertical = 12.dp),
@@ -687,7 +785,7 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, on
                         Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Edit Menu", fontWeight = FontWeight.SemiBold)
+                    Text("Edit Menu", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                 }
                 
                 Divider(color = Color(0xFFF3F4F6))
@@ -735,9 +833,9 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
                 Spacer(modifier = Modifier.height(20.dp))
-                Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF374151))
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = text, 
@@ -747,7 +845,7 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                     shape = RoundedCornerShape(10.dp)
                 )
                  Spacer(modifier = Modifier.height(24.dp))
-                 Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan") }
+                 Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan", color = Color.White) }
             }
         }
     }
@@ -760,15 +858,93 @@ fun GuideModal(onDismiss: () -> Unit) {
              Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                  Text("Cara Mengelola Kategori", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                  Spacer(modifier = Modifier.height(20.dp))
-                 Box(modifier = Modifier.height(100.dp).fillMaxWidth().background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                     Text("Animation Placeholder")
-                 }
+                 
+                 // ANIMATION
+                 GuideModalAnimation()
+                 
                  Spacer(modifier = Modifier.height(20.dp))
                  Text("Untuk mengubah nama atau menghapus kategori, cukup Tekan & Tahan (Long Press) pada tombol kategori.", textAlign = TextAlign.Center, color = Color.Gray, fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(20.dp))
                  Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Mengerti") }
              }
         }
+    }
+}
+
+@Composable
+fun GuideModalAnimation() {
+    val infiniteTransition = rememberInfiniteTransition(label = "guide")
+    
+    // Hand Scale Animation (Pressing effect)
+    val handScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = TweenSpec(durationMillis = 600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "handScale"
+    )
+    
+    // Ring Animation (Ripple effect)
+    val ringScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = TweenSpec(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "ringScale"
+    )
+    
+    val ringAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = TweenSpec(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "ringAlpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .height(120.dp)
+            .fillMaxWidth()
+            .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        // Button representation
+        Box(
+            modifier = Modifier
+                .width(80.dp)
+                .height(30.dp)
+                .background(Color.White, RoundedCornerShape(15.dp))
+                .border(1.dp, Color(0xFFDDDDDD), RoundedCornerShape(15.dp))
+        )
+        
+        // Expanding Ring (Ripple)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .graphicsLayer {
+                    scaleX = ringScale
+                    scaleY = ringScale
+                    alpha = ringAlpha
+                }
+                .border(2.dp, MenuPrimaryBlue, CircleShape)
+        )
+        
+        // Hand Icon
+        Icon(
+            Icons.Filled.TouchApp,
+            contentDescription = null,
+            tint = Color.Black.copy(alpha=0.7f),
+            modifier = Modifier
+                .size(32.dp)
+                .offset(x = 10.dp, y = 10.dp) // Little offset to look like pressing
+                .graphicsLayer {
+                    scaleX = handScale
+                    scaleY = handScale
+                }
+        )
     }
 }
 

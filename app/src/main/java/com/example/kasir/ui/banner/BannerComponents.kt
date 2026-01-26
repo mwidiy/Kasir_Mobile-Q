@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -73,7 +74,7 @@ fun BannerListScreen(
                     Text("ℹ️", fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        "Tekan & geser ikon titik-titik untuk mengubah urutan slide. (Klik untuk info)",
+                        "Klik panel ini untuk informasi lengkap mengenai pengelolaan banner slide.",
                         color = InfoText,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -118,20 +119,7 @@ fun BannerListScreen(
             }
         }
         
-        // FAB
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 100.dp, end = 20.dp)
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(PrimaryYellow)
-                .clickable { onNavigateToAdd() }
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-              Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF1A2B48))
-        }
+
 
         // --- Modals ---
         if (showDeleteConfirm != null) {
@@ -174,7 +162,7 @@ fun BannerCard(
             ) {
                 // IMAGE WITH COIL
                 Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray)) {
-                    val model = if (banner.image.startsWith("http")) banner.image else "${BuildConfig.API_BASE_URL.removeSuffix("/")}${banner.image}"
+                    val model = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(banner.image)
                     AsyncImage(
                         model = model,
                         contentDescription = banner.title,
@@ -239,8 +227,8 @@ fun BannerDeleteModal(onConfirm: () -> Unit, onCancel: () -> Unit) {
                  Text("Menghapus banner akan menghilangkannya secara permanen dari daftar promosi aplikasi.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(24.dp))
                  Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                     Button(onClick = onCancel, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)), modifier = Modifier.weight(1f)) { Text("Batal") }
-                     Button(onClick = onConfirm, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus") }
+                     Button(onClick = onCancel, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)), modifier = Modifier.weight(1f)) { Text("Batal", color = Color.White) }
+                     Button(onClick = onConfirm, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus", color = Color.White) }
                  }
             }
         }
@@ -254,11 +242,11 @@ fun BannerInfoModal(onDismiss: () -> Unit) {
              Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                  Icon(painter = painterResource(android.R.drawable.ic_dialog_info), contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(48.dp))
                  Spacer(modifier = Modifier.height(15.dp))
-                 Text("Pengaturan Slide", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                 Text("Informasi Slide", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                  Spacer(modifier = Modifier.height(12.dp))
                  Text("Urutan banner di halaman ini menentukan urutan tampilan banner di aplikasi pelanggan.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(20.dp))
-                 Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue), modifier = Modifier.fillMaxWidth()) { Text("Mengerti") }
+                 Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue), modifier = Modifier.fillMaxWidth()) { Text("Mengerti", color = Color.White) }
              }
         }
     }
@@ -300,14 +288,19 @@ fun BannerFormScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(15.dp).border(0.dp, Color.Transparent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .statusBarsPadding() // Handled overlap
+                    .padding(15.dp)
+                    .border(0.dp, Color.Transparent),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Back")
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF1F2937))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
             }
             Divider()
 
@@ -331,7 +324,7 @@ fun BannerFormScreen(
                        if (selectedImageUri != null) {
                             AsyncImage(model = selectedImageUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                        } else if (initialBanner != null && initialBanner.image.isNotEmpty()) {
-                            val model = if (initialBanner.image.startsWith("http")) initialBanner.image else "${BuildConfig.API_BASE_URL.removeSuffix("/")}${initialBanner.image}"
+                            val model = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(initialBanner.image)
                             AsyncImage(model = model, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                        } else {
                             Icon(painter = painterResource(android.R.drawable.ic_menu_gallery), contentDescription = null, tint = Color.White.copy(alpha=0.3f))
@@ -421,7 +414,7 @@ fun BannerFormScreen(
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
-                        Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold)
+                        Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
@@ -434,7 +427,7 @@ fun BannerFormScreen(
 @Composable
 fun BannerInputField(label: String, placeholder: String, value: String, onValueChange: (String) -> Unit) {
     Column(modifier = Modifier.padding(bottom = 20.dp)) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 8.dp))
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 8.dp), color = Color(0xFF374151))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -443,7 +436,9 @@ fun BannerInputField(label: String, placeholder: String, value: String, onValueC
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = PrimaryBlue,
-                unfocusedBorderColor = Color(0xFFE5E7EB)
+                unfocusedBorderColor = Color(0xFFE5E7EB),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
             )
         )
     }

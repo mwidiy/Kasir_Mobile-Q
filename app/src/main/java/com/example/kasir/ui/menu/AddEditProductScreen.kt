@@ -75,7 +75,11 @@ fun AddEditProductScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    titleContentColor = Color(0xFF1F2937),
+                    navigationIconContentColor = Color(0xFF1F2937)
+                )
             )
         },
         containerColor = Color(0xFFF3F4F6)
@@ -110,8 +114,11 @@ fun AddEditProductScreen(
                             unfocusedTextColor = Color.Black,
                             focusedContainerColor = Color.White,
                             unfocusedContainerColor = Color.White,
-                            cursorColor = Color.Black
+                            cursorColor = Color.Black,
+                            focusedLabelColor = Color.Black,
+                            unfocusedLabelColor = Color.Gray
                         ),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         singleLine = true
                     )
                     
@@ -134,7 +141,8 @@ fun AddEditProductScreen(
                                 focusedContainerColor = Color.White,
                                 unfocusedContainerColor = Color.White,
                                 cursorColor = Color.Black
-                            )
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black)
                         )
                         Box(modifier = Modifier
                             .matchParentSize()
@@ -146,7 +154,7 @@ fun AddEditProductScreen(
                         ) {
                             categoriesState.forEach { cat ->
                                 DropdownMenuItem(
-                                    text = { Text(cat.name) },
+                                    text = { Text(cat.name, color = Color(0xFF1F2937)) },
                                     onClick = {
                                         category = cat.id.toString()
                                         expanded = false
@@ -174,6 +182,7 @@ fun AddEditProductScreen(
                             unfocusedContainerColor = Color.White,
                             cursorColor = Color.Black
                         ),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
                     )
@@ -195,6 +204,7 @@ fun AddEditProductScreen(
                             unfocusedContainerColor = Color.White,
                             cursorColor = Color.Black
                         ),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         minLines = 3,
                         maxLines = 5
                     )
@@ -267,7 +277,13 @@ fun AddEditProductScreen(
                     Switch(
                         checked = isActive,
                         onCheckedChange = { isActive = it },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF1F2937))
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF1F2937),
+                            uncheckedThumbColor = Color(0xFF1F2937),
+                            uncheckedTrackColor = Color.LightGray,
+                            uncheckedBorderColor = Color.Transparent
+                        )
                     )
                 }
             }
@@ -302,11 +318,11 @@ fun AddEditProductScreen(
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1F2937),
+                    containerColor = Color(0xFF2D3E50),
                     disabledContainerColor = Color.Gray
                 )
             ) {
-                Text(if (isEditMode) "Simpan Perubahan" else "Simpan Menu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(if (isEditMode) "Simpan Perubahan" else "Simpan Menu", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
             }
         }
     }

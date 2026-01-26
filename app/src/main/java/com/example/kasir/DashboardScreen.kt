@@ -106,6 +106,15 @@ fun DashboardScreen(
     var isAlwaysOn by remember { mutableStateOf(false) }
     var showAlwaysOnGuide by remember { mutableStateOf(false) }
 
+    // Logic Effects: Force Light Status Bar Icons (for Dark Header)
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as android.app.Activity).window
+            androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+
     // Force Refresh Data on Screen Enter
     LaunchedEffect(Unit) {
         viewModel.fetchOrders()
