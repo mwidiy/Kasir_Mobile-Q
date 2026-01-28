@@ -155,7 +155,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                       }
                 } else {
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+                        contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(transactions) { item ->
@@ -166,66 +166,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
             }
         }
 
-        // BOTTOM NAV (Custom for Riwayat with Active State)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color.Transparent) 
-                .navigationBarsPadding() 
-                .height(100.dp)
-        ) {
-            // White Background Bar
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .shadow(elevation = 20.dp),
-                color = Color.White
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RiwayatNavItem(Icons.Filled.Dashboard, "Dasbor", false) { onNavigate("dashboard") }
-                    RiwayatNavItem(Icons.Filled.ListAlt, "Riwayat", true) { /* Already here */ }
-                    Spacer(modifier = Modifier.width(56.dp)) // Space for Middle Button
-                    RiwayatNavItem(Icons.Filled.MenuBook, "Menu", false) { onNavigate("menu") }
-                    RiwayatNavItem(Icons.Filled.QrCode, "Meja", false) { onNavigate("qr") }
-                }
-            }
 
-            // Floating Middle Button (Bayar)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 10.dp)
-                    .size(70.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .padding(4.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
-                    .clickable { onNavigate("bayar") }
-                    .shadow(8.dp, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
-                }
-            }
-
-            // Text for Middle Button
-            Text(
-                text = "Bayar",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RiwayatTextMain),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
-            )
-        }
 
         // RECEIPT MODAL
         if (selectedTransaction != null) {

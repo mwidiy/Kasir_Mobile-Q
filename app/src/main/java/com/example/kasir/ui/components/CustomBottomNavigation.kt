@@ -23,67 +23,85 @@ import com.example.kasir.TextMuted
 
 @Composable
 fun CustomBottomNavigation(
+    currentScreen: String,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit
 ) {
     // FIX: Apply navigationBarsPadding to lift the whole bottom nav above system buttons
+    // Root: Full width, transparent, respects alignment from caller
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Transparent) // Ensure background behind nav is transparent
-            .navigationBarsPadding() // Adds bottom padding equal to navigation bar height
-            .height(100.dp)
+            .background(Color.Transparent)
     ) {
-        // White Background Bar
-        Surface(
+        // 1. Curtain: Solid background behind system navigation bars
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(80.dp)
-                .shadow(elevation = 20.dp),
-            color = Color.White
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NavItem(Icons.Filled.Dashboard, "Dasbor", true) { onNavigate("dashboard") }
-                NavItem(Icons.Filled.ListAlt, "Riwayat", false) { onNavigate("riwayat") }
-                Spacer(modifier = Modifier.width(56.dp)) // Space for Middle Button
-                NavItem(Icons.Filled.MenuBook, "Menu", false) { onNavigate("menu") }
-                NavItem(Icons.Filled.QrCode, "Meja", false) { onNavigate("meja") } // "meja" matches Target route
-            }
-        }
+                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                .background(Color.White)
+        )
 
-        // Floating Middle Button (Bayar)
+        // 2. Navigation Content: Lifted UP above the system bars
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 10.dp)
-                .size(70.dp)
-                .clip(CircleShape)
-                .background(Color.White)
-                .padding(4.dp)
-                .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
-                .clickable { onNavigate("bayar") }
-                .shadow(8.dp, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
-            }
-        }
-        
-        // Text for Middle Button (Positioned manually below float)
-        Text(
-            text = "Bayar",
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = TextMain),
-            modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp)
-        )
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars) // Adds padding for system bars
+                .height(100.dp)
+        ) {
+            // White Background Bar
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .shadow(elevation = 20.dp),
+                color = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NavItem(Icons.Filled.Dashboard, "Dasbor", currentScreen == "dashboard") { onNavigate("dashboard") }
+                    NavItem(Icons.Filled.ListAlt, "Riwayat", currentScreen == "riwayat") { onNavigate("riwayat") }
+                    Spacer(modifier = Modifier.width(56.dp)) // Space for Middle Button
+                    NavItem(Icons.Filled.MenuBook, "Menu", currentScreen == "menu") { onNavigate("menu") }
+                    NavItem(Icons.Filled.QrCode, "Meja", currentScreen == "meja") { onNavigate("meja") }
+                }
+            }
+
+            // Floating Middle Button (Bayar)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 10.dp)
+                    .size(70.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
+                    .clickable { onNavigate("bayar") }
+                    .shadow(8.dp, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
+                }
+            }
+
+            // Text for Middle Button
+            Text(
+                text = "Bayar",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = TextMain),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+            )
+        }
     }
 }
 

@@ -1,11 +1,15 @@
 package com.example.kasir
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -24,7 +28,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -55,6 +65,9 @@ import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
 
 private val BASE_PWA_URL = BuildConfig.PWA_BASE_URL.removeSuffix("/")
+
+// --- ANIMATION CONSTANTS ---
+private const val ANIMATION_DURATION = 3000
 
 // --- COLORS ---
 private val QrBg = Color(0xFFF8F9FA)
@@ -90,6 +103,15 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     // Create a dummy Location for "Semua" to simplify the list
     var locationList by remember { mutableStateOf<List<Location>>(listOf(Location(-1, "Semua"))) }
     
+    // Logic Effects: Force Light Status Bar Icons (White) like Dashboard
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as android.app.Activity).window
+            androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        }
+    }
+
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -111,6 +133,9 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     // New Dialog States
     var showAddOptionDialog by remember { mutableStateOf(false) }
     var showAddLocationDialog by remember { mutableStateOf(false) }
+    var showStatusGuideDialog by remember { mutableStateOf(false) }
+    var isFabExpanded by remember { mutableStateOf(false) }
+    var showLocationOptions by remember { mutableStateOf<Location?>(null) } // New Action Sheet State
 
     // Location Edit/Delete States
     var activeLocationMenuId by remember { mutableStateOf<Int?>(null) }
@@ -121,6 +146,12 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     val refreshData = {
         scope.launch {
             try {
+                // Fetch Store Status (Added)
+                val storeResponse = RetrofitClient.instance.getStore()
+                if (storeResponse.success && storeResponse.data != null) {
+                   globalStatus = globalStatus.copy(isOpen = storeResponse.data.isOpen)
+                }
+
                 // Fetch Tables
                 val tables = RetrofitClient.instance.getTables()
                 tableList = tables
@@ -157,6 +188,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF2D3E50))
+                    .statusBarsPadding()
                     .padding(24.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -173,63 +205,64 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     Text(text = errorMessage ?: "Error", color = Color.Red, modifier = Modifier.padding(16.dp))
                 }
             } else {
-                // Scrollable Content
-                LazyColumn(
-                    contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                ) {
-                    item {
-                        // Status Card
-                        StatusCard(globalStatus, onToggle = { globalStatus = globalStatus.copy(isOpen = !globalStatus.isOpen) })
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-
-                    item {
-                        // Location Chips (Direct from API)
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(bottom = 15.dp)
-                        ) {
-                            items(locationList) { location ->
-                                Box {
-                                    FilterPill(
-                                        label = location.name,
-                                        isActive = selectedLocation == location.name,
-                                        onClick = { selectedLocation = location.name },
-                                        onLongClick = {
-                                            if (location.name != "Semua") {
-                                                activeLocationMenuId = location.id
-                                            }
-                                        }
-                                    )
-                                    
-                                    // Dropdown Menu for Edit/Delete
-                                    DropdownMenu(
-                                        expanded = activeLocationMenuId == location.id,
-                                        onDismissRequest = { activeLocationMenuId = null }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Edit") },
-                                            onClick = {
-                                                activeLocationMenuId = null
-                                                showEditLocationDialog = location
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Hapus", color = Color.Red) },
-                                            onClick = {
-                                                activeLocationMenuId = null
-                                                showDeleteLocationConfirm = location
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
-                                        )
+                // Fixed Header Area
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                    // Status Card
+                    StatusCard(globalStatus, 
+                        onToggle = { 
+                            val newStatus = !globalStatus.isOpen
+                            // Optimistic Update
+                            globalStatus = globalStatus.copy(isOpen = newStatus)
+                            
+                            scope.launch {
+                                try {
+                                    val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(isOpen = newStatus))
+                                    if (response.success && response.data != null) {
+                                        globalStatus = globalStatus.copy(isOpen = response.data.isOpen)
+                                        // Cascade Update on Backend -> Refresh UI to show all Switches flipped
+                                        refreshData()
+                                    } else {
+                                        // Revert on failure
+                                        globalStatus = globalStatus.copy(isOpen = !newStatus)
+                                        errorMessage = "Gagal update status toko"
                                     }
+                                } catch(e: Exception) {
+                                     globalStatus = globalStatus.copy(isOpen = !newStatus)
+                                     errorMessage = "Error: ${e.localizedMessage}"
                                 }
+                            }
+                        },
+                        onInfoClick = { showStatusGuideDialog = true }
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Location Chips (Direct from API)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(bottom = 5.dp) // Reduced bottom padding as grid handles spacing
+                    ) {
+                        items(locationList) { location ->
+                            Box {
+                                FilterPill(
+                                    label = location.name,
+                                    isActive = selectedLocation == location.name,
+                                    onClick = { selectedLocation = location.name },
+                                    onLongClick = {
+                                        if (location.name != "Semua") {
+                                            showLocationOptions = location
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
+                }
 
+                // Scrollable Content (Table Grid)
+                LazyColumn(
+                    contentPadding = PaddingValues(top = 10.dp, bottom = 180.dp, start = 20.dp, end = 20.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                ) {
                     // Table Grid
                     items(filteredTables.chunked(2)) { rowItems ->
                         Row(
@@ -287,28 +320,78 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // FAB - Refactored for Multi-Action
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 100.dp, end = 20.dp)
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(QrPrimaryYellow)
-                .clickable { showAddOptionDialog = true }
-                .shadow(elevation = 4.dp, shape = CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add", tint = QrTextDark)
+        // FAB - Refactored for Multi-Action (Matches MenuScreen)
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Overlay
+            AnimatedVisibility(
+                visible = isFabExpanded,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { isFabExpanded = false }
+                )
+            }
+
+            // FAB Items
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 240.dp, end = 20.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut()
+                ) {
+                    FabSubButton("Tambah Lokasi Baru", "📍") {
+                        isFabExpanded = false
+                        showAddLocationDialog = true
+                    }
+                }
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut()
+                ) {
+                    FabSubButton("Tambah Meja / QR", "🪑") {
+                        isFabExpanded = false
+                        currentEditingTable = null // Reset edit state
+                        showAddTableModal = true
+                    }
+                }
+            }
+
+            // Main FAB
+            val rotation by animateFloatAsState(if (isFabExpanded) 45f else 0f)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 170.dp, end = 20.dp)
+                    .size(56.dp)
+                    .shadow(elevation = 6.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(QrPrimaryYellow)
+                    .clickable { isFabExpanded = !isFabExpanded },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Add, 
+                    contentDescription = "Add", 
+                    tint = QrTextDark,
+                    modifier = Modifier.rotate(rotation)
+                )
+            }
         }
 
-        // Bottom Nav
-        AppBottomNavigation(
-            currentScreen = "meja",
-            onNavigate = onNavigate,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
+// Bottom Nav Removed (Handled by MainScreen)
+        
         // --- MODALS ---
         
         // 1. Option Dialog (Selection)
@@ -392,6 +475,24 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             )
         }
 
+        // New Location Action Sheet
+        if (showLocationOptions != null) {
+            TableActionSheetModal(
+                title = "Opsi Lokasi: ${showLocationOptions!!.name}",
+                onEdit = {
+                    val loc = showLocationOptions
+                    showLocationOptions = null
+                    showEditLocationDialog = loc
+                },
+                onDelete = {
+                     val loc = showLocationOptions
+                    showLocationOptions = null
+                    showDeleteLocationConfirm = loc
+                },
+                onDismiss = { showLocationOptions = null }
+            )
+        }
+
         // 4. Delete Location Confirm
         if (showDeleteLocationConfirm != null) {
             TableConfirmationModal(
@@ -426,6 +527,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 table = showQrModal!!,
                 onDismiss = { showQrModal = null }
             )
+        }
+
+        if (showStatusGuideDialog) {
+            StatusGuideModal(onDismiss = { showStatusGuideDialog = false })
         }
 
         if (showTableOptions != null) {
@@ -544,8 +649,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     }
 }
 
+
+
 @Composable
-fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
+fun StatusCard(status: QrStatus, onToggle: () -> Unit, onInfoClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = if (status.isOpen) StatusOpenBg else StatusClosedBg),
@@ -589,13 +696,13 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
                 color = if (status.isOpen) InfoBoxBg else AlertRedBg,
                 shape = RoundedCornerShape(8.dp),
                 border = BorderStroke(1.dp, if (status.isOpen) InfoBoxBorder else AlertRedBorder),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().clickable { onInfoClick() }
             ) {
-                Row(modifier = Modifier.padding(12.dp)) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("ℹ️", fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        if (status.isOpen) "Semua QR code meja aktif. Matikan untuk menutup pesanan." else "Kantin tutup. Semua QR code dinonaktifkan.",
+                        "Tekan untuk mendapatkan informasi lengkap mengenai status operasional.",
                         fontSize = 12.sp,
                         color = if (status.isOpen) InfoBoxText else AlertRedText,
                         lineHeight = 16.sp
@@ -605,6 +712,399 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun StatusGuideModal(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Status Operasional", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                        contentDescription = "Close",
+                        tint = Color.Gray,
+                        modifier = Modifier.clickable { onDismiss() }
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // Animation Scene
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GuideAnimation()
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text(
+                    "Saat status 'Buka' (Aktif), QR code dapat discan pelanggan. Jika 'Tutup', pemesanan dihentikan.",
+                    color = Color(0xFF6B7280),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = QrPrimaryBlue),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Mengerti", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GuideAnimation() {
+    val infiniteTransition = rememberInfiniteTransition(label = "guide")
+    
+    // Phase: 0-1 across 2.5 seconds (Faster, snappier)
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase"
+    )
+
+    // Timeline:
+    // 0.0 - 0.2: Hand moves to switch
+    // 0.2 - 0.35: Hand Press (Scale Down)
+    // 0.35: TOGGLE SWITCH
+    // 0.35 - 0.5: Hand Release (Scale Up)
+    // 0.5 - 1.0: Hand moves away + Wait
+
+    val togglePoint = 0.35f
+    val isSwitchOn = phase < togglePoint || phase > 0.95f // Resets at end
+
+    // Switch/Knob State
+    val switchColor = if (isSwitchOn) QrActiveGreen else Color.Gray
+    val knobOffset = if (isSwitchOn) 22.dp else 2.dp 
+
+    // Hand Position Logic
+    val handX = when {
+        phase < 0.2f -> androidx.compose.ui.unit.lerp(80.dp, 20.dp, phase / 0.2f) // Move to switch
+        phase < 0.5f -> 20.dp // Hold at switch
+        phase < 0.8f -> androidx.compose.ui.unit.lerp(20.dp, 100.dp, (phase - 0.5f) / 0.3f) // Move away
+        else -> 80.dp // Reset pos
+    }
+    
+    val handY = when {
+        phase < 0.2f -> androidx.compose.ui.unit.lerp(80.dp, 5.dp, phase / 0.2f) 
+        phase < 0.5f -> 5.dp
+        phase < 0.8f -> androidx.compose.ui.unit.lerp(5.dp, 100.dp, (phase - 0.5f) / 0.3f)
+        else -> 80.dp
+    }
+    
+    val handScale = if (phase in 0.2f..0.35f) 0.85f else 1f
+    val handAlpha = if (phase > 0.8f) 0f else 1f
+
+    // Card State
+    val cardAlpha = if (!isSwitchOn) 0.4f else 1f
+    val showLock = !isSwitchOn
+
+    Box(modifier = Modifier.size(180.dp, 80.dp).background(Color.White, RoundedCornerShape(12.dp)).padding(12.dp)) {
+        // Content Layer
+        Row(
+            Modifier.fillMaxWidth().graphicsLayer { alpha = cardAlpha }, // Apply blur/dim here
+            horizontalArrangement = Arrangement.SpaceBetween, 
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+             Box(Modifier.width(60.dp).height(8.dp).background(Color(0xFFE0E0E0), CircleShape))
+             
+             // Switch
+             Box(
+                 modifier = Modifier.width(40.dp).height(22.dp).background(switchColor, CircleShape)
+             ) {
+                 Box(Modifier.size(18.dp).offset(x = knobOffset, y = 2.dp).background(Color.White, CircleShape))
+             }
+        }
+        
+        // Lock Icon Overlay (Bounce In)
+        AnimatedVisibility(
+            visible = showLock,
+            enter = androidx.compose.animation.scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy)) + fadeIn(),
+            exit = androidx.compose.animation.scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color(0xCC000000), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+    
+    // Hand Cursor
+    Icon(
+        imageVector = Icons.Default.TouchApp,
+        contentDescription = "Hand",
+        modifier = Modifier
+            .offset(x = handX, y = handY)
+            .scaleCustom(handScale)
+            .graphicsLayer { alpha = handAlpha }
+            .size(32.dp)
+            .rotate(-20f), 
+        tint = QrPrimaryBlue
+    )
+}
+
+@Composable
+fun ScanGuideDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Panduan Pelanggan", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                        contentDescription = "Close",
+                        tint = Color.Gray,
+                        modifier = Modifier.clickable { onDismiss() }
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Animation Scene
+                Box(
+                    modifier = Modifier
+                        .size(200.dp, 160.dp)
+                        .background(Color(0xFFF3F4F6), RoundedCornerShape(16.dp))
+                        .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                   ScanAnimation()
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text(
+                    "Pelanggan dapat melakukan scan pada QR code ini menggunakan kamera ponsel untuk membuka daftar menu.",
+                    textAlign = TextAlign.Center,
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                     colors = ButtonDefaults.buttonColors(containerColor = QrPrimaryBlue),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Mengerti", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScanAnimation() {
+    val transition = rememberInfiniteTransition(label = "scan_sequence")
+    val duration = 4000 // Total loop time
+
+    // 1. Phone Hover (Removed - Static)
+    
+    // 2. Hand Scale (Tap effect at 1000ms)
+    val handScale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = duration
+                1f at 0
+                1f at 800
+                0.85f at 1000 // Press
+                1f at 1200 // Release
+                1f at duration
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "handTap"
+    )
+
+    // 3. Laser Visibility (Visible ONLY after tap, 1200ms+)
+    val laserAlpha by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = duration
+                0f at 0
+                0f at 1200
+                1f at 1300 // Fade in
+                1f at 3800
+                0f at 4000 // Fade out reset
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "laserAlpha"
+    )
+
+    // 4. Laser Movement (Scans during visibility)
+    val laserY by transition.animateFloat(
+        initialValue = -40f,
+        targetValue = 40f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = duration
+                -40f at 0
+                -40f at 1300 // Start position
+                40f at 2500 // Scan Down
+                -40f at 3700 // Scan Up
+                -40f at duration
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "laserY"
+    )
+
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) { // Constrain container
+        
+        // Step 1: Small Solid QR in Background (The target)
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(Color.Black, RoundedCornerShape(4.dp))
+                .align(Alignment.Center) 
+                .graphicsLayer { alpha = 0.2f } // Subtle background hint
+        )
+
+        // Step 2: Phone Frame (Hovering) - Smaller Size (70x120)
+        Box(
+            modifier = Modifier
+                .size(70.dp, 120.dp)
+                .background(Color(0xFF2D3E50), RoundedCornerShape(12.dp))
+                .border(2.dp, Color(0xFF4B5563), RoundedCornerShape(12.dp))
+                .padding(3.dp)
+        ) {
+            // Screen
+            Box(
+                 modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFE5E7EB), RoundedCornerShape(9.dp))
+                    .clip(RoundedCornerShape(9.dp)),
+                 contentAlignment = Alignment.Center
+            ) {
+                 // QR Pattern on Screen (Simulating Camera Feed)
+                 QrPattern(modifier = Modifier.size(40.dp))
+                 
+                 // Viewfinder Corners
+                 Box(Modifier.fillMaxSize().padding(6.dp).border(1.5.dp, QrPrimaryBlue.copy(alpha=0.6f), RoundedCornerShape(6.dp)))
+
+                 // Laser Line (Step 3: Scanner appears)
+                 Box(
+                     modifier = Modifier
+                         .fillMaxWidth()
+                         .height(2.dp)
+                         .offset(y = laserY.dp)
+                         .graphicsLayer { alpha = laserAlpha } // Controls visibility
+                         .background(
+                             brush = Brush.horizontalGradient(
+                                 colors = listOf(Color.Transparent, QrActiveGreen, Color.Transparent)
+                             )
+                         )
+                         .shadow(4.dp)
+                 )
+            }
+        }
+        
+        // Step 2: Hand Interaction (Tapping) - Smaller Size
+        Icon(
+             Icons.Default.TouchApp,
+             contentDescription = null,
+             tint = QrPrimaryBlue,
+             modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = 15.dp, y = 30.dp) // Offset to bottom-right of center
+                .graphicsLayer { 
+                    scaleX = handScale 
+                    scaleY = handScale 
+                }
+                .rotate(-20f)
+                .size(40.dp)
+        )
+    }
+}
+
+
+@Composable
+fun QrPattern(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val color = Color.Black.copy(alpha = 0.7f)
+        
+        // Helper to draw a finder pattern (Square in Square)
+        fun drawFinder(left: Float, top: Float, sizeVal: Float) {
+            drawRect(color, topLeft = Offset(left, top), size = Size(sizeVal, sizeVal))
+            drawRect(Color.White, topLeft = Offset(left + sizeVal*0.16f, top + sizeVal*0.16f), size = Size(sizeVal*0.68f, sizeVal*0.68f))
+            drawRect(color, topLeft = Offset(left + sizeVal*0.33f, top + sizeVal*0.33f), size = Size(sizeVal*0.34f, sizeVal*0.34f))
+        }
+
+        // 3 Finder Patterns (TopLeft, TopRight, BottomLeft)
+        val finderSize = w * 0.3f
+        drawFinder(0f, 0f, finderSize) // TL
+        drawFinder(w - finderSize, 0f, finderSize) // TR
+        drawFinder(0f, h - finderSize, finderSize) // BL
+
+        // Random Data Dots (Simulated)
+        val step = w * 0.1f
+        for (i in 3 until 7) {
+            for (j in 3 until 7) {
+                if ((i + j) % 2 == 0) { // Checkered pattern
+                     drawRect(color, topLeft = Offset(i * step, j * step), size = Size(step*0.8f, step*0.8f))
+                }
+            }
+        }
+         // Extra dots near finders
+         drawRect(color, topLeft = Offset(w * 0.4f, 0f), size = Size(step, step))
+         drawRect(color, topLeft = Offset(0f, h * 0.4f), size = Size(step, step))
+    }
+}
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -722,6 +1222,12 @@ fun TableCard(item: Table, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, o
 
 @Composable
 fun QrModal(table: Table, onDismiss: () -> Unit) {
+    var showScanGuide by remember { mutableStateOf(false) }
+
+    if (showScanGuide) {
+        ScanGuideDialog(onDismiss = { showScanGuide = false })
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -737,7 +1243,16 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("QR Code Meja", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("QR Code Meja", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Info",
+                            tint = QrPrimaryBlue,
+                            modifier = Modifier.clickable { showScanGuide = true }
+                        )
+                    }
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                         contentDescription = "Close", 
@@ -748,7 +1263,7 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
                 
                 Spacer(modifier = Modifier.height(20.dp))
                 
-                Text(table.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
+                Text(table.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -792,7 +1307,7 @@ fun QrModal(table: Table, onDismiss: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Download / Print", fontWeight = FontWeight.Bold)
+                    Text("Download", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -816,10 +1331,22 @@ fun AddTableDialog(
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text(if(isEditMode) "Edit Meja" else "Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Spacer(modifier = Modifier.height(20.dp))
+                // Header with Close Button
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if(isEditMode) "Edit Meja" else "Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                        contentDescription = "Close",
+                        tint = Color.Gray,
+                        modifier = Modifier.clickable { onCancel() }
+                    )
+                }
                 
-                Text("Nomor / Nama Meja", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Nomor / Nama Meja", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
@@ -827,12 +1354,19 @@ fun AddTableDialog(
                     placeholder = { Text("Contoh: Meja 12") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 // Dropdown Menu
@@ -848,7 +1382,14 @@ fun AddTableDialog(
                         placeholder = { Text("Pilih Lokasi") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            cursorColor = Color.Black,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        )
                     )
                     ExposedDropdownMenu(
                         expanded = expanded,
@@ -879,7 +1420,7 @@ fun AddTableDialog(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = name.isNotEmpty() && selectedLocation != null
                 ) { 
-                    Text("Simpan") 
+                    Text("Simpan", color = Color.White) 
                 }
             }
         }
@@ -896,10 +1437,23 @@ fun AddLocationDialog(
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("Tambah Lokasi Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Spacer(modifier = Modifier.height(20.dp))
                 
-                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                 // Header with Close Button
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Tambah Lokasi Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                     Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                        contentDescription = "Close",
+                        tint = Color.Gray,
+                        modifier = Modifier.clickable { onCancel() }
+                    )
+                }
+                
+                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
@@ -907,7 +1461,14 @@ fun AddLocationDialog(
                     placeholder = { Text("Contoh: Rooftop") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -923,7 +1484,7 @@ fun AddLocationDialog(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = name.isNotEmpty()
                 ) { 
-                    Text("Simpan") 
+                    Text("Simpan", color = Color.White) 
                 }
             }
         }
@@ -980,13 +1541,13 @@ private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: (
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 20.dp))
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 20.dp), color = Color(0xFF1F2937))
                 Row(modifier = Modifier.fillMaxWidth().clickable { onEdit() }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Edit", fontWeight = FontWeight.SemiBold)
+                    Text("Edit", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                 }
                 HorizontalDivider(color = Color(0xFFF3F4F6))
                 Row(modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {

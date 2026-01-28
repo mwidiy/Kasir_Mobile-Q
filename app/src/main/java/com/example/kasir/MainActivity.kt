@@ -102,14 +102,9 @@ class MainActivity : ComponentActivity() {
                             ) { targetScreen ->
                                 when (targetScreen) {
                                     "splash" -> SplashScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "login" -> LoginScreen(onLoginSuccess = { currentScreen = "dashboard" })
-                                    "dashboard" -> DashboardScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "riwayat" -> RiwayatScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "menu" -> MenuScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "meja" -> TableScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "bayar" -> ScanScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "profile" -> ProfileScreen(onNavigate = { screen -> currentScreen = screen })
-                                    else -> DashboardScreen(onNavigate = { screen -> currentScreen = screen }) 
+                                    "login" -> LoginScreen(onLoginSuccess = { currentScreen = "main" })
+                                    "main" -> MainScreen(onLogout = { currentScreen = "login" })
+                                    else -> MainScreen(onLogout = { currentScreen = "login" }) 
                                 }
                             }
                         }

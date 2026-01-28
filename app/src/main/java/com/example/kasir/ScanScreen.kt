@@ -239,12 +239,8 @@ fun ScanScreen(
             )
         }
 
-        // Bottom Nav
-        AppBottomNavigation(
-            currentScreen = "bayar", 
-            onNavigate = onNavigate,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        // Bottom Nav Removed (Handled by MainScreen)
+
     }
 }
 

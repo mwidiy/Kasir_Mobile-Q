@@ -344,10 +344,7 @@ fun DashboardScreenContent(
             }
         }
 
-        CustomBottomNavigation(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            onNavigate = onNavigate
-        )
+
     }
 }
 

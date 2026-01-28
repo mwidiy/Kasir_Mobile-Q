@@ -317,7 +317,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
                     // Product List
                     LazyColumn(
-                        contentPadding = PaddingValues(top = 10.dp, bottom = 160.dp),
+                        contentPadding = PaddingValues(top = 10.dp, bottom = 180.dp),
                         modifier = Modifier.padding(horizontal = 20.dp)
                     ) {
                         items(
@@ -480,81 +480,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             }
         }
 
-        // Bottom Nav (Custom)
-        if (bannerScreenState == "list" && currentScreen == "menu_list") {
-            val navBg = Color(0xFF1F2937)
-             Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(100.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) // Total height including system bars
-            ) {
-                // Background Filler for System Bars
-                 Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                        .background(Color.White)
-                )
 
-                // White Background Bar
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up by system bar height
-                        .height(80.dp)
-                        .shadow(elevation = 20.dp),
-                    color = Color.White
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Reuse RiwayatNavItem if accessible, otherwise define inline logic or duplicates
-                        // Assuming RiwayatNavItem is public from RiwayatScreen.kt
-                        RiwayatNavItem(Icons.Filled.Dashboard, "Dasbor", false) { onNavigate("dashboard") }
-                        RiwayatNavItem(Icons.Filled.ListAlt, "Riwayat", false) { onNavigate("riwayat") }
-                        Spacer(modifier = Modifier.width(56.dp)) 
-                        RiwayatNavItem(Icons.Filled.MenuBook, "Menu", true) { /* Current */ }
-                        RiwayatNavItem(Icons.Filled.QrCode, "Meja", false) { onNavigate("qr") }
-                    }
-                }
-    
-                // Floating Middle Button (Bayar)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up
-                        .offset(y = 10.dp)
-                        .size(70.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
-                        .clickable { onNavigate("bayar") }
-                        .shadow(8.dp, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "Bayar", tint = Color.White, modifier = Modifier.size(28.dp))
-                    }
-                }
-    
-                // Text for Middle Button
-                Text(
-                    text = "Bayar",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = navBg),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars) // Push up
-                        .padding(bottom = 12.dp)
-                )
-            }
-        }
 
         // --- MODALS ---
         

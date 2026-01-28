@@ -51,7 +51,7 @@ class ProfileViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                 val response = RetrofitClient.instance.updateStore(mapOf("name" to newName))
+                 val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(name = newName))
                  if (response.success && response.data != null) {
                      _storeState.value = response.data
                  }

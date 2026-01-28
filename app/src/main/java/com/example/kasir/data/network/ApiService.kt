@@ -136,7 +136,7 @@ interface ApiService {
     suspend fun getStore(): StoreResponse
 
     @PUT("api/store")
-    suspend fun updateStore(@Body store: Map<String, String>): StoreResponse
+    suspend fun updateStore(@Body store: com.example.kasir.data.model.StoreUpdateRequest): StoreResponse
 
     @Multipart
     @POST("api/store/upload-logo")
