@@ -27,7 +27,7 @@ fun MainScreen(
 
     // Logic to decide if we show bottom bar. 
     // We only show it for the main tabs.
-    val mainTabs = listOf("dashboard", "riwayat", "menu", "meja", "bayar")
+    val mainTabs = listOf("dashboard", "riwayat", "menu", "meja")
     val showBottomBar = currentScreen in mainTabs
 
     Scaffold(

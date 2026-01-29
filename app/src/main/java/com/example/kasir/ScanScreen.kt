@@ -4,9 +4,12 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Log
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,19 +19,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -40,21 +51,21 @@ import com.example.kasir.ui.components.PaymentSuccessDialog
 import com.example.kasir.ui.components.RefundConfirmationDialog
 import com.example.kasir.ui.components.RefundSuccessDialog
 import com.example.kasir.viewmodel.ScanViewModel
+import com.example.kasir.utils.ImageUtils
 import com.google.zxing.ResultPoint
 import com.journeyapps.barcodescanner.BarcodeCallback
 import com.journeyapps.barcodescanner.BarcodeResult
 import com.journeyapps.barcodescanner.CompoundBarcodeView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // --- COLORS ---
-private val ScanBg = Color(0xFF121212)
-private val ScanCardBg = Color(0xFF1F1F1F)
-private val ScanTextWhite = Color(0xFFFFFFFF)
-private val ScanTextGray = Color(0xFF9E9E9E)
-private val ScanYellow = Color(0xFFFDD835)
-private val ScanGreen = Color(0xFF4CAF50)
-private val ScanButtonBg = Color(0xFF2C2C2C)
 private val ScanPrimaryBtn = Color(0xFF1F2937)
+private val OverlayColor = Color(0x99000000)
+private val CornerColor = Color.White
+private val ScanYellow = Color(0xFFFDD835)
 
 @Composable
 fun ScanScreen(
@@ -63,13 +74,36 @@ fun ScanScreen(
 ) {
     var showManualInput by remember { mutableStateOf(false) }
     var hasCameraPermission by remember { mutableStateOf(false) }
-    var isScanning by remember { mutableStateOf(true) } // Control scanning state
-
+    var isScanning by remember { mutableStateOf(true) }
+    var isFlashOn by remember { mutableStateOf(false) }
+    
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted -> hasCameraPermission = granted }
     )
+    
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            isScanning = false 
+            scope.launch {
+                val decodedText = withContext(Dispatchers.IO) {
+                    ImageUtils.decodeQrFromUri(context, uri)
+                }
+                
+                if (decodedText != null) {
+                    viewModel.fetchOrderByCode(decodedText)
+                } else {
+                    Toast.makeText(context, "QR Code tidak ditemukan dalam gambar.", Toast.LENGTH_SHORT).show()
+                    isScanning = true 
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -80,199 +114,288 @@ fun ScanScreen(
     }
 
     // ViewModel State
-    // ViewModel State
     val scannedOrder by viewModel.scannedOrder.collectAsState()
     val isPaymentSuccess by viewModel.paymentSuccess.collectAsState()
-    
     val refundOrder by viewModel.refundOrder.collectAsState()
     val isRefundSuccess by viewModel.refundSuccess.collectAsState()
-
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    // Effects for Error
     LaunchedEffect(error) {
         if (error != null) {
             android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
-            // Resume scanning after error delay?
             delay(2000)
-            isScanning = true // Allow rescan
+            isScanning = true 
             viewModel.resetState()
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(ScanBg)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // 1. Full Screen Camera Layer
+        if (hasCameraPermission) {
+            ZXingScannerView(
+                isScanning = isScanning,
+                isFlashOn = isFlashOn,
+                onScanResult = { code ->
+                    isScanning = false
+                    viewModel.fetchOrderByCode(code)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Izin Kamera Diperlukan", color = Color.White)
+            }
+        }
+
+        // 2. Dark Overlay & Finder Layer
+        ScanOverlay(
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 3. UI Layer
+        Column(
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
+        ) {
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp, bottom = 20.dp, start = 20.dp, end = 20.dp),
-                verticalAlignment = Alignment.Top
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { onNavigate("dashboard") }, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ScanTextWhite)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Pembayaran Kasir", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = ScanTextWhite)
-                    Text("Restaurant Admin", fontSize = 12.sp, color = ScanTextGray)
-                }
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    "Kasir", 
+                    fontSize = 20.sp, 
+                    fontWeight = FontWeight.Bold, 
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.size(24.dp)) // Balance
             }
 
-            // Main Content
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Text(
+                "Scan Code Qr untuk Bayar Kasir", 
+                color = Color.White, 
+                fontSize = 14.sp, 
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp)
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        
+        // Loading Logic
+        if (isLoading) {
+             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.3f)), contentAlignment=Alignment.Center) {
+                 CircularProgressIndicator(color = Color.White)
+             }
+        }
+
+        // Modals & Dialogs
+         if (showManualInput) {
+            ManualInputSheet(
+                onDismiss = { showManualInput = false },
+                onSubmit = { code -> showManualInput = false; viewModel.fetchOrderByCode(code) }
+            )
+        }
+        if (scannedOrder != null && !isPaymentSuccess) {
+            PaymentConfirmationDialog(scannedOrder!!, { viewModel.resetState(); isScanning = true }, { viewModel.confirmPayment(scannedOrder!!.id) })
+        }
+        if (isPaymentSuccess && scannedOrder != null) {
+            PaymentSuccessDialog(scannedOrder!!.totalAmount, scannedOrder!!.transactionCode, { viewModel.resetState(); isScanning = true })
+        }
+        if (refundOrder != null && !isRefundSuccess) {
+            RefundConfirmationDialog(refundOrder!!, { viewModel.resetState(); isScanning = true }, { viewModel.processRefund(refundOrder!!.transactionCode) })
+        }
+        if (isRefundSuccess) {
+            RefundSuccessDialog { viewModel.resetState(); isScanning = true }
+        }
+        
+        // Floating Icons Layer
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 200.dp) 
+                .fillMaxWidth()
+                .padding(horizontal = 40.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+             // Flash Button
+            FloatingActionButton(
+                onClick = { isFlashOn = !isFlashOn },
+                containerColor = Color.White,
+                contentColor = if(isFlashOn) ScanYellow else Color.Black,
+                shape = CircleShape,
+                modifier = Modifier.size(50.dp)
             ) {
-                Text("Scan QR Code", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = ScanTextWhite)
-                Text("Arahkan kamera ke kode QR pelanggan", fontSize = 14.sp, color = ScanTextGray, modifier = Modifier.padding(bottom = 40.dp))
-
-                // Scan Frame (Real Scanner)
-                Box(
-                    modifier = Modifier
-                        .size(280.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .border(2.dp, Color(0xFF555555), RoundedCornerShape(24.dp))
-                        .background(Color.Black),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (hasCameraPermission) {
-                        ZXingScannerView(
-                            isScanning = isScanning,
-                            onScanResult = { code ->
-                                isScanning = false // Pause scanning
-                                viewModel.fetchOrderByCode(code)
-                            }
-                        )
-                    } else {
-                         Text("Izin Kamera Diperlukan", color = ScanTextGray, fontSize = 12.sp)
-                    }
-                    
-                    // Loading Overlay
-                    if (isLoading) {
-                        CircularProgressIndicator(color = ScanYellow)
-                    } else {
-                        ScanLoader()
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(30.dp))
-                TipsCard()
+                Icon(imageVector = if(isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff, contentDescription = "Flash")
             }
 
-            // Bottom Buttons
+            // Gallery Button
+            FloatingActionButton(
+                onClick = { 
+                    galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                containerColor = Color.White,
+                contentColor = Color(0xFF1976D2),
+                shape = CircleShape,
+                modifier = Modifier.size(50.dp)
+            ) {
+                Icon(Icons.Default.Image, contentDescription = "Gallery")
+            }
+        }
+
+        // Bottom Sheet Controls
+        Surface(
+            color = Color.White,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
-                    .padding(bottom = 80.dp),
-                horizontalArrangement = Arrangement.spacedBy(15.dp)
+                    .navigationBarsPadding() 
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 24.dp, bottom = 24.dp), 
+                horizontalArrangement = Arrangement.Center
             ) {
-                ScanActionButton("Manual Input", android.R.drawable.ic_menu_edit, Modifier.weight(1f)) { showManualInput = true }
-                ScanActionButton("Reset Scan", android.R.drawable.ic_menu_rotate, Modifier.weight(1f)) { 
-                    viewModel.resetState()
-                    isScanning = true 
-                }
+                // Manual Input Card
+                ScanModeCard(
+                    iconRes = android.R.drawable.ic_menu_edit,
+                    label = "Input Manual",
+                    isSelected = true,
+                    onClick = { showManualInput = true },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // Vertical Divider
+                 Box(modifier = Modifier.width(1.dp).height(40.dp).background(Color.LightGray).align(Alignment.CenterVertically))
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Reset Card (With Refresh Logic + Blue Icon)
+                ScanModeCard(
+                    iconRes = android.R.drawable.ic_menu_rotate,
+                    label = "Reset Scan",
+                    isSelected = true, // Force Selected for Blue Icon
+                    onClick = { 
+                        // Visual Refresh Sequence
+                        isScanning = false
+                        viewModel.resetState()
+                        Toast.makeText(context, "Scanner di-refresh...", Toast.LENGTH_SHORT).show()
+                        
+                        scope.launch {
+                            delay(200) // Brief delay
+                            isScanning = true 
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
-        
-        // Manual Input Sheet
-        if (showManualInput) {
-            ManualInputSheet(
-                onDismiss = { showManualInput = false },
-                onSubmit = { code ->
-                    showManualInput = false
-                    viewModel.fetchOrderByCode(code)
-                }
-            )
-        }
-
-        // Dialogs
-        if (scannedOrder != null && !isPaymentSuccess) {
-            PaymentConfirmationDialog(
-                order = scannedOrder!!,
-                onDismiss = { 
-                    viewModel.resetState()
-                    isScanning = true 
-                },
-                onConfirm = {
-                    viewModel.confirmPayment(scannedOrder!!.id)
-                }
-            )
-        }
-        
-        if (isPaymentSuccess && scannedOrder != null) {
-            PaymentSuccessDialog(
-                totalAmount = scannedOrder!!.totalAmount,
-                transactionCode = scannedOrder!!.transactionCode,
-                onDismiss = {
-                    viewModel.resetState()
-                    isScanning = true
-                }
-            )
-        }
-
-        // REFUND DIALOGS
-        if (refundOrder != null && !isRefundSuccess) {
-            RefundConfirmationDialog(
-                order = refundOrder!!,
-                onDismiss = {
-                    viewModel.resetState()
-                    isScanning = true
-                },
-                onConfirm = {
-                    viewModel.processRefund(refundOrder!!.transactionCode)
-                }
-            )
-        }
-
-        if (isRefundSuccess) {
-            RefundSuccessDialog(
-                onDismiss = {
-                    viewModel.resetState()
-                    isScanning = true
-                }
-            )
-        }
-
-        // Bottom Nav Removed (Handled by MainScreen)
-
     }
 }
 
 @Composable
-fun ZXingScannerView(isScanning: Boolean, onScanResult: (String) -> Unit) {
+fun ScanOverlay(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val canvasWidth = size.width
+        val canvasHeight = size.height
+        val scanSize = 280.dp.toPx()
+        val scanLeft = (canvasWidth - scanSize) / 2
+        val scanTop = (canvasHeight - scanSize) / 2
+        val cornerLength = 30.dp.toPx()
+        val strokeWidth = 5.dp.toPx()
+
+        with(drawContext.canvas.nativeCanvas) {
+            val checkPoint = saveLayer(null, null)
+            drawRect(Color(0x99000000))
+            drawRoundRect(
+                topLeft = Offset(scanLeft, scanTop),
+                size = Size(scanSize, scanSize),
+                cornerRadius = CornerRadius(20f, 20f),
+                color = Color.Transparent,
+                blendMode = BlendMode.Clear
+            )
+            restoreToCount(checkPoint)
+        }
+
+        val path = Path().apply {
+            moveTo(scanLeft, scanTop + cornerLength)
+            lineTo(scanLeft, scanTop)
+            lineTo(scanLeft + cornerLength, scanTop)
+
+            moveTo(scanLeft + scanSize - cornerLength, scanTop)
+            lineTo(scanLeft + scanSize, scanTop)
+            lineTo(scanLeft + scanSize, scanTop + cornerLength)
+
+            moveTo(scanLeft + scanSize, scanTop + scanSize - cornerLength)
+            lineTo(scanLeft + scanSize, scanTop + scanSize)
+            lineTo(scanLeft + scanSize - cornerLength, scanTop + scanSize)
+
+            moveTo(scanLeft + cornerLength, scanTop + scanSize)
+            lineTo(scanLeft, scanTop + scanSize)
+            lineTo(scanLeft, scanTop + scanSize - cornerLength)
+        }
+
+        drawPath(
+            path = path,
+            color = Color.White,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+fun ScanModeCard(iconRes: Int, label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.clickable { onClick() }.padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            painter = painterResource(iconRes), 
+            contentDescription = null, 
+            tint = if (isSelected) Color(0xFF1565C0) else Color.Gray,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            label, 
+            fontSize = 12.sp, 
+            color = if (isSelected) Color(0xFF1565C0) else Color.Gray,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun ZXingScannerView(isScanning: Boolean, isFlashOn: Boolean, onScanResult: (String) -> Unit, modifier: Modifier) {
     val context = LocalContext.current
-    
-    // Remember the scanner view to control it
     val compoundBarcodeView = remember {
         CompoundBarcodeView(context).apply {
             val settings = cameraSettings
             settings.isAutoTorchEnabled = false
             cameraSettings = settings
+            setStatusText("") 
         }
     }
     
-    // Manage lifecycle
     DisposableEffect(Unit) {
         compoundBarcodeView.resume()
-        onDispose {
-            compoundBarcodeView.pause()
-        }
+        onDispose { compoundBarcodeView.pause() }
     }
 
-    // Handle scanning logic
     LaunchedEffect(isScanning) {
         if (isScanning) {
             compoundBarcodeView.decodeSingle(object : BarcodeCallback {
                 override fun barcodeResult(result: BarcodeResult?) {
-                    result?.text?.let {
-                        onScanResult(it)
-                    }
+                    result?.text?.let { onScanResult(it) }
                 }
                 override fun possibleResultPoints(resultPoints: MutableList<ResultPoint>?) {}
             })
@@ -280,139 +403,112 @@ fun ZXingScannerView(isScanning: Boolean, onScanResult: (String) -> Unit) {
             compoundBarcodeView.barcodeView.stopDecoding()
         }
     }
-
-    AndroidView(
-        factory = { compoundBarcodeView },
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-fun ScanLoader() {
-    val infiniteTransition = rememberInfiniteTransition(label = "scan_loader")
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    Canvas(modifier = Modifier.size(60.dp).rotate(angle)) {
-        drawCircle(
-            color = Color.White.copy(alpha = 0.4f),
-            style = Stroke(
-                width = 4.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 20f))
-            )
-        )
+    
+    LaunchedEffect(isFlashOn) {
+        if (isFlashOn) compoundBarcodeView.setTorchOn() else compoundBarcodeView.setTorchOff()
     }
-}
 
-@Composable
-fun TipsCard() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(ScanCardBg)
-            .padding(20.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 15.dp)) {
-            Icon(painter = painterResource(android.R.drawable.ic_menu_info_details), contentDescription = null, tint = ScanYellow, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(10.dp))
-            Text("Tips untuk scanning yang optimal:", color = ScanTextWhite, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        }
-        
-        val tips = listOf(
-            "Pastikan QR code berada dalam frame",
-            "Jaga jarak 10-30cm dari layar",
-            "Pastikan pencahayaan cukup terang"
-        )
-        
-        tips.forEach { tip ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 10.dp)) {
-                Icon(painter = painterResource(android.R.drawable.checkbox_on_background), contentDescription = null, tint = ScanGreen, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(tip, color = ScanTextGray, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun ScanActionButton(text: String, iconId: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = ScanButtonBg),
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier.height(56.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(painter = painterResource(iconId), contentDescription = null, tint = ScanTextWhite, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(text, color = ScanTextWhite, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        }
-    }
+    AndroidView(factory = { compoundBarcodeView }, modifier = modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualInputSheet(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
+        // Use full screen box to assist with alignment
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 24.dp)
+                .imePadding(), 
             contentAlignment = Alignment.BottomCenter
         ) {
-            Box(modifier = Modifier.fillMaxSize().clickable { onDismiss() })
-            
+            // Content Card
             Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                shape = RoundedCornerShape(26.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier.fillMaxWidth().clickable(enabled = false) {} 
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight() 
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Box(modifier = Modifier.width(40.dp).height(4.dp).background(Color(0xFFE0E0E0), CircleShape))
-                    }
-                    Spacer(modifier = Modifier.height(20.dp))
+                // Main Content Box for Absolute Positioning
+                Box(modifier = Modifier.fillMaxWidth()) {
                     
-                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Masukkan Kode Manual", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
-                        Text("Tutup", color = Color(0xFF4B5563), fontWeight = FontWeight.Medium, modifier = Modifier.clickable { onDismiss() })
-                    }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Text("ID Pesanan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF374151))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    var text by remember { mutableStateOf("") }
-                    OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it },
-                        placeholder = { Text("Ketik ID Pesanan...") },
-                        trailingIcon = { Text("#", fontWeight = FontWeight.Bold, color = Color.Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            unfocusedBorderColor = Color(0xFFE5E7EB)
-                        )
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Button(
-                        onClick = { onSubmit(text) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ScanPrimaryBtn),
-                        shape = RoundedCornerShape(12.dp)
+                    // Close Button (Absolute Top Right)
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp) // Adjusted padding
                     ) {
-                        Text("Cari Pesanan", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                    }
+
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        // Drag Handle
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Box(modifier = Modifier.width(40.dp).height(5.dp).background(Color(0xFFE0E0E0), CircleShape))
+                        }
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        // Header
+                        Text(
+                            "Manual Input", 
+                            fontSize = 20.sp, 
+                            fontWeight = FontWeight.Bold, 
+                            color = Color.Black
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Masukkan kode transaksi dari struk.", fontSize = 14.sp, color = Color.Gray)
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        var text by remember { mutableStateOf("") }
+                        val focusRequester = remember { FocusRequester() }
+
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            placeholder = { Text("Contoh: INV-88229", color = Color.Gray) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = ScanPrimaryBtn,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                cursorColor = ScanPrimaryBtn
+                            ),
+                            singleLine = true
+                        )
+                        
+                        LaunchedEffect(Unit) {
+                            try { focusRequester.requestFocus() } catch(e: Exception) {}
+                        }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        Button(
+                            onClick = { if(text.isNotEmpty()) onSubmit(text) },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ScanPrimaryBtn),
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = text.isNotEmpty()
+                        ) {
+                            Text(
+                                "Cari Pesanan", 
+                                fontWeight = FontWeight.Bold, 
+                                fontSize = 16.sp,
+                                color = Color.White // Set White Text
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }

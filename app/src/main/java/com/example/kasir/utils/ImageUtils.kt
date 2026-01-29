@@ -2,45 +2,60 @@ package com.example.kasir.utils
 
 import com.example.kasir.BuildConfig
 import android.net.Uri
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import com.google.zxing.*
+import com.google.zxing.common.HybridBinarizer
 
 object ImageUtils {
     /**
      * Transforms a potentially stale absolute URL (e.g. from old IP) into a correct URL
      * using the current BuildConfig.API_BASE_URL.
-     * 
-     * @param originalUrl The raw URL from database (e.g. "http://192.168.1.5:3000/uploads/img.jpg")
-     * @return The corrected URL (e.g. "http://192.168.1.10:3000/uploads/img.jpg")
      */
     fun getDynamicImageUrl(originalUrl: String?): String? {
         if (originalUrl.isNullOrBlank()) return null
 
-        // If it starts with http, we assume it's a full URL that might have wrong IP
         if (originalUrl.startsWith("http")) {
             return try {
                 val uri = Uri.parse(originalUrl)
-                // Extract "uploads/filename.jpg"
                 val path = uri.path?.trimStart('/') ?: return originalUrl
-                
-                // Remove "uploads/" from path if it exists to avoid duplication if we re-add it
-                // Actually, typically the path is "/uploads/filename.jpg"
-                // So uri.path is "/uploads/filename.jpg"
-                
-                // Current Config Base URL ends with "/" (as ensured in build.gradle)
-                // e.g. "http://192.168.1.10:3000/"
-                
-                // Combine
-                // If path starts with slash, remove it to concat cleanly
                 val cleanPath = if (path.startsWith("/")) path.substring(1) else path
-                
-                // Reconstruct using current Base URL
                 "${BuildConfig.API_BASE_URL}$cleanPath"
             } catch (e: Exception) {
-                originalUrl // Fallback
+                originalUrl 
             }
         }
         
-        // If it's just a filename (e.g. "171000.jpg"), prepend Base URL + uploads/
-        // Assuming all images are in "uploads/"
         return "${BuildConfig.API_BASE_URL}uploads/$originalUrl"
+    }
+
+    /**
+     * Decodes a QR Code from a Uri.
+     * Returns the decoded text string, or null if no QR code found or error.
+     */
+    fun decodeQrFromUri(context: Context, uri: Uri): String? {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (bitmap == null) return null
+
+            val width = bitmap.width
+            val height = bitmap.height
+            val pixels = IntArray(width * height)
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+            val source = RGBLuminanceSource(width, height, pixels)
+            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+            val reader = MultiFormatReader()
+            
+            val result = reader.decode(binaryBitmap)
+            result.text
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }
