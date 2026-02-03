@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCode
@@ -38,6 +39,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -48,6 +50,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import com.example.kasir.ui.theme.KasirTheme
 import com.example.kasir.ui.banner.BannerListScreen
 import com.example.kasir.ui.banner.BannerFormScreen
@@ -245,11 +253,20 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.padding(16.dp).fillMaxWidth().clickable { showGuideModal = true }
                     ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                            Text("ℹ️", fontSize = 14.sp)
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SvgIcon(
+                                pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+                                tint = InfoText,
+                                modifier = Modifier.size(24.dp)
+                            )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                "Tekan & tahan tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)",
+                                text = buildAnnotatedString {
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append("Tekan & Tahan (Long Press) ")
+                                    }
+                                    append("tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)")
+                                },
                                 color = InfoText,
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp
@@ -436,20 +453,20 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                             enter = slideInVertically { it } + fadeIn(),
                             exit = slideOutVertically { it } + fadeOut()
                         ) {
-                            FabSubButton("Tambah Produk", "🍳") { 
-                               isFabExpanded = false
-                               currentScreen = "add_product"
-                            }
+                             FabSubButton("Tambah Kategori", "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z") { 
+                                 isFabExpanded = false
+                                 showAddCategoryModal = true 
+                             }
                         }
                         AnimatedVisibility(
                             visible = isFabExpanded,
                             enter = slideInVertically { it } + fadeIn(),
                             exit = slideOutVertically { it } + fadeOut()
                         ) {
-                             FabSubButton("Tambah Kategori", "📁") { 
-                                 isFabExpanded = false
-                                 showAddCategoryModal = true 
-                             }
+                            FabSubButton("Tambah Produk", "M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z") { 
+                               isFabExpanded = false
+                               currentScreen = "add_product"
+                            }
                         }
                     }
                 }
@@ -670,24 +687,44 @@ fun Modifier.alpha(alpha: Float) = this.then(Modifier.drawLayer(alpha = alpha))
 private fun Modifier.drawLayer(alpha: Float): Modifier = this // Placeholder fix if alpha not imported, actually available in ui.draw.alpha normally
 
 @Composable
-fun FabSubButton(text: String, icon: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClick() }) {
-        Surface(
-            color = Color.White,
-            shadowElevation = 2.dp,
-            shape = RoundedCornerShape(4.dp),
-            modifier = Modifier.padding(end = 8.dp)
+fun FabSubButton(text: String, iconPath: String, onClick: () -> Unit) {
+    Surface(
+        color = Color(0xFF2D3E50), // Dark Blue
+        shape = RoundedCornerShape(50), // Fully rounded pill
+        shadowElevation = 6.dp,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp)
         ) {
-            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            SvgIcon(
+                pathData = iconPath, 
+                tint = Color.White, 
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = text, 
+                fontSize = 13.sp, 
+                fontWeight = FontWeight.Medium, 
+                color = Color.White
+            )
         }
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF2D3E50)),
-            contentAlignment = Alignment.Center
-        ) {
-             Text(icon, fontSize = 18.sp)
+    }
+}
+
+@Composable
+fun SvgIcon(pathData: String, tint: Color, modifier: Modifier = Modifier, viewportSize: Float = 24f) {
+    val path = remember(pathData) { 
+        androidx.core.graphics.PathParser.createPathFromPathData(pathData).asComposePath() 
+    }
+    Canvas(modifier = modifier) {
+        val scaleX = size.width / viewportSize
+        val scaleY = size.height / viewportSize
+        
+        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+            drawPath(path, color = tint)
         }
     }
 }
@@ -759,8 +796,14 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
     Dialog(onDismissRequest = onCancel) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
-                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.clickable { onCancel() })
+                }
                 Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF374151))
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -782,16 +825,28 @@ fun GuideModal(onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
              Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                 Text("Cara Mengelola Kategori", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                 Text("Cara Mengelola Kategori", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
                  Spacer(modifier = Modifier.height(20.dp))
                  
                  // ANIMATION
                  GuideModalAnimation()
                  
                  Spacer(modifier = Modifier.height(20.dp))
-                 Text("Untuk mengubah nama atau menghapus kategori, cukup Tekan & Tahan (Long Press) pada tombol kategori.", textAlign = TextAlign.Center, color = Color.Gray, fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(20.dp))
-                 Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Mengerti") }
+                 Text(
+                     text = buildAnnotatedString {
+                        append("Untuk mengubah nama atau menghapus kategori, cukup ")
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append("Tekan & Tahan (Long Press)")
+                        }
+                        append(" pada tombol kategori.")
+                     },
+                     textAlign = TextAlign.Center, 
+                     color = Color.Gray, 
+                     fontSize = 13.sp
+                 )
+                 Spacer(modifier = Modifier.height(20.dp))
+                 Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Mengerti", color = Color.White) }
              }
         }
     }

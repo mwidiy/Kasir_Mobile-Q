@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.drawscope.scale
 import com.example.kasir.data.model.Banner
 import com.example.kasir.viewmodel.BannerViewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,6 +48,21 @@ private val InfoText = Color(0xFF0369A1)
 private val DeleteRed = Color(0xFFEF4444)
 private val PrimaryBlue = Color(0xFF1E3A5F)
 private val PrimaryYellow = Color(0xFFFDD85D)
+
+@Composable
+fun SvgIcon(pathData: String, tint: Color, modifier: Modifier = Modifier, viewportSize: Float = 24f) {
+    val path = remember(pathData) { 
+        androidx.core.graphics.PathParser.createPathFromPathData(pathData).asComposePath() 
+    }
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val scaleX = size.width / viewportSize
+        val scaleY = size.height / viewportSize
+        
+        scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+            drawPath(path, color = tint)
+        }
+    }
+}
 
 @Composable
 fun BannerListScreen(
@@ -70,8 +87,12 @@ fun BannerListScreen(
                     .clickable { showInfoModal = true }
                     .padding(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Text("ℹ️", fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SvgIcon(
+                        pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+                        tint = InfoText,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         "Klik panel ini untuk informasi lengkap mengenai pengelolaan banner slide.",
@@ -240,9 +261,13 @@ fun BannerInfoModal(onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
              Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                 Icon(painter = painterResource(android.R.drawable.ic_dialog_info), contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(48.dp))
+                 SvgIcon(
+                    pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+                    tint = PrimaryBlue,
+                    modifier = Modifier.size(48.dp)
+                 )
                  Spacer(modifier = Modifier.height(15.dp))
-                 Text("Informasi Slide", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                 Text("Informasi Slide", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
                  Spacer(modifier = Modifier.height(12.dp))
                  Text("Urutan banner di halaman ini menentukan urutan tampilan banner di aplikasi pelanggan.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF6B7280), fontSize = 13.sp)
                  Spacer(modifier = Modifier.height(20.dp))
@@ -418,7 +443,7 @@ fun BannerFormScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(100.dp))
+                Spacer(modifier = Modifier.height(150.dp))
             }
         }
     }
