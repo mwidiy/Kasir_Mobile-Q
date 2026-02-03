@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
@@ -63,8 +64,12 @@ import com.example.kasir.utils.QRCodeHelper
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.drawscope.scale
+
 
 private val BASE_PWA_URL = BuildConfig.PWA_BASE_URL.removeSuffix("/")
+
 
 // --- ANIMATION CONSTANTS ---
 private const val ANIMATION_DURATION = 3000
@@ -273,6 +278,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     TableCard(
                                         item = item,
+                                        isGlobalOpen = globalStatus.isOpen,
                                         onToggle = { isActive ->
                                             // Optimistic Update
                                              val optimisticItem = item.copy(isActive = isActive)
@@ -350,7 +356,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut()
                 ) {
-                    FabSubButton("Tambah Lokasi Baru", "📍") {
+                    FabSubButton("Tambah Lokasi Baru", "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z") {
                         isFabExpanded = false
                         showAddLocationDialog = true
                     }
@@ -360,7 +366,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut()
                 ) {
-                    FabSubButton("Tambah Meja / QR", "🪑") {
+                    FabSubButton("Tambah Meja / QR", "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z") {
                         isFabExpanded = false
                         currentEditingTable = null // Reset edit state
                         showAddTableModal = true
@@ -619,11 +625,15 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                             } else {
                                 // CREATE MODE
                                 val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+                                
+                                // AUTO-INACTIVE IF STORE CLOSED
+                                val initialActiveState = if (globalStatus.isOpen) true else false
+                                
                                 val tableRequest = TableRequest(
                                     name = name,
                                     locationId = locationId,
                                     qrCode = qrCode,
-                                    isActive = true
+                                    isActive = initialActiveState
                                 )
                                 val newTableResponse = RetrofitClient.instance.addTable(tableRequest)
                                 if (newTableResponse.isSuccessful && newTableResponse.body() != null) {
@@ -667,7 +677,7 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit, onInfoClick: () -> Unit) 
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    Text("Status Operasional Kantin", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
+                    Text("Status Operasional QR", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                         Text("• ", color = if (status.isOpen) QrActiveGreen else DeleteRed, fontWeight = FontWeight.Bold)
                         Text(
@@ -699,7 +709,11 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit, onInfoClick: () -> Unit) 
                 modifier = Modifier.fillMaxWidth().clickable { onInfoClick() }
             ) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("ℹ️", fontSize = 14.sp)
+                    SvgIcon(
+                        pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+                        tint = if (status.isOpen) InfoBoxText else AlertRedText,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         "Tekan untuk mendapatkan informasi lengkap mengenai status operasional.",
@@ -1130,91 +1144,126 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClic
 }
 
 @Composable
-fun TableCard(item: Table, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+fun TableCard(item: Table, isGlobalOpen: Boolean, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+    val isLocked = !isGlobalOpen
+
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(
+            containerColor = if (isLocked) Color(0xFFF9FAFB) else Color.White // Dimmed if locked
+        ),
+        elevation = CardDefaults.cardElevation(if (isLocked) 0.dp else 2.dp),
+        border = if (isLocked) BorderStroke(1.dp, Color(0xFFE5E7EB)) else null,
+        modifier = Modifier.fillMaxWidth().then(
+            if (isLocked) Modifier.alpha(0.8f) else Modifier
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Header
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
-                    Surface(
-                        color = Color(0xFFF3F4F6),
-                        shape = RoundedCornerShape(4.dp),
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Text(
-                            text = item.location?.name ?: "Unknown",
-                            fontSize = 10.sp, 
-                            color = QrTextMuted, 
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
-                            fontWeight = FontWeight.Medium
-                        )
+        Box {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
+                        Surface(
+                            color = Color(0xFFF3F4F6),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = item.location?.name ?: "Unknown",
+                                fontSize = 10.sp, 
+                                color = QrTextMuted, 
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
-                }
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "Options",
-                    tint = QrTextMuted,
-                    modifier = Modifier.size(20.dp).clickable { onOptionClick() }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // QR Placeholder
-            Surface(
-                color = if (item.isActive != false) Color(0xFFF8FAFC) else Color(0xFFF1F5F9), // Handle default true if null? Boolean is non-null in data class
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .clickable(enabled = item.isActive) { onQrClick() }
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    if (!item.qrCode.isNullOrBlank() && item.isActive) {
-                         QRCodeImage(
-                            content = "$BASE_PWA_URL/?tableId=${item.qrCode}",
-                            modifier = Modifier
-                                .size(90.dp)
-                                .padding(8.dp)
-                        )
-                    } else {
+                    
+                    if (!isLocked) {
                         Icon(
-                            painter = painterResource(id = android.R.drawable.ic_menu_camera),
-                            contentDescription = "QR",
-                            tint = if (item.isActive) QrPrimaryBlue else Color.Gray,
-                            modifier = Modifier.size(32.dp)
+                            Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = QrTextMuted,
+                            modifier = Modifier.size(20.dp).clickable { onOptionClick() }
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (item.isActive) QrPrimaryBlue else Color.Gray)
                     }
                 }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // QR Placeholder
+                Surface(
+                    color = if (item.isActive != false) Color(0xFFF8FAFC) else Color(0xFFF1F5F9), 
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .clickable(enabled = !isLocked && item.isActive) { onQrClick() } // Disable click if locked
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        if (!item.qrCode.isNullOrBlank() && item.isActive) {
+                             QRCodeImage(
+                                content = "$BASE_PWA_URL/?tableId=${item.qrCode}",
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .padding(8.dp)
+                                    .then(if(isLocked) Modifier.alpha(0.3f) else Modifier)
+                            )
+                        } else {
+                            Icon(
+                                painter = painterResource(id = android.R.drawable.ic_menu_camera),
+                                contentDescription = "QR",
+                                tint = if (item.isActive && !isLocked) QrPrimaryBlue else Color.Gray,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (item.isActive && !isLocked) QrPrimaryBlue else Color.Gray)
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Footer
+                 Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (item.isActive) "Aktif" else "Nonaktif", fontSize = 11.sp, color = Color(0xFF888888), fontWeight = FontWeight.Medium)
+                    Switch(
+                        checked = item.isActive,
+                        onCheckedChange = { onToggle(it) },
+                        modifier = Modifier.scaleCustom(0.8f),
+                        enabled = !isLocked, // Disable switch if locked
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White, 
+                            checkedTrackColor = QrActiveGreen,
+                            disabledCheckedTrackColor = QrActiveGreen.copy(alpha=0.5f),
+                            disabledUncheckedTrackColor = Color.Gray.copy(alpha=0.3f)
+                        )
+                    )
+                }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // Footer
-             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(if (item.isActive) "Aktif" else "Nonaktif", fontSize = 11.sp, color = Color(0xFF888888), fontWeight = FontWeight.Medium)
-                Switch(
-                    checked = item.isActive,
-                    onCheckedChange = { onToggle(it) },
-                    modifier = Modifier.scaleCustom(0.8f),
-                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = QrActiveGreen)
-                )
+
+            // LOCK OVERLAY
+            if (isLocked) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = "Locked",
+                        tint = QrTextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

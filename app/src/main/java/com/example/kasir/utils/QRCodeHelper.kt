@@ -11,6 +11,9 @@ import androidx.compose.ui.layout.ContentScale
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 object QRCodeHelper {
     fun generateQrBitmap(content: String, size: Int = 512): Bitmap? {
@@ -46,16 +49,24 @@ fun QRCodeImage(
     content: String,
     modifier: Modifier = Modifier
 ) {
-    val bitmap = remember(content) {
-        QRCodeHelper.generateQrBitmap(content)?.asImageBitmap()
+    var bitmap by remember(content) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    androidx.compose.runtime.LaunchedEffect(content) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val generated = QRCodeHelper.generateQrBitmap(content)
+            bitmap = generated
+        }
     }
 
     if (bitmap != null) {
         Image(
-            bitmap = bitmap,
+            bitmap = bitmap!!.asImageBitmap(),
             contentDescription = "QR Code: $content",
             modifier = modifier,
             contentScale = ContentScale.Fit
         )
+    } else {
+        // Placeholder or Loading state if needed, transparent for now to prevent layout jump
+        androidx.compose.foundation.layout.Box(modifier = modifier)
     }
 }
