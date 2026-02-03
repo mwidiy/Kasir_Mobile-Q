@@ -23,8 +23,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,7 +65,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // --- COLORS ---
-private val ScanPrimaryBtn = Color(0xFF1F2937)
+private val ScanPrimaryBtn = Color(0xFF2C3E50)
 private val OverlayColor = Color(0x99000000)
 private val CornerColor = Color.White
 private val ScanYellow = Color(0xFFFDD835)
@@ -265,7 +268,7 @@ fun ScanScreen(
             ) {
                 // Manual Input Card
                 ScanModeCard(
-                    iconRes = android.R.drawable.ic_menu_edit,
+                    icon = Icons.Default.Edit,
                     label = "Input Manual",
                     isSelected = true,
                     onClick = { showManualInput = true },
@@ -281,7 +284,7 @@ fun ScanScreen(
 
                 // Reset Card (With Refresh Logic + Blue Icon)
                 ScanModeCard(
-                    iconRes = android.R.drawable.ic_menu_rotate,
+                    icon = Icons.Default.Refresh,
                     label = "Reset Scan",
                     isSelected = true, // Force Selected for Blue Icon
                     onClick = { 
@@ -353,22 +356,22 @@ fun ScanOverlay(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ScanModeCard(iconRes: Int, label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ScanModeCard(icon: ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.clickable { onClick() }.padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            painter = painterResource(iconRes), 
+            imageVector = icon, 
             contentDescription = null, 
-            tint = if (isSelected) Color(0xFF1565C0) else Color.Gray,
+            tint = if (isSelected) ScanPrimaryBtn else Color.Gray,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             label, 
             fontSize = 12.sp, 
-            color = if (isSelected) Color(0xFF1565C0) else Color.Gray,
+            color = if (isSelected) ScanPrimaryBtn else Color.Gray,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
         )
     }

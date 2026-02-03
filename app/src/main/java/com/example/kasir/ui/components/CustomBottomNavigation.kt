@@ -62,14 +62,13 @@ fun CustomBottomNavigation(
             ) {
                 Row(
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    NavItem(Icons.Filled.Dashboard, "Dasbor", currentScreen == "dashboard") { onNavigate("dashboard") }
-                    NavItem(Icons.Filled.ListAlt, "Riwayat", currentScreen == "riwayat") { onNavigate("riwayat") }
-                    Spacer(modifier = Modifier.width(56.dp)) // Space for Middle Button
-                    NavItem(Icons.Filled.MenuBook, "Menu", currentScreen == "menu") { onNavigate("menu") }
-                    NavItem(Icons.Filled.QrCode, "Meja", currentScreen == "meja") { onNavigate("meja") }
+                    NavItem(Icons.Filled.Dashboard, "Dasbor", currentScreen == "dashboard", Modifier.weight(1f)) { onNavigate("dashboard") }
+                    NavItem(Icons.Filled.ListAlt, "Riwayat", currentScreen == "riwayat", Modifier.weight(1f)) { onNavigate("riwayat") }
+                    Spacer(modifier = Modifier.weight(1f)) // Middle Space
+                    NavItem(Icons.Filled.MenuBook, "Menu", currentScreen == "menu", Modifier.weight(1f)) { onNavigate("menu") }
+                    NavItem(Icons.Filled.QrCode, "Meja", currentScreen == "meja", Modifier.weight(1f)) { onNavigate("meja") }
                 }
             }
 
@@ -77,15 +76,15 @@ fun CustomBottomNavigation(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = 10.dp)
+                    .offset(y = (-5).dp)
                     .size(70.dp)
+                    .shadow(8.dp, CircleShape) // Shadow FIRST
                     .clip(CircleShape)
                     .background(Color.White)
-                    .padding(4.dp)
+                    .padding(4.dp) // White Border Thickness
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF1F2937), Color(0xFF111827))))
-                    .clickable { onNavigate("bayar") }
-                    .shadow(8.dp, CircleShape),
+                    .background(Color(0xFF2C3E50)) // Brand Color
+                    .clickable { onNavigate("bayar") },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -106,11 +105,11 @@ fun CustomBottomNavigation(
 }
 
 @Composable
-fun NavItem(icon: ImageVector, label: String, isActive: Boolean, onClick: () -> Unit) {
+fun NavItem(icon: ImageVector, label: String, isActive: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier
+        modifier = modifier
             .clickable(onClick = onClick)
             .padding(8.dp)
     ) {
