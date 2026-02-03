@@ -101,9 +101,10 @@ fun DashboardScreen(
     var showSuccessDialog by remember { mutableStateOf(false) }
     var scannedOrder by remember { mutableStateOf<OrderResponse?>(null) }
     
+    
     // --- UI/UX TOGGLE STATES (Source Feature) ---
-    var isSoundEnabled by remember { mutableStateOf(true) }
-    var isAlwaysOn by remember { mutableStateOf(false) }
+    val isSoundEnabled by viewModel.isSoundEnabled.collectAsState()
+    val isAlwaysOn by viewModel.isAlwaysOn.collectAsState()
     var showAlwaysOnGuide by remember { mutableStateOf(false) }
 
     // Logic Effects: Force Light Status Bar Icons (for Dark Header)
@@ -124,49 +125,11 @@ fun DashboardScreen(
     var cancellationOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for cancellation review
     var forceCancelOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for force cancel
 
-    // --- LOGIC: Always On Display ---
-    val context = LocalContext.current
-    val window = (context as? android.app.Activity)?.window
-    DisposableEffect(isAlwaysOn) {
-        if (window != null) {
-            if (isAlwaysOn) {
-                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
-        onDispose {
-            // Clean up if component removed, but usually user toggles it off manually.
-            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
+    // --- LOGIC: Always On Display (Moved to MainScreen) ---
 
-    // --- LOGIC: New Order Sound Notification ---
-    // Track known pending order IDs to prevent ringing on existing ones
-    var knownPendingIds by remember { mutableStateOf(setOf<Int>()) }
-    var isFirstLoad by remember { mutableStateOf(true) } // PREVENT RING ON START
 
-    LaunchedEffect(orders) {
-        val currentPending = orders.filter { it.status == "Pending" }
-        val currentIds = currentPending.map { it.id }.toSet()
-        
-        if (isFirstLoad) {
-            // First load: Just initialize known IDs, DO NOT RING
-            knownPendingIds = currentIds
-            isFirstLoad = false
-        } else {
-            // Subsequent updates: Check for NEW IDs
-            val newOrderIds = currentIds.subtract(knownPendingIds)
-            
-            if (newOrderIds.isNotEmpty()) {
-                 if (isSoundEnabled) {
-                     // Play Sound 3 Times
-                     playNotificationSound(context)
-                 }
-            }
-            knownPendingIds = currentIds
-        }
-    }
+    // --- LOGIC: New Order Sound Notification (Moved to MainScreen) ---
+
 
     DashboardScreenContent(
         orders = orders,
@@ -175,8 +138,8 @@ fun DashboardScreen(
         store = storeState, // Pass store data
         isSoundEnabled = isSoundEnabled,
         isAlwaysOn = isAlwaysOn,
-        onToggleSound = { isSoundEnabled = !isSoundEnabled },
-        onToggleAlwaysOn = { isAlwaysOn = !isAlwaysOn },
+        onToggleSound = { viewModel.toggleSound(!isSoundEnabled) },
+        onToggleAlwaysOn = { viewModel.toggleAlwaysOn(!isAlwaysOn) },
         onLongClickAlwaysOn = { showAlwaysOnGuide = true },
         onNavigate = onNavigate,
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },

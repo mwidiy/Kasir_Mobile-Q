@@ -18,11 +18,13 @@ import androidx.compose.ui.window.Dialog
 
 @Composable
 fun FilterHistoryDialog(
+    initialStatus: String,
+    initialType: String,
     onDismiss: () -> Unit,
     onApply: (String, String) -> Unit // status, type
 ) {
-    var selectedStatus by remember { mutableStateOf("All") }
-    var selectedType by remember { mutableStateOf("All") }
+    var selectedStatus by remember { mutableStateOf(initialStatus) }
+    var selectedType by remember { mutableStateOf(initialType) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(

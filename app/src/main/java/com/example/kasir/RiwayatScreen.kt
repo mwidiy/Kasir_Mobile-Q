@@ -94,9 +94,46 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
             topBar = { 
                 RiwayatHeader(
                    onExportClick = {
-                        // LOGIC: Export PDF
+                        // 1. Validation: Prevent export if no data
+                        if (transactions.isEmpty()) {
+                            val periodName = when(selectedTab) {
+                                0 -> "Hari Ini"
+                                1 -> "Bulan Ini"
+                                else -> "yang dipilih"
+                            }
+                            Toast.makeText(context, "Belum ada transaksi di $periodName", Toast.LENGTH_SHORT).show()
+                            return@RiwayatHeader
+                        }
+
+                        // 2. Calculate Date Params based on Tab
+                        var dateParams = ""
+                        val calendar = java.util.Calendar.getInstance()
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        
+                        when (selectedTab) {
+                            0 -> { // Hari Ini
+                                val today = sdf.format(calendar.time)
+                                dateParams = "&startDate=$today&endDate=$today"
+                            }
+                            1 -> { // Bulan Ini
+                                calendar.set(java.util.Calendar.DAY_OF_MONTH, 1) // First day
+                                val start = sdf.format(calendar.time)
+                                
+                                calendar.set(java.util.Calendar.DAY_OF_MONTH, calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)) // Last day
+                                val end = sdf.format(calendar.time)
+                                dateParams = "&startDate=$start&endDate=$end"
+                            }
+                            else -> {
+                                // "Semua" -> No date filter, exports all matches
+                            }
+                        }
+
+                        // 3. Trigger Download
                         val baseUrl = com.example.kasir.data.network.RetrofitClient.BASE_URL
-                        val url = "${baseUrl}api/orders/export-pdf?status=${viewModel.statusFilter}&type=${viewModel.typeFilter}&search=${viewModel.currentQuery}"
+                        val url = "${baseUrl}api/orders/export-pdf?status=${viewModel.statusFilter}&type=${viewModel.typeFilter}&search=${viewModel.currentQuery}$dateParams"
+                        
+                        // Get Token
+                        val token = com.example.kasir.utils.SessionManager.jwtToken
                         
                         val request = DownloadManager.Request(Uri.parse(url))
                             .setTitle("Laporan Riwayat")
@@ -105,6 +142,10 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Laporan_Riwayat_${System.currentTimeMillis()}.pdf")
                             .setAllowedOverMetered(true)
                             .setAllowedOverRoaming(true)
+                        
+                        if (token != null) {
+                            request.addRequestHeader("Authorization", "Bearer $token")
+                        }
 
                         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                         try {
@@ -175,13 +216,18 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
 
         // FILTER MODAL
         if (showFilterDialog) {
+        // FILTER MODAL
+        if (showFilterDialog) {
             com.example.kasir.ui.components.FilterHistoryDialog(
+                initialStatus = viewModel.statusFilter,
+                initialType = viewModel.typeFilter,
                 onDismiss = { showFilterDialog = false },
                 onApply = { status, type ->
                     viewModel.setAdvancedFilter(status, type)
                     showFilterDialog = false
                 }
             )
+        }
         }
     }
 }
@@ -323,7 +369,10 @@ fun FilterBar(query: String, onFilterClick: () -> Unit, onQueryChange: (String) 
                     focusedContainerColor = Color.White,
                     unfocusedContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = RiwayatTextMain,
+                    unfocusedTextColor = RiwayatTextMain,
+                    cursorColor = RiwayatTextMain
                 ),
                 singleLine = true
             )
@@ -393,7 +442,11 @@ fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
         )
 
         // End (Right)
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // End (Right)
+        Row(
+            verticalAlignment = Alignment.CenterVertically, 
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(
                 text = totalStr,
                 style = MaterialTheme.typography.bodySmall.copy(
@@ -416,109 +469,176 @@ fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
 fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).heightIn(max = 600.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp), 
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                // HEADER
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(RiwayatCardBg.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                             Icon(Icons.Filled.Receipt, contentDescription = null, tint = RiwayatCardBg, modifier = Modifier.size(24.dp))
-                        }
-                        Text("Detail Transaksi", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RiwayatTextMain))
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("#${data.id}", style = MaterialTheme.typography.bodySmall.copy(color = RiwayatTextMuted))
-                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(20.dp).clickable { onDismiss() }, tint = RiwayatTextMuted)
-                    }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // 1. Header Title
+                Text(
+                    text = "Bukti Transaksi",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF6B7280) // Gray 500
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 2. Hero Price
+                val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+                fmt.maximumFractionDigits = 0
+                val totalStr = fmt.format(data.totalAmount)
+
+                Text(
+                    text = totalStr,
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF111827) // Gray 900
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 3. Status Badge
+                val isCompleted = data.status == "Completed"
+                val statusLabel = when(data.status) {
+                    "Completed" -> "LUNAS"
+                    "Cancelled" -> "DIBATALKAN"
+                    "Pending" -> "MENUNGGU"
+                    "Processing" -> "DIPROSES"
+                    else -> data.status?.uppercase() ?: "-"
+                }
+                val statusBg = when(data.status) {
+                    "Completed" -> Color(0xFFDCFCE7) // Green 100
+                    "Cancelled" -> Color(0xFFFEE2E2) // Red 100
+                    else -> Color(0xFFFEF08A) // Yellow 100
+                }
+                val statusText = when(data.status) {
+                    "Completed" -> Color(0xFF166534) // Green 800
+                    "Cancelled" -> Color(0xFF991B1B) // Red 800
+                    else -> Color(0xFF854D0E) // Yellow 800
                 }
 
-                // DETAILS GRID
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(statusBg)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = statusLabel,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = statusText,
+                            letterSpacing = 1.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 4. Dashed Divider
+                HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp) // Simple divider
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 5. Metadata Grid
                 val dateStr = try {
                      val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                     val formatter = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+                     val formatter = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
                      parser.parse(data.createdAt)?.let { formatter.format(it) } ?: "-"
                 } catch (e: Exception) { "-" }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                    DetailRow("Meja:", data.table?.name ?: "Takeaway")
-                    DetailRow("Nama:", data.customerName)
-                    DetailRow("Tipe:", data.orderType ?: "-")
-                    DetailRow("Waktu:", dateStr)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                         Text("Tanggal", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                         Text(dateStr, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                         Text("Order ID", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                         Text("#${data.queueNumber ?: data.id}", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                    }
                 }
-
-                // STATUS BADGE
-                val isCompleted = data.status == "Completed"
-                val statusColor = if (isCompleted) Color(0xFF166534) else if (data.status == "Cancelled") Color(0xFFB91C1C) else Color(0xFF854D0E)
-                val statusBg = if (isCompleted) Color(0xFFDCFCE7) else if (data.status == "Cancelled") Color(0xFFFEE2E2) else Color(0xFFFEF08A)
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(statusBg)
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(if(isCompleted) Icons.Filled.Check else Icons.Filled.Info, contentDescription = null, tint = statusColor, modifier = Modifier.size(14.dp))
-                        Text(
-                            if(data.status == "Completed") "Selesai" else if(data.status == "Cancelled") "Dibatalkan" else data.status, 
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = statusColor)
-                        )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                         Text("Pelanggan", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                         Text(data.customerName, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                         Text("Meja", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                         Text(data.table?.name ?: "Takeaway", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFF3F4F6))
+                Spacer(modifier = Modifier.height(24.dp))
                 
-                // ORDER SUMMARY
-                Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                    Text("Rincian Pesanan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain), modifier = Modifier.padding(bottom = 12.dp))
-                    val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-                    data.items.forEach { item ->
-                        val pPrice = fmt.format((item.priceSnapshot ?: 0)).replace("Rp", "Rp ").replace(",00", "")
-                        OrderRow("${item.quantity}x ${item.product?.name}", pPrice)
-                    }
+                // 6. Section Header: Menu
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                     Text("Rincian Menu", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF1F2937)))
                 }
-                
-                HorizontalDivider(color = Color(0xFFF3F4F6))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // PAYMENT DETAILS
-                val totalStr = NumberFormat.getCurrencyInstance(Locale("id", "ID")).format(data.totalAmount).replace("Rp", "Rp ").replace(",00", "")
-                
-                Column(modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-                    Text("Rincian Pembayaran", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain), modifier = Modifier.padding(bottom = 12.dp))
-                    PaymentRow("Subtotal", totalStr, false) // Needs separate subtotal if available, using total for now
-                    PaymentRow("Total", totalStr, true)
-                    PaymentRow(data.paymentMethod ?: "-", totalStr, false, fontSize = 12.sp)
+                // 7. Item List (Scrollable if needed, but Dialog height constrains it)
+                Box(modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                     androidx.compose.foundation.lazy.LazyColumn(
+                         verticalArrangement = Arrangement.spacedBy(12.dp)
+                     ) {
+                         items(data.items) { item ->
+                             Row(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.SpaceBetween
+                             ) {
+                                 Row(modifier = Modifier.weight(1f)) {
+                                     Text(
+                                         "${item.quantity}x", 
+                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF374151)),
+                                         modifier = Modifier.width(30.dp)
+                                     )
+                                     Text(
+                                         item.product?.name ?: "-", 
+                                         style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF4B5563))
+                                     )
+                                 }
+                                 val price = fmt.format((item.priceSnapshot ?: 0))
+                                 Text(
+                                     price, 
+                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, color = Color(0xFF111827))
+                                 )
+                             }
+                         }
+                     }
                 }
-                
-                // CLOSE BTN
+
+                Spacer(modifier = Modifier.height(24.dp))
+                HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 8. Payment Method
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Metode Pembayaran", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280)))
+                    Text(data.paymentMethod ?: "-", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF1F2937)))
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 9. Buttons
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = RiwayatTextMain),
-                    border = BorderStroke(1.dp, RiwayatBorder),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)) // Dark Gray
                 ) {
-                    Text("Tutup", fontWeight = FontWeight.Bold)
+                    Text("Tutup", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }

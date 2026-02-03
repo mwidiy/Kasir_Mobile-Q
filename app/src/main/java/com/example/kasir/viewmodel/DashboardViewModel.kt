@@ -25,6 +25,14 @@ class DashboardViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // Global UI State (Always On Display)
+    private val _isAlwaysOn = MutableStateFlow(false)
+    val isAlwaysOn: StateFlow<Boolean> = _isAlwaysOn.asStateFlow()
+
+    // Global Sound State
+    private val _isSoundEnabled = MutableStateFlow(true)
+    val isSoundEnabled: StateFlow<Boolean> = _isSoundEnabled.asStateFlow()
+
     init {
         initSocket()
         fetchOrders()
@@ -148,6 +156,14 @@ class DashboardViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    fun toggleAlwaysOn(enabled: Boolean) {
+        _isAlwaysOn.value = enabled
+    }
+
+    fun toggleSound(enabled: Boolean) {
+        _isSoundEnabled.value = enabled
     }
 
     override fun onCleared() {
