@@ -21,13 +21,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        enableEdgeToEdge()
         setContent {
+            // --- ALWAYS ON LOGIC ---
+            val context = androidx.compose.ui.platform.LocalContext.current
+            // Observe the "Always On" preference
+            // We use LaunchedEffect because we need a coroutine scope, but actually
+            // setting the window flag requires the Activity context.
+            // A simpler way in Compose for Side Effects:
+            val alwaysOn by com.example.kasir.utils.SessionManager.getAlwaysOn(context).collectAsState(initial = false)
+            
+            LaunchedEffect(alwaysOn) {
+                if (alwaysOn) {
+                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            }
+
             KasirTheme {
                     // --- STATE ---
                     var currentScreen by remember { mutableStateOf("splash") }

@@ -17,6 +17,9 @@ import com.example.kasir.ui.components.CustomBottomNavigation
 import com.example.kasir.viewmodel.DashboardViewModel
 import com.example.kasir.utils.playNotificationSound
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -26,11 +29,29 @@ fun MainScreen(
     viewModel: DashboardViewModel = viewModel() // Global ViewModel instance
 ) {
     var currentScreen by remember { mutableStateOf(initialScreen) }
-
+    var backPressedTime by remember { mutableLongStateOf(0L) }
+    
     // --- GLOBAL LOGIC: Always On Display ---
     val isAlwaysOn by viewModel.isAlwaysOn.collectAsState()
     val context = LocalContext.current
     val window = (context as? android.app.Activity)?.window
+    val activity = (context as? android.app.Activity)
+
+    // HANDLE BACK PRESS
+    BackHandler {
+        if (currentScreen != "dashboard") {
+            // If on another tab, go back to Dashboard
+            currentScreen = "dashboard"
+        } else {
+            // If on Dashboard, check for double press
+            if (System.currentTimeMillis() - backPressedTime < 2000) {
+                activity?.finish()
+            } else {
+                backPressedTime = System.currentTimeMillis()
+                Toast.makeText(context, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     
     DisposableEffect(isAlwaysOn) {
         if (window != null) {

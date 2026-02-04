@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class DashboardViewModel : ViewModel() {
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+
+class DashboardViewModel(application: Application) : AndroidViewModel(application) {
     private val apiService = RetrofitClient.instance
 
     // State Management
@@ -26,6 +29,7 @@ class DashboardViewModel : ViewModel() {
     val error: StateFlow<String?> = _error.asStateFlow()
 
     // Global UI State (Always On Display)
+    // Global UI State (Always On Display)
     private val _isAlwaysOn = MutableStateFlow(false)
     val isAlwaysOn: StateFlow<Boolean> = _isAlwaysOn.asStateFlow()
 
@@ -36,6 +40,12 @@ class DashboardViewModel : ViewModel() {
     init {
         initSocket()
         fetchOrders()
+        // Observe Session Persistence
+        viewModelScope.launch {
+            com.example.kasir.utils.SessionManager.getAlwaysOn(getApplication()).collect {
+                _isAlwaysOn.value = it
+            }
+        }
     }
 
     private fun initSocket() {
@@ -160,6 +170,9 @@ class DashboardViewModel : ViewModel() {
 
     fun toggleAlwaysOn(enabled: Boolean) {
         _isAlwaysOn.value = enabled
+        viewModelScope.launch {
+            com.example.kasir.utils.SessionManager.setAlwaysOn(getApplication(), enabled)
+        }
     }
 
     fun toggleSound(enabled: Boolean) {

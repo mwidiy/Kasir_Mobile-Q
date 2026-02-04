@@ -1,6 +1,9 @@
 package com.example.kasir
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -769,7 +772,17 @@ fun StatusGuideModal(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
                 
                 Text(
-                    "Saat status 'Buka' (Aktif), QR code dapat discan pelanggan. Jika 'Tutup', pemesanan dihentikan.",
+                    text = buildAnnotatedString {
+                        append("Saat status '")
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color.Black)) {
+                            append("Buka")
+                        }
+                        append("' (Aktif), QR code dapat discan pelanggan. Jika '")
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color.Black)) {
+                            append("Tutup")
+                        }
+                        append("', pemesanan dihentikan.")
+                    },
                     color = Color(0xFF6B7280),
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,

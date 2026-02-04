@@ -29,6 +29,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.data.model.*
 import com.example.kasir.ui.components.CustomBottomNavigation
@@ -863,9 +866,15 @@ fun AlwaysOnGuideDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = "Tekan tombol ini untuk mengaktifkan\nmode Selalu Nyala (Layar tidak akan mati).",
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        append("Tekan tombol ini untuk mengaktifkan\nmode ")
+                        withStyle(style = SpanStyle(color = TextMain, fontWeight = FontWeight.Bold)) {
+                            append("pasti nyala")
+                        }
+                        append(" (Layar tidak akan mati).")
+                    },
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = TextMain,
+                        color = Color.Gray, // Muted default color
                         fontWeight = FontWeight.Medium
                     ),
                     textAlign = TextAlign.Center

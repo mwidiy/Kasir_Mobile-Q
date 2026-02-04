@@ -77,6 +77,21 @@ object SessionManager {
         }
     }
 
+    private val ALWAYS_ON_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("always_on_enabled")
+
+    // Observe Always On state
+    fun getAlwaysOn(context: Context): Flow<Boolean> {
+        return context.dataStore.data.map { preferences ->
+            preferences[ALWAYS_ON_KEY] ?: false // Default to false (Normal behavior)
+        }
+    }
+
+    suspend fun setAlwaysOn(context: Context, isEnabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ALWAYS_ON_KEY] = isEnabled
+        }
+    }
+
     fun isLoggedIn(): Boolean {
         return jwtToken != null
     }
