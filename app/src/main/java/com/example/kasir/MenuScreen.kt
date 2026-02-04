@@ -112,6 +112,16 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
+    // Show Error Toast
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            if (it.isNotEmpty()) {
+                android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     // var selectedCategory by remember { mutableStateOf("all") }  <-- Removed, using ViewModel
     // Initialize with empty list, data will come from VM
@@ -510,6 +520,11 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     selectedProductId = item?.id
                     currentScreen = "edit_product"
                 },
+                onEditAr = {
+                     val item = showActionSheet
+                     showActionSheet = null
+                     android.widget.Toast.makeText(context, "Fitur Edit AR Coming Soon!", android.widget.Toast.LENGTH_SHORT).show()
+                },
                 onDelete = {
                     val item = showActionSheet
                     showActionSheet = null
@@ -554,6 +569,11 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     val cat = showCategoryActionSheet
                     showCategoryActionSheet = null
                     showEditCategoryModal = cat
+                },
+                onEditAr = {
+                     // Category doesn't have AR yet/ever? Just toast or empty
+                     showCategoryActionSheet = null
+                     android.widget.Toast.makeText(context, "Fitur ini hanya untuk Menu", android.widget.Toast.LENGTH_SHORT).show()
                 },
                 onDelete = {
                     val cat = showCategoryActionSheet
@@ -730,7 +750,7 @@ fun SvgIcon(pathData: String, tint: Color, modifier: Modifier = Modifier, viewpo
 }
 
 @Composable
-fun ActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
+fun ActionSheetModal(title: String, onEdit: () -> Unit, onEditAr: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -749,6 +769,19 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onDelete: () -> Unit, on
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Text("Edit Menu", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
+                }
+
+                Divider(color = Color(0xFFF3F4F6))
+
+                 Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onEditAr() }.padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                         Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Edit Ar", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                 }
                 
                 Divider(color = Color(0xFFF3F4F6))

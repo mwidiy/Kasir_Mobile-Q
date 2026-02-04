@@ -56,7 +56,7 @@ fun AddEditProductScreen(
                 price = product.price.toString()
                 category = product.categoryId?.toString() ?: ""
                 description = product.description ?: ""
-                existingImageUrl = product.image
+                existingImageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(product.image)
                 isActive = product.isActive
                 isInitialized = true
             }
@@ -288,42 +288,48 @@ fun AddEditProductScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
             
-            // Save Button
+            Spacer(modifier = Modifier.height(16.dp))
+            
             val isFormValid = name.isNotBlank() && price.isNotBlank() && category.isNotBlank()
-            val context = androidx.compose.ui.platform.LocalContext.current // Move Context here
+            val context = androidx.compose.ui.platform.LocalContext.current
 
             Button(
                 onClick = {
-                    val p = Product(
-                        id = if (isEditMode) productId!!.toInt() else 0,
-                        name = name,
-                        price = price.toIntOrNull() ?: 0,
-                        category = null, // Backend handles this
-                        categoryId = category.toIntOrNull(),
-                        description = description,
-                        image = existingImageUrl, 
-                        isActive = isActive
-                    )
-                    
-                    if (isEditMode) {
-                        viewModel.updateProduct(p.id, p, selectedImageUri, context)
+                    if (isFormValid) {
+                        val p = Product(
+                            id = if (isEditMode) productId!!.toInt() else 0,
+                            name = name,
+                            price = price.toIntOrNull() ?: 0,
+                            category = null, // Backend handles this
+                            categoryId = category.toIntOrNull(),
+                            description = description,
+                            image = existingImageUrl, 
+                            isActive = isActive
+                        )
+                        
+                        if (isEditMode) {
+                            viewModel.updateProduct(p.id, p, selectedImageUri, context)
+                        } else {
+                            viewModel.addProduct(p, selectedImageUri, context)
+                        }
+                        onBack()
                     } else {
-                        viewModel.addProduct(p, selectedImageUri, context)
+                            android.widget.Toast.makeText(context, "Mohon lengkapi Nama, Harga, dan Kategori", android.widget.Toast.LENGTH_SHORT).show()
                     }
-                    onBack()
                 },
-                enabled = isFormValid,
+                enabled = true,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2D3E50),
+                    containerColor = if (isFormValid) Color(0xFF2D3E50) else Color.Gray,
                     disabledContainerColor = Color.Gray
                 )
             ) {
                 Text(if (isEditMode) "Simpan Perubahan" else "Simpan Menu", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
             }
+            
+            Spacer(modifier = Modifier.height(100.dp)) // Add bottom padding for better scroll experience
         }
     }
 }
