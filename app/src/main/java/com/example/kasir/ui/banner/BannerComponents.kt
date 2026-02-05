@@ -75,6 +75,11 @@ fun BannerListScreen(
     var showDeleteConfirm by remember { mutableStateOf<Banner?>(null) }
     var showInfoModal by remember { mutableStateOf(false) }
 
+    // REFRESH ON ENTRY
+    LaunchedEffect(Unit) {
+        viewModel.fetchBanners()
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(BannerBg)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Info Alert

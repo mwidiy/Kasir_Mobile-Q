@@ -139,6 +139,8 @@ class MenuViewModel : ViewModel() {
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
                 val isActive = createPartFromString(product.isActive.toString())
+                val ar3dModel = if (product.ar3dModel != null) createPartFromString(product.ar3dModel) else null
+                val isArActive = createPartFromString(product.isArActive.toString())
                 
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null) {
@@ -152,7 +154,7 @@ class MenuViewModel : ViewModel() {
                 }
 
                 val response = RetrofitClient.instance.addProduct(
-                    name, categoryId, price, description, imagePart, isActive
+                    name, categoryId, price, description, imagePart, isActive, ar3dModel, isArActive
                 )
                 
                 if (response.success) {
@@ -179,6 +181,8 @@ class MenuViewModel : ViewModel() {
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
                 val isActive = createPartFromString(product.isActive.toString())
+                val ar3dModel = if (product.ar3dModel != null) createPartFromString(product.ar3dModel) else null
+                val isArActive = createPartFromString(product.isArActive.toString())
 
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null && context != null) {
@@ -192,11 +196,19 @@ class MenuViewModel : ViewModel() {
                 }
 
                 val response = RetrofitClient.instance.updateProduct(
-                    id, name, categoryId, price, description, imagePart, isActive
+                    id, name, categoryId, price, description, imagePart, isActive, ar3dModel, isArActive
                 )
                 
                 if (response.success) {
-                    fetchProducts()
+                    // Optimistic/Immediate Update for Realtime UX
+                    val updatedItem = response.data
+                    if (updatedItem != null) {
+                        _products.value = _products.value.map {
+                            if (it.id == id) updatedItem else it
+                        }
+                    }
+                    // Sync with backend (silent)
+                    fetchProducts(isSilent = true)
                 } else {
                     _errorMessage.value = response.message
                 }
@@ -220,9 +232,11 @@ class MenuViewModel : ViewModel() {
                 val price = createPartFromString(updatedProduct.price.toString())
                 val description = createPartFromString(updatedProduct.description ?: "")
                 val isActive = createPartFromString(updatedProduct.isActive.toString())
+                val ar3dModel = if (updatedProduct.ar3dModel != null) createPartFromString(updatedProduct.ar3dModel) else null
+                val isArActive = createPartFromString(updatedProduct.isArActive.toString())
                 
                 RetrofitClient.instance.updateProduct(
-                     updatedProduct.id, name, categoryId, price, description, null, isActive
+                     updatedProduct.id, name, categoryId, price, description, null, isActive, ar3dModel, isArActive
                 )
                 fetchProducts(isSilent = true)
              } catch (e: Exception) {

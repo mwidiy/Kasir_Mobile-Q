@@ -41,6 +41,20 @@ interface ApiService {
     @DELETE("api/categories/{id}")
     suspend fun deleteCategory(@Path("id") id: Int): com.example.kasir.data.model.SingleCategoryResponse
 
+    @GET("api/ar/assets")
+    suspend fun getArAssets(): com.example.kasir.data.model.ArAssetResponse
+
+    @Multipart
+    @POST("api/ar/upload")
+    suspend fun uploadArAsset(
+        @Part model: MultipartBody.Part
+    ): com.example.kasir.data.model.SingleArAssetResponse
+
+    @DELETE("api/ar/delete/{id}")
+    suspend fun deleteArAsset(
+        @Path("id") id: Int
+    ): ApiResponse<Void>
+
     @Multipart
     @POST("api/products")
     suspend fun addProduct(
@@ -49,7 +63,9 @@ interface ApiService {
         @Part("price") price: okhttp3.RequestBody,
         @Part("description") description: okhttp3.RequestBody,
         @Part image: okhttp3.MultipartBody.Part?,
-        @Part("isActive") isActive: okhttp3.RequestBody
+        @Part("isActive") isActive: okhttp3.RequestBody,
+        @Part("ar3dModel") ar3dModel: okhttp3.RequestBody?,
+        @Part("isArActive") isArActive: okhttp3.RequestBody?
     ): SingleProductResponse
 
     @Multipart
@@ -61,7 +77,9 @@ interface ApiService {
         @Part("price") price: okhttp3.RequestBody,
         @Part("description") description: okhttp3.RequestBody,
         @Part image: okhttp3.MultipartBody.Part?,
-        @Part("isActive") isActive: okhttp3.RequestBody
+        @Part("isActive") isActive: okhttp3.RequestBody,
+        @Part("ar3dModel") ar3dModel: okhttp3.RequestBody?,
+        @Part("isArActive") isArActive: okhttp3.RequestBody?
     ): SingleProductResponse
 
     @DELETE("api/products/{id}")

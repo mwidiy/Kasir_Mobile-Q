@@ -14,7 +14,9 @@ data class Product(
     val price: Int,
     val image: String?,
     val description: String?,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val ar3dModel: String? = null,
+    val isArActive: Boolean = false
 )
 
 data class SingleProductResponse(

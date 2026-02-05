@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Help
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.*
@@ -56,12 +57,18 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithCache
 import com.example.kasir.ui.theme.KasirTheme
 import com.example.kasir.ui.banner.BannerListScreen
 import com.example.kasir.ui.banner.BannerFormScreen
 import com.example.kasir.data.model.Banner
 import com.example.kasir.ui.menu.MenuFormScreen
 import com.example.kasir.ui.menu.AddEditProductScreen
+import com.example.kasir.ui.menu.EditArScreen
 import com.example.kasir.data.model.Product
 import com.example.kasir.data.model.Category // Added import
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -89,19 +96,20 @@ data class MenuItem(
     val categoryId: Int?, // New field
     val price: String,
     val isActive: Boolean,
+    val isArActive: Boolean = false, // New field for AR status
     val description: String? = null,
     val image: String? = null
 )
 
 val initialMenuItems = listOf(
-    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", 1, "Rp 15.000", true, "Enak", null),
-    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", 1, "Rp 12.000", true, "Jowo tulen", null),
-    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", 1, "Rp 18.000", false, "Manis", null),
-    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", 2, "Rp 5.000", true, "Seger", null),
-    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", 2, "Rp 8.000", true, "Asem manis", null),
-    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", 1, "Rp 20.000", true, "Madura", null),
-    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", 3, "Rp 10.000", true, "Kriuk", null),
-    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", 2, "Rp 12.000", true, "Kopi", null)
+    MenuItem("1", "Nasi Goreng Special", "makanan", "Makanan Utama", 1, "Rp 15.000", true, false, "Enak", null),
+    MenuItem("2", "Mie Goreng Jawa", "makanan", "Makanan Utama", 1, "Rp 12.000", true, false, "Jowo tulen", null),
+    MenuItem("3", "Ayam Bakar Madu", "makanan", "Makanan Utama", 1, "Rp 18.000", false, false, "Manis", null),
+    MenuItem("4", "Es Teh Manis", "minuman", "Minuman", 2, "Rp 5.000", true, false, "Seger", null),
+    MenuItem("5", "Es Jeruk Peras", "minuman", "Minuman", 2, "Rp 8.000", true, false, "Asem manis", null),
+    MenuItem("6", "Sate Ayam 10 Tusuk", "makanan", "Makanan Utama", 1, "Rp 20.000", true, false, "Madura", null),
+    MenuItem("7", "Pisang Goreng Krispy", "cemilan", "Cemilan", 3, "Rp 10.000", true, false, "Kriuk", null),
+    MenuItem("8", "Kopi Susu Gula Aren", "minuman", "Minuman", 2, "Rp 12.000", true, false, "Kopi", null)
 )
 
 @Composable
@@ -130,6 +138,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
     val categoriesState by viewModel.categories.collectAsState()
 
+    // REFRESH ON ENTRY (Fix for Multi-Account Stale Data)
+    LaunchedEffect(Unit) {
+        viewModel.fetchProducts()
+        viewModel.fetchCategories()
+    }
+
     // Sync products from VM to local menuList (UI Model)
     LaunchedEffect(products) {
         menuList = products.map { product ->
@@ -141,6 +155,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 categoryId = product.categoryId,
                 price = "Rp ${product.price}",
                 isActive = product.isActive,
+                isArActive = product.isArActive, // Map from Product
                 description = product.description,
                 image = product.image
             )
@@ -391,6 +406,22 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         },
                         viewModel = viewModel
                     )
+                } else if (currentScreen == "edit_ar") {
+                    // Find product
+                    val productToEdit = products.find { it.id.toString() == selectedProductId }
+                    if (productToEdit != null) {
+                         EditArScreen(
+                            product = productToEdit,
+                            viewModel = viewModel,
+                            onBack = {
+                                currentScreen = "menu_list"
+                                selectedProductId = null
+                            }
+                        )
+                    } else {
+                        // Error fallback
+                        currentScreen = "menu_list"
+                    }
                 }
             } else {
                 // --- BANNER CONTENT ---
@@ -523,7 +554,8 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 onEditAr = {
                      val item = showActionSheet
                      showActionSheet = null
-                     android.widget.Toast.makeText(context, "Fitur Edit AR Coming Soon!", android.widget.Toast.LENGTH_SHORT).show()
+                     selectedProductId = item?.id
+                     currentScreen = "edit_ar"
                 },
                 onDelete = {
                     val item = showActionSheet
@@ -681,7 +713,13 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
         Spacer(modifier = Modifier.width(16.dp))
         
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MenuTextDark)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MenuTextDark)
+                if (item.isArActive) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    AnimatedArIcon()
+                }
+            }
             Text(item.categoryDisplay, fontSize = 12.sp, color = Color.Gray)
             Text(item.price, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MenuTextGray)
         }
@@ -705,6 +743,69 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
 // Mimic Modifier.alpha without creating utils file dependency if simpler, but standard compose has alpha
 fun Modifier.alpha(alpha: Float) = this.then(Modifier.drawLayer(alpha = alpha))
 private fun Modifier.drawLayer(alpha: Float): Modifier = this // Placeholder fix if alpha not imported, actually available in ui.draw.alpha normally
+
+@Composable
+fun AnimatedArIcon() {
+    val infiniteTransition = rememberInfiniteTransition()
+
+    // 1. Scale Pulse Animation (Heartbeat)
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    // 2. Shimmer / Rotation for Gradient
+    val offsetVal by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
+    // Gemini-like Colors: Blue -> Purple -> Pink -> Cyan
+    val geminiColors = listOf(
+        Color(0xFF2979FF), // Blue
+        Color(0xFFAA00FF), // Purple
+        Color(0xFFFF4081), // Pink
+        Color(0xFF00E5FF), // Cyan
+        Color(0xFF2979FF)  // Loop back to Blue
+    )
+
+    val brush = Brush.linearGradient(
+        colors = geminiColors,
+        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+        end = androidx.compose.ui.geometry.Offset(200f, 200f), // Diagonal gradient
+        tileMode = TileMode.Mirror
+    )
+
+    Icon(
+        imageVector = Icons.Default.ViewInAr,
+        contentDescription = "AR Active",
+        modifier = Modifier
+            .size(18.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = 0.99f // Required for BlendMode to work correctly on some versions
+            }
+            .drawWithCache {
+                onDrawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = brush,
+                        blendMode = BlendMode.SrcAtop 
+                    )
+                }
+            },
+        tint = Color.Unspecified // Important: Let the brush handle color
+    )
+}
 
 @Composable
 fun FabSubButton(text: String, iconPath: String, onClick: () -> Unit) {
@@ -778,7 +879,7 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onEditAr: () -> Unit, on
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                         Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color.White)
+                         Icon(Icons.Default.ViewInAr, contentDescription = null, tint = Color.White)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Text("Edit Ar", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
@@ -844,7 +945,13 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                     onValueChange = { text = it }, 
                     placeholder = { Text(placeholder) },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedBorderColor = Color(0xFF1F2937),
+                        unfocusedBorderColor = Color.LightGray
+                    )
                 )
                  Spacer(modifier = Modifier.height(24.dp))
                  Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan", color = Color.White) }
