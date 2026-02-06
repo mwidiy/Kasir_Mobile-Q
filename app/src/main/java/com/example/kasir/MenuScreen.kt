@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Help
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ViewInAr
+import androidx.compose.material.icons.filled.ArrowBack // Added
+import androidx.compose.ui.focus.onFocusChanged // Added
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.*
@@ -131,6 +133,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     }
 
     var searchQuery by remember { mutableStateOf("") }
+    var isSearchFocused by remember { mutableStateOf(false) } // NEW: Focus State
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current // NEW: Focus Manager
+
     // var selectedCategory by remember { mutableStateOf("all") }  <-- Removed, using ViewModel
     // Initialize with empty list, data will come from VM
     var menuList by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
@@ -221,8 +226,8 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         } else {
             // Main Content when not loading and no error
             Column(modifier = Modifier.fillMaxSize()) {
-            // Only show Header and Tabs if in List mode for both Tabs
-            if (bannerScreenState == "list" && currentScreen == "menu_list") {
+            // Only show Header and Tabs if in List mode for both Tabs AND NOT SEARCHING
+            if (bannerScreenState == "list" && currentScreen == "menu_list" && !isSearchFocused) {
                 // Header (Shared)
                 Column(modifier = Modifier.background(Color.White).statusBarsPadding().padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
                     Text("Manajemen Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MenuPrimaryBlue)
@@ -272,35 +277,40 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             if (activeTab == "menu") {
                 if (currentScreen == "menu_list") {
                     // --- EXISTING MENU CONTENT ---
-                    // Info Alert
-                    Surface(
-                        color = InfoBg,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.padding(16.dp).fillMaxWidth().clickable { showGuideModal = true }
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SvgIcon(
-                                pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
-                                tint = InfoText,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append("Tekan & Tahan (Long Press) ")
-                                    }
-                                    append("tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)")
-                                },
-                                color = InfoText,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp
-                            )
+                    // Info Alert (Hide if focused)
+                    if (!isSearchFocused) {
+                        Surface(
+                            color = InfoBg,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(16.dp).fillMaxWidth().clickable { showGuideModal = true }
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                SvgIcon(
+                                    pathData = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+                                    tint = InfoText,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("Tekan & Tahan (Long Press) ")
+                                        }
+                                        append("tombol kategori untuk mengubah atau menghapus. (Klik untuk demo)")
+                                    },
+                                    color = InfoText,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
                         }
                     }
 
                     // Search & Filter
-                    Column(modifier = Modifier.background(Color.White).padding(bottom = 10.dp, top = 16.dp)) {
+                    // If Focused: Add statusBarsPadding because header is gone
+                    val searchModifier = if (isSearchFocused) Modifier.background(Color.White).statusBarsPadding().padding(bottom = 10.dp, top = 16.dp) else Modifier.background(Color.White).padding(bottom = 10.dp, top = 16.dp)
+                    
+                    Column(modifier = searchModifier) {
                         // Search
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -308,51 +318,79 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                             modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(48.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = Color.LightGray)
+                                if (isSearchFocused) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack, 
+                                        contentDescription = "Back", 
+                                        tint = MenuPrimaryBlue,
+                                        modifier = Modifier.clickable { 
+                                            isSearchFocused = false 
+                                            searchQuery = "" 
+                                            focusManager.clearFocus()
+                                        }
+                                    )
+                                } else {
+                                    Icon(Icons.Default.Search, contentDescription = null, tint = Color.LightGray)
+                                }
+                                
                                 Spacer(modifier = Modifier.width(8.dp))
                                 BasicTextField(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .onFocusChanged { state ->
+                                            if (state.isFocused) isSearchFocused = true
+                                        },
                                     singleLine = true,
                                     decorationBox = { inner ->
                                         if (searchQuery.isEmpty()) Text("Cari nama menu...", color = Color.Gray, fontSize = 13.sp)
                                         inner()
                                     }
                                 )
+                                if (searchQuery.isNotEmpty()) {
+                                    Icon(
+                                        Icons.Default.Close, 
+                                        contentDescription = "Clear", 
+                                        tint = Color.Gray,
+                                        modifier = Modifier.clickable { searchQuery = "" }
+                                    )
+                                }
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(15.dp))
-                        
-                        // Chips
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // "All" Item
-                            item(key = 0) {
-                                FilterChipCustom(
-                                    label = "Semua",
-                                    isActive = viewModel.selectedCategoryId == 0,
-                                    onClick = { viewModel.selectedCategoryId = 0 },
-                                    onLongClick = {}
-                                )
-                            }
+                        // Chips (Hide if focused)
+                        if (!isSearchFocused) {
+                            Spacer(modifier = Modifier.height(15.dp))
                             
-                            // Dynamic Items
-                            items(
-                                items = categoriesState,
-                                key = { it.id }
-                            ) { cat ->
-                                FilterChipCustom(
-                                    label = cat.name,
-                                    isActive = viewModel.selectedCategoryId == cat.id,
-                                    onClick = { viewModel.selectedCategoryId = cat.id },
-                                    onLongClick = { 
-                                        showCategoryActionSheet = cat
-                                    }
-                                )
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // "All" Item
+                                item(key = 0) {
+                                    FilterChipCustom(
+                                        label = "Semua",
+                                        isActive = viewModel.selectedCategoryId == 0,
+                                        onClick = { viewModel.selectedCategoryId = 0 },
+                                        onLongClick = {}
+                                    )
+                                }
+                                
+                                // Dynamic Items
+                                items(
+                                    items = categoriesState,
+                                    key = { it.id }
+                                ) { cat ->
+                                    FilterChipCustom(
+                                        label = cat.name,
+                                        isActive = viewModel.selectedCategoryId == cat.id,
+                                        onClick = { viewModel.selectedCategoryId = cat.id },
+                                        onLongClick = { 
+                                            showCategoryActionSheet = cat
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -105,27 +105,25 @@ class RiwayatViewModel : ViewModel() {
         val now = Date()
         var result = _allOrders.value
 
-        // 1. Search Filter (Overrides Date Tab if active, or works within it? 
-        // User requested "Search be more useful", usually implies searching GLOBAL history)
+        // 1. Date Tab Filter (Apply First)
+        result = when (currentFilterTab) {
+            0 -> result.filter { isSameDay(it.createdAt, now) }
+            1 -> result.filter { isSameMonth(it.createdAt, now) }
+            2 -> result // Semua (All History)
+            else -> result
+        }
+
+        // 2. Search Filter (Apply Second - AND Logic)
         if (currentQuery.isNotBlank()) {
             val q = currentQuery.lowercase()
             result = result.filter { order ->
                 order.transactionCode.lowercase().contains(q) ||
                 order.customerName.lowercase().contains(q) ||
-                // Search in Items
                 order.items.any { it.product.name.lowercase().contains(q) }
             }
-        } else {
-            // 2. Date Tab Filter (Only if no search query, or combine?)
-            // Usually search should search EVERYTHING. So if query exists, ignore tabs.
-            // If query empty, use tabs.
-             result = when (currentFilterTab) {
-                0 -> result.filter { isSameDay(it.createdAt, now) }
-                1 -> result.filter { isSameMonth(it.createdAt, now) }
-                2 -> result // Semua (All History)
-                else -> result
-            }
         }
+        
+        // 3. Status Filter
 
         // 3. Status Filter
         if (statusFilter != "All") {

@@ -1,7 +1,9 @@
 package com.example.kasir
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -23,6 +25,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -225,47 +232,109 @@ fun DashboardScreenContent(
     onUpdateStatus: (Int, String) -> Unit,
     onScanClick: () -> Unit,
     onReviewCancellation: (OrderResponse) -> Unit,
-    onForceCancel: (OrderResponse) -> Unit
+    onForceCancel: (OrderResponse) -> Unit,
+    // SEARCH FOCUS PARAMS
+    isSearchFocused: Boolean = false,
+    onSearchFocusChange: (Boolean) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("all") } // all, Pending, Processing, Completed
+    var isSearchFocused by remember { mutableStateOf(false) } // Local state for Dashboard Focus
 
     val filteredOrders = orders.filter { order ->
-        val matchesSearch = order.customerName.contains(searchQuery, ignoreCase = true) ||
-                (order.table?.name?.contains(searchQuery, ignoreCase = true) == true)
-        
-        val matchesFilter = when (selectedFilter) {
-            "all" -> order.status != "Completed" && order.status != "Cancelled"
-            "Pending" -> order.status == "Pending"
-            "Processing" -> order.status == "Processing"
-            "Completed" -> order.status == "Completed" || order.status == "Cancelled"
-            else -> true
-        }
-        matchesSearch && matchesFilter
-    }.sortedWith(Comparator { o1, o2 ->
-        if (selectedFilter == "Completed") {
-             // History: Newest First (Descending)
-             o2.createdAt.compareTo(o1.createdAt)
+        if (searchQuery.isNotEmpty()) {
+            // SMART SEARCH (Token Based + Comprehensive Scope)
+            val queryTokens = searchQuery.lowercase().split(" ").filter { it.isNotBlank() }
+            
+            // Build Searchable Content
+            val menuItems = order.items.joinToString(" ") { it.product.name }
+            val orderTypeID = when(order.orderType.lowercase()) {
+                "takeaway" -> "bungkus takeaway"
+                "delivery" -> "antar delivery"
+                else -> "makan ditempat dine-in"
+            }
+            // Combine all searchable fields
+            val content = """
+                ${order.customerName} 
+                ${order.transactionCode} 
+                ${order.table?.name ?: ""} 
+                ${order.table?.location?.name ?: ""} 
+                ${order.paymentMethod ?: ""} 
+                $menuItems 
+                $orderTypeID
+            """.trimIndent().lowercase()
+
+            // Logic: Order must contain ALL tokens (e.g. "Budi Nasi" -> finds Budi AND Nasi)
+            queryTokens.all { token -> content.contains(token) }
         } else {
-             // Active Queue: Oldest First (Ascending / FIFO)
-             o1.createdAt.compareTo(o2.createdAt)
+            // STANDARD FILTER (Existing Logic)
+            when (selectedFilter) {
+                "all" -> order.status != "Completed" && order.status != "Cancelled"
+                "Pending" -> order.status == "Pending"
+                "Processing" -> order.status == "Processing"
+                "Completed" -> order.status == "Completed" || order.status == "Cancelled"
+                else -> true
+            }
+        }
+    }.sortedWith(Comparator { o1, o2 ->
+        if (searchQuery.isNotEmpty()) {
+             // PRIORITY SEARCH SORT (Pending > Processing > Completed/Cancelled)
+             val p1 = when(o1.status) { "Pending" -> 1; "Processing" -> 2; else -> 3 }
+             val p2 = when(o2.status) { "Pending" -> 1; "Processing" -> 2; else -> 3 }
+             
+             if (p1 != p2) {
+                 p1 - p2 // Ascending Priority (1, 2, 3)
+             } else {
+                 if (p1 == 3) {
+                     // If Completed/History: Newest First
+                     o2.createdAt.compareTo(o1.createdAt)
+                 } else {
+                     // If Active Queue: Oldest First (FIFO)
+                     o1.createdAt.compareTo(o2.createdAt)
+                 }
+             }
+        } else {
+            // STANDARD SORT
+            if (selectedFilter == "Completed") {
+                 // History: Newest First (Descending)
+                 o2.createdAt.compareTo(o1.createdAt)
+            } else {
+                 // Active Queue: Oldest First (Ascending / FIFO)
+                 o1.createdAt.compareTo(o2.createdAt)
+            }
         }
     })
+
+    val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+
+    // Sync Focus State
+    LaunchedEffect(isSearchFocused) {
+        if (!isSearchFocused) {
+            focusManager.clearFocus()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(BgBody)) {
         Scaffold(
             containerColor = Color.Transparent, 
             topBar = {
-                DashboardTopBar(
-                    storeName = store?.name ?: "Dapur QuackXel",
-                    logoUrl = store?.logo,
-                    isSoundEnabled = isSoundEnabled,
-                    isAlwaysOn = isAlwaysOn,
-                    onToggleSound = onToggleSound,
-                    onToggleAlwaysOn = onToggleAlwaysOn,
-                    onLongClickAlwaysOn = onLongClickAlwaysOn,
-                    onProfileClick = { onNavigate("profile") }
-                )
+                AnimatedVisibility(
+                    visible = !isSearchFocused,
+                    enter = slideInVertically() + fadeIn(),
+                    exit = slideOutVertically() + fadeOut()
+                ) {
+                    DashboardTopBar(
+                        storeName = store?.name ?: "Dapur QuackXel",
+                        logoUrl = store?.logo,
+                        isSoundEnabled = isSoundEnabled,
+                        isAlwaysOn = isAlwaysOn,
+                        onToggleSound = onToggleSound,
+                        onToggleAlwaysOn = onToggleAlwaysOn,
+                        onLongClickAlwaysOn = onLongClickAlwaysOn,
+                        onProfileClick = { onNavigate("profile") }
+                    )
+                }
             },
             bottomBar = { /* Use custom overlay below */ }
         ) { paddingValues ->
@@ -273,14 +342,23 @@ fun DashboardScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp),
+                    .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp, start = 16.dp, end = 16.dp) else Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp)),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Search Bar
-                SearchBar(searchQuery) { searchQuery = it }
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    isFocused = isSearchFocused,
+                    onBack = { isSearchFocused = false },
+                    onFocusTrigger = { isSearchFocused = true },
+                    focusRequester = focusRequester
+                )
 
-                // Filter Chips
-                FilterSection(selectedFilter) { selectedFilter = it }
+                // Filter Chips (Hide when Focused)
+                AnimatedVisibility(visible = !isSearchFocused) {
+                    FilterSection(selectedFilter) { selectedFilter = it }
+                }
 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -416,24 +494,83 @@ fun DashboardTopBar(
 
 // ... SearchBar, FilterSection, FilterChip (Same as before) ...
 @Composable
-fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
-    TextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = { Text("Cari Nomor Meja, Menu...", style = MaterialTheme.typography.bodyMedium, color = TextMuted) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, Color.Transparent, RoundedCornerShape(12.dp)),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent
-        ),
-        singleLine = true
+fun SearchBar(
+    query: String, 
+    onQueryChange: (String) -> Unit,
+    isFocused: Boolean = false,
+    onBack: () -> Unit = {},
+    onFocusTrigger: () -> Unit = {},
+    focusRequester: FocusRequester
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    
+    // Animate Shape: Pill (50%) -> Rect (12.dp)
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isFocused) 10.dp else 24.dp, // 24.dp approximates Pill for standard height
+        label = "corner"
     )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Back Button (Only visible when focused) - PWA Style
+        AnimatedVisibility(
+            visible = isFocused,
+            enter = slideInHorizontally() + fadeIn(),
+            exit = slideOutHorizontally() + fadeOut()
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextMain)
+            }
+        }
+        
+        Box(modifier = Modifier.weight(1f)) {
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { 
+                    Text(
+                        "Cari pelanggan, menu, meja...", // STATIC PLACEHOLDER
+                        style = MaterialTheme.typography.bodyMedium, 
+                        color = TextMuted
+                    ) 
+                },
+                // PWA: Hides Search Icon when focused
+                leadingIcon = if (isFocused) null else { 
+                    { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) } 
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(cornerRadius)) // Animated Shape
+                    .border(1.dp, if (isFocused) CardHeaderBg else Color.Transparent, RoundedCornerShape(cornerRadius))
+                    .focusRequester(focusRequester),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = if (isFocused) Color(0xFFF3F4F6) else Color.White, // PWA uses F3F4F6 (Greyish) when focused? Or always?
+                    unfocusedContainerColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = TextMain,
+                    unfocusedTextColor = TextMain
+                ),
+                singleLine = true
+            )
+
+            // Clickable Overlay for Robust Focus Trigger
+            if (!isFocused) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(cornerRadius))
+                        .clickable {
+                            onFocusTrigger()
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                )
+            }
+        }
+    }
 }
 
 @Composable

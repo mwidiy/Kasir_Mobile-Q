@@ -4,7 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -69,6 +78,21 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     var selectedTransaction by remember { mutableStateOf<OrderResponse?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
 
+    // SEARCH FOCUS STATE
+    var isSearchFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    // Back Handler to exit Focus Mode
+    BackHandler(enabled = isSearchFocused) {
+        isSearchFocused = false
+        focusManager.clearFocus()
+    }
+
+    LaunchedEffect(isSearchFocused) {
+        if (!isSearchFocused) focusManager.clearFocus()
+    }
+
     val context = LocalContext.current
 
     // Logic Effects
@@ -86,13 +110,23 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
 
     LaunchedEffect(searchQuery) {
         viewModel.search(searchQuery)
+        // Auto-switch to "Semua" (Tab 2) if searching to show global results
+        if (searchQuery.isNotEmpty() && selectedTab != 2) {
+             selectedTab = 2 
+             viewModel.setTabFilter(2)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(RiwayatBgBody)) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = { 
-                RiwayatHeader(
+                AnimatedVisibility(
+                    visible = !isSearchFocused,
+                    enter = slideInVertically() + fadeIn(),
+                    exit = slideOutVertically() + fadeOut()
+                ) {
+                    RiwayatHeader(
                    onExportClick = {
                         // 1. Validation: Prevent export if no data
                         if (transactions.isEmpty()) {
@@ -156,6 +190,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                         }
                    }
                 ) 
+            }
             },
             bottomBar = { /* Custom Bottom Nav via Box */ }
         ) { paddingValues ->
@@ -163,25 +198,32 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp) else Modifier) // FIX: Add padding when focused
                     .padding(bottom = 100.dp) // Space for bottom nav
             ) {
                 // SUMMARY CARD (Bound to Analysis)
-                SummarySection(
-                    selectedTabIdx = selectedTab, 
-                    totalIncome = analysis.totalIncome, 
-                    transactionCount = analysis.transactionCount, 
-                    avgIncome = analysis.avgIncome,
-                    onTabSelect = { index -> 
-                         selectedTab = index 
-                         viewModel.setTabFilter(index)
-                    }
-                )
+                AnimatedVisibility(visible = !isSearchFocused) {
+                    SummarySection(
+                        selectedTabIdx = selectedTab, 
+                        totalIncome = analysis.totalIncome, 
+                        transactionCount = analysis.transactionCount, 
+                        avgIncome = analysis.avgIncome,
+                        onTabSelect = { index -> 
+                             selectedTab = index 
+                             viewModel.setTabFilter(index)
+                        }
+                    )
+                }
 
                 // FILTER BAR (Bound to Search)
                 FilterBar(
                     query = searchQuery, 
                     onFilterClick = { showFilterDialog = true }, 
-                    onQueryChange = { searchQuery = it }
+                    onQueryChange = { searchQuery = it },
+                    isFocused = isSearchFocused,
+                    onBack = { isSearchFocused = false },
+                    onFocusTrigger = { isSearchFocused = true },
+                    focusRequester = focusRequester
                 )
 
                 // TRANSACTION LIST
@@ -349,24 +391,61 @@ fun RowScope.TabItem(label: String, isActive: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun FilterBar(query: String, onFilterClick: () -> Unit, onQueryChange: (String) -> Unit) {
+fun FilterBar(
+    query: String, 
+    onFilterClick: () -> Unit, 
+    onQueryChange: (String) -> Unit,
+    isFocused: Boolean = false,
+    onBack: () -> Unit = {},
+    onFocusTrigger: () -> Unit = {},
+    focusRequester: FocusRequester
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    
+    // Animate Shape
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isFocused) 12.dp else 10.dp,
+        label = "corner"
+    )
+
     Row(
         modifier = Modifier.padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // Back Button (Start)
+        AnimatedVisibility(
+            visible = isFocused,
+            enter = slideInHorizontally() + fadeIn(),
+            exit = slideOutHorizontally() + fadeOut()
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = RiwayatTextMain)
+            }
+        }
+
         // Search Input
         Box(modifier = Modifier.weight(1f)) {
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Cari Order ID...", fontSize = 13.sp, color = RiwayatTextMuted) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFFAAAAAA), modifier = Modifier.size(18.dp)) },
+                placeholder = { 
+                    Text(
+                        if (isFocused) "Cari Transaction ID, Pelanggan..." else "Cari Order ID...", 
+                        fontSize = 13.sp, 
+                        color = RiwayatTextMuted
+                    ) 
+                },
+                leadingIcon = if (isFocused) null else {
+                    { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFFAAAAAA), modifier = Modifier.size(18.dp)) }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, RiwayatBorder, RoundedCornerShape(10.dp)),
+                    .clip(RoundedCornerShape(cornerRadius))
+                    .border(1.dp, if (isFocused) RiwayatTextMain else RiwayatBorder, RoundedCornerShape(cornerRadius))
+                    .focusRequester(focusRequester),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = if (isFocused) Color(0xFFF3F4F6) else Color.White,
                     unfocusedContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
@@ -376,19 +455,39 @@ fun FilterBar(query: String, onFilterClick: () -> Unit, onQueryChange: (String) 
                 ),
                 singleLine = true
             )
+
+             // Clickable Overlay for Robust Focus Trigger
+            if (!isFocused) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(cornerRadius))
+                        .clickable {
+                            onFocusTrigger()
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                )
+            }
         }
 
-        // Filter Button
-        Box(
-            modifier = Modifier
-                .size(width = 46.dp, height = 56.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White)
-                .border(1.dp, RiwayatBorder, RoundedCornerShape(10.dp))
-                .clickable(onClick = onFilterClick),
-            contentAlignment = Alignment.Center
+        // Filter Button (Hidden when Focused)
+        AnimatedVisibility(
+            visible = !isFocused,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally()
         ) {
-            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = RiwayatTextMain, modifier = Modifier.size(20.dp))
+             Box(
+                modifier = Modifier
+                    .size(width = 46.dp, height = 56.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+                    .border(1.dp, RiwayatBorder, RoundedCornerShape(10.dp))
+                    .clickable(onClick = onFilterClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = RiwayatTextMain, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
