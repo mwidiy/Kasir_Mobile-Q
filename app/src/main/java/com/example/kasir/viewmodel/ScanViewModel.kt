@@ -43,9 +43,20 @@ class ScanViewModel : ViewModel() {
                     val order = response.body()?.data
                     if (order != null) {
                         // Check if this is a Refund Case
+                        // 1. Handle Valid Refund Request (Prioritas: User minta refund)
                         if (order.status == "Cancelled" && order.paymentStatus == "Paid" && order.refundStatus != "Refunded") {
                             _refundOrder.value = order
-                        } else {
+                        } 
+                        // 2. Reject Already Refunded (Exploit Fix)
+                        else if (order.refundStatus == "Refunded") {
+                            _error.value = "⛔ Pesanan ini SUDAH direfund!"
+                        }
+                        // 3. Reject Cancelled & Unpaid (Exploit Fix)
+                        else if (order.status == "Cancelled") {
+                             _error.value = "⛔ Pesanan ini sudah DIBATALKAN!"
+                        }
+                        // 4. Normal Flow (Payment Confirmation or other processing)
+                        else {
                             _scannedOrder.value = order
                         }
                     }

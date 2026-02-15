@@ -26,7 +26,9 @@ fun RefundConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    val formatRp = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    val formatRp = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+        maximumFractionDigits = 0
+    }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
