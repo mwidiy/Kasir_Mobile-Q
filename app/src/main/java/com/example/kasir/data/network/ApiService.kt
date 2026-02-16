@@ -180,4 +180,14 @@ interface ApiService {
     // Auth
     @POST("api/auth/google-login")
     suspend fun googleLogin(@Body request: com.example.kasir.data.model.LoginRequest): Response<com.example.kasir.data.model.LoginResponse>
+
+    // Withdrawal
+    @GET("api/withdraw/balance")
+    suspend fun getBalance(): com.example.kasir.data.model.BalanceResponse
+
+    @POST("api/withdraw/request")
+    suspend fun requestWithdrawal(@Body request: com.example.kasir.data.model.WithdrawalRequest): com.example.kasir.data.model.WithdrawalResponse
+    
+    @GET("api/withdraw/history")
+    suspend fun getWithdrawalHistory(): com.example.kasir.data.model.WithdrawalHistoryResponse
 }

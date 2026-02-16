@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kasir.data.model.Store
+import com.example.kasir.data.model.WithdrawalRequest
+import com.example.kasir.data.model.Withdrawal
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.FileUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,8 +26,30 @@ class ProfileViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+
+    private val _withdrawalHistory = MutableStateFlow<List<Withdrawal>>(emptyList())
+    val withdrawalHistory: StateFlow<List<Withdrawal>> = _withdrawalHistory
+
     init {
         fetchStore()
+        fetchBalance()
+        fetchHistory()
+    }
+
+    fun fetchHistory() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getWithdrawalHistory()
+                if (response.success) {
+                    _withdrawalHistory.value = response.data
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
     }
 
     fun fetchStore() {
@@ -57,6 +81,91 @@ class ProfileViewModel : ViewModel() {
                  }
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal update nama: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private val _balance = MutableStateFlow<Int>(0)
+    val balance: StateFlow<Int> = _balance
+
+    private val _availableBalance = MutableStateFlow<Int>(0)
+    val availableBalance: StateFlow<Int> = _availableBalance
+
+    private val _pendingSettlement = MutableStateFlow<Int>(0)
+    val pendingSettlement: StateFlow<Int> = _pendingSettlement
+
+    fun fetchBalance() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getBalance()
+                if (response.success) {
+                    _balance.value = response.balance
+                    _availableBalance.value = response.availableBalance
+                    _pendingSettlement.value = response.pendingSettlement
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
+    }
+
+    fun updatePaymentSettings(
+        bankName: String?, 
+        bankNumber: String?, 
+        bankHolder: String?,
+        ewalletType: String?,
+        ewalletNumber: String?,
+        ewalletName: String?,
+        isDelete: Boolean = false
+    ) {
+         viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                 val response = RetrofitClient.instance.updateStore(
+                     com.example.kasir.data.model.StoreUpdateRequest(
+                         bankName = bankName,
+                         bankNumber = bankNumber,
+                         bankHolder = bankHolder,
+                         ewalletType = ewalletType, // e.g. "ShopeePay"
+                         ewalletNumber = ewalletNumber,
+                         ewalletName = ewalletName
+                     )
+                 )
+                 if (response.success && response.data != null) {
+                     _storeState.value = response.data
+                     if (!isDelete) {
+                        _errorMessage.value = "Pengaturan pembayaran disimpan"
+                     } else {
+                        // For delete, maybe separate message or just null (silent update)
+                        // If null, the ProfileScreen observing "Pengaturan pembayaran disimpan" won't show the popup.
+                     }
+                 }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal simpan pengaturan: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun requestWithdrawal(amount: Int, method: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = RetrofitClient.instance.requestWithdrawal(
+                    com.example.kasir.data.model.WithdrawalRequest(amount, method)
+                )
+                if (response.success) {
+                    fetchBalance() // Refresh balance
+                    fetchHistory() // Refresh history
+                    onSuccess()
+                } else {
+                     _errorMessage.value = "Gagal tarik dana"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Gagal tarik dana: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
             }
