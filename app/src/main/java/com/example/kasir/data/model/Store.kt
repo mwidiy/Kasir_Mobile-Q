@@ -13,7 +13,8 @@ data class Store(
     val bankHolder: String?,
     val ewalletType: String?,
     val ewalletNumber: String?,
-    val ewalletName: String?
+    val ewalletName: String?,
+    val whatsappNumber: String? // NEW
 )
 
 data class StoreResponse(
@@ -29,5 +30,6 @@ data class StoreUpdateRequest(
     val bankHolder: String? = null,
     val ewalletType: String? = null,
     val ewalletNumber: String? = null,
-    val ewalletName: String? = null
+    val ewalletName: String? = null,
+    val whatsappNumber: String? = null
 )

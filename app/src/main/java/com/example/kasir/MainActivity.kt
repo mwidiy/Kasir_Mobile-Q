@@ -31,6 +31,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import android.util.Log
 import com.example.kasir.service.OrderNotificationService
+import androidx.lifecycle.ProcessLifecycleOwner
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class MainActivity : ComponentActivity() {
@@ -40,6 +41,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // --- LIFECYCLE OBSERVER ---
+        androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(com.example.kasir.utils.AppLifecycleObserver)
         
         // --- NATIVE SERVICE START ---
         checkAndStartService()

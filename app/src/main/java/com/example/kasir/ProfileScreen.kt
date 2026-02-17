@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock // Added
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Info
@@ -1347,6 +1348,121 @@ fun RestaurantIdentitySection(
             initialName = name,
             onSave = { newName -> viewModel.updateName(newName) }
         )
+
+        // WhatsApp Number Input
+        WhatsAppNumberEditor(
+            initialNumber = viewModel.storeState.collectAsState().value?.whatsappNumber ?: "",
+            onSave = { newNumber -> viewModel.updateWhatsApp(newNumber) }
+        )
+    }
+}
+
+@Composable
+fun WhatsAppNumberEditor(
+    initialNumber: String,
+    onSave: (String) -> Unit
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var text by remember(initialNumber) { mutableStateOf(initialNumber) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) { 
+             // Icon WA (Ensure ic_whatsapp.png exists in drawable)
+             Image(
+                 painter = painterResource(id = R.drawable.ic_whatsapp),
+                 contentDescription = "WhatsApp",
+                 modifier = Modifier.size(24.dp).padding(end=8.dp)
+             )
+             Text(
+                text = "Nomor WhatsApp",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = Navy
+                ),
+                modifier = Modifier.padding(bottom = 0.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isEditing) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { 
+                        // Only allow numbers
+                        if (it.all { char -> char.isDigit() }) text = it 
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = Color(0xFF25D366), // WA Color
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    ),
+                    singleLine = true,
+                    placeholder = { Text("628...") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                )
+                
+                // Save Button
+                IconButton(
+                    onClick = { 
+                        onSave(text)
+                        isEditing = false 
+                    },
+                    modifier = Modifier.background(Color(0xFF25D366), CircleShape).size(40.dp)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.White)
+                }
+
+                // Cancel Button
+                IconButton(
+                    onClick = { 
+                        text = initialNumber
+                        isEditing = false 
+                    },
+                    modifier = Modifier.background(Color.LightGray.copy(alpha=0.2f), CircleShape).size(40.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Navy)
+                }
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                if (initialNumber.isNotEmpty()) {
+                    Text(
+                        text = initialNumber,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy),
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Text(
+                        text = "Belum diset (Contoh: 628...)",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                IconButton(onClick = { isEditing = true }) {
+                    // Lock icon implies "Secure/Fixed" until edited
+                    Icon(
+                        imageVector = if (initialNumber.isNotEmpty()) Icons.Default.Lock else Icons.Default.Edit, 
+                        contentDescription = "Edit WA", 
+                        tint = if (initialNumber.isNotEmpty()) Color.Gray else Navy
+                    )
+                }
+            }
+        }
     }
 }
 

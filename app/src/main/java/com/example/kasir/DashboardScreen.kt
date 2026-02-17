@@ -49,7 +49,7 @@ import com.example.kasir.ui.components.ForceCancelDialog
 import com.example.kasir.viewmodel.DashboardViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import com.example.kasir.utils.playNotificationSound
+
 
 // --- COLOR PALETTE ---
 

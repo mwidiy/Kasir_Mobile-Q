@@ -102,6 +102,27 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    fun updateWhatsApp(number: String) {
+        val oldState = _storeState.value
+        _storeState.value = oldState?.copy(whatsappNumber = number)
+
+        viewModelScope.launch {
+            try {
+                // Ensure number format (strip + or 62 if needed, but backend/PWA handles it usually. Let's just save as is)
+                val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(whatsappNumber = number))
+                if (response.success && response.data != null) {
+                    _storeState.value = response.data
+                } else {
+                    _storeState.value = oldState
+                    _errorMessage.value = "Gagal update WhatsApp"
+                }
+            } catch (e: Exception) {
+                _storeState.value = oldState
+                _errorMessage.value = "Gagal update WhatsApp: ${e.localizedMessage}"
+            }
+        }
+    }
+
     private val _balance = MutableStateFlow<Int>(0)
     val balance: StateFlow<Int> = _balance
 

@@ -26,7 +26,7 @@ import androidx.compose.animation.ExperimentalAnimationApi
 class OrderNotificationService : Service() {
 
     private var mSocket: Socket? = null
-    private val CHANNEL_ID = "order_notifications"
+    private val CHANNEL_ID = "order_notifications_v2" // Changed ID to force update sound
     private val SERVICE_CHANNEL_ID = "order_service_channel"
     private val NOTIFICATION_ID = 1
     private val SERVICE_NOTIFICATION_ID = 999
@@ -106,6 +106,12 @@ class OrderNotificationService : Service() {
     }
 
     private fun showOrderNotification(code: String, name: String) {
+        // --- LOGIC BARU: Cek Foreground ---
+        if (com.example.kasir.utils.AppLifecycleObserver.isAppInForeground) {
+            Log.d("OrderService", "App in foreground, skipping notification")
+            return
+        }
+
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -115,7 +121,8 @@ class OrderNotificationService : Service() {
         
         // Custom Sound Logic
         // We use the default notification sound uri constructed pointing to the resource
-        val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.ding)
+        // UPDATED: Use sound_pesanan
+        val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.sound_pesanan)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher_round) // Use app icon or custom small icon
@@ -166,7 +173,7 @@ class OrderNotificationService : Service() {
             
             // 2. Order Notification Channel (High Importance, Sound)
             val orderChannel = NotificationChannel(
-                CHANNEL_ID,
+                CHANNEL_ID, // V2
                 "Notifikasi Pesanan",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -174,7 +181,8 @@ class OrderNotificationService : Service() {
                 enableVibration(true)
                 
                 // Custom Sound Setup for Channel (Android 8+)
-                val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.ding)
+                // UPDATED: Use sound_pesanan
+                val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.sound_pesanan)
                 val audioAttributes = android.media.AudioAttributes.Builder()
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)

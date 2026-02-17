@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.ui.components.CustomBottomNavigation
 import com.example.kasir.viewmodel.DashboardViewModel
-import com.example.kasir.utils.playNotificationSound
+
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import android.widget.Toast
@@ -69,33 +69,49 @@ fun MainScreen(
     }
 
     // --- GLOBAL LOGIC: New Order Sound ---
+    // --- GLOBAL LOGIC: New Order & Cancellation Sound ---
     val orders by viewModel.orders.collectAsState()
     val isSoundEnabled by viewModel.isSoundEnabled.collectAsState()
     var knownPendingIds by remember { mutableStateOf(setOf<Int>()) }
+    var knownCancellationIds by remember { mutableStateOf(setOf<Int>()) }
     var isFirstLoad by remember { mutableStateOf(true) }
 
     LaunchedEffect(orders) {
+        // 1. New Order Logic (Pending)
         val currentPending = orders.filter { it.status == "Pending" }
-        val currentIds = currentPending.map { it.id }.toSet()
+        val currentPendingIds = currentPending.map { it.id }.toSet()
+        
+        // 2. Cancellation Request Logic (Requested)
+        val currentCancellation = orders.filter { it.cancellationStatus == "Requested" }
+        val currentCancellationIds = currentCancellation.map { it.id }.toSet()
         
         if (isFirstLoad) {
             // First load: just sync, don't ring
-            knownPendingIds = currentIds
+            knownPendingIds = currentPendingIds
+            knownCancellationIds = currentCancellationIds
             isFirstLoad = false
         } else {
             // Check for NEW pending orders
-            val newOrderIds = currentIds.subtract(knownPendingIds)
+            val newOrderIds = currentPendingIds.subtract(knownPendingIds)
             if (newOrderIds.isNotEmpty()) {
                 if (isSoundEnabled) {
-                    playNotificationSound(context)
+                    com.example.kasir.utils.playOrderSound(context)
                 }
-                // Update known IDs to current + any previous (strictly current is safer)
-                knownPendingIds = currentIds
+                knownPendingIds = currentPendingIds
             } else {
-                // Determine if we should update knownIds?
-                // If an order is finished, it leaves currentIds.
-                // We should update knownIds to match currentIds so we play sound if it somehow comes back or new one comes.
-                knownPendingIds = currentIds
+                // If ids are removed (processed/cancelled), update strictly to current
+                knownPendingIds = currentPendingIds
+            }
+
+            // Check for NEW cancellation requests
+            val newCancellationIds = currentCancellationIds.subtract(knownCancellationIds)
+            if (newCancellationIds.isNotEmpty()) {
+                if (isSoundEnabled) {
+                    com.example.kasir.utils.playCancellationSound(context)
+                }
+                knownCancellationIds = currentCancellationIds
+            } else {
+                knownCancellationIds = currentCancellationIds
             }
         }
     }

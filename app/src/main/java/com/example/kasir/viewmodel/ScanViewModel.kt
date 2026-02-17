@@ -75,15 +75,9 @@ class ScanViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Update to 'Processing' or 'Paid' explicitly if backend supports it.
-                // Assuming 'Processing' as per previous logic.
-                // Wait, orderController updateOrderStatus logic handles "Paid" status string carefully.
-                // "Processing" is just a status. To mark paid, maybe send "Paid" status?
-                // But typically Kitchen workflow: Pending -> Processing -> Completed.
-                // Payment is separate.
-                // User said "konfirmasi aja".
-                // I will send "Processing" to move it forward.
-                val response = apiService.updateOrderStatus(orderId, OrderStatusRequest("Processing", "Paid"))
+                // Fix: Only update paymentStatus to "Paid", do NOT change status to "Processing"
+                // The status should remain as it was (e.g. Pending) until Kitchen manually starts processing
+                val response = apiService.updateOrderStatus(orderId, OrderStatusRequest(null, "Paid"))
                 if (response.isSuccessful) {
                     _paymentSuccess.value = true
                 } else {
