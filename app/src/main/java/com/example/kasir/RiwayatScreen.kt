@@ -38,12 +38,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
-import android.app.DownloadManager
-import android.content.Context
-import android.net.Uri
-import android.os.Environment
 import android.widget.Toast
+import android.os.Build
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kasir.utils.PdfExporter
 import com.example.kasir.viewmodel.RiwayatViewModel
 import com.example.kasir.data.model.OrderResponse
 import com.example.kasir.data.model.OrderItemResponse // Import OrderItemResponse
@@ -139,54 +137,47 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                             return@RiwayatHeader
                         }
 
-                        // 2. Calculate Date Params based on Tab
-                        var dateParams = ""
+                        // 2. Calculate Date Strings for Report Header
                         val calendar = java.util.Calendar.getInstance()
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        val sdf = SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID"))
+                        var startDateStr: String? = null
+                        var endDateStr: String? = null
                         
                         when (selectedTab) {
                             0 -> { // Hari Ini
                                 val today = sdf.format(calendar.time)
-                                dateParams = "&startDate=$today&endDate=$today"
+                                startDateStr = today
+                                endDateStr = today
                             }
                             1 -> { // Bulan Ini
-                                calendar.set(java.util.Calendar.DAY_OF_MONTH, 1) // First day
-                                val start = sdf.format(calendar.time)
+                                calendar.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                                startDateStr = sdf.format(calendar.time)
                                 
-                                calendar.set(java.util.Calendar.DAY_OF_MONTH, calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)) // Last day
-                                val end = sdf.format(calendar.time)
-                                dateParams = "&startDate=$start&endDate=$end"
+                                calendar.set(java.util.Calendar.DAY_OF_MONTH, calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH))
+                                endDateStr = sdf.format(calendar.time)
                             }
-                            else -> {
-                                // "Semua" -> No date filter, exports all matches
-                            }
+                            // else -> "Semua" (null dates)
                         }
 
-                        // 3. Trigger Download
-                        val baseUrl = com.example.kasir.data.network.RetrofitClient.BASE_URL
-                        val url = "${baseUrl}api/orders/export-pdf?status=${viewModel.statusFilter}&type=${viewModel.typeFilter}&search=${viewModel.currentQuery}$dateParams"
-                        
-                        // Get Token
-                        val token = com.example.kasir.utils.SessionManager.jwtToken
-                        
-                        val request = DownloadManager.Request(Uri.parse(url))
-                            .setTitle("Laporan Riwayat")
-                            .setDescription("Mengunduh laporan PDF...")
-                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Laporan_Riwayat_${System.currentTimeMillis()}.pdf")
-                            .setAllowedOverMetered(true)
-                            .setAllowedOverRoaming(true)
-                        
-                        if (token != null) {
-                            request.addRequestHeader("Authorization", "Bearer $token")
-                        }
-
-                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                        // 3. Client-Side Export (NEW STRATEGY)
+                        // No network, no tokens, no timeouts.
                         try {
-                            downloadManager.enqueue(request)
-                            Toast.makeText(context, "Mulai mengunduh...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Memproses PDF...", Toast.LENGTH_SHORT).show()
+                            
+                            // Get Analysis Data from ViewModel
+                            val analysis = viewModel.analysis.value
+                            
+                            // Export via Utility
+                            PdfExporter.export(
+                                context = context,
+                                orders = transactions, // Currently filtered list
+                                analysis = analysis,
+                                startDate = startDateStr,
+                                endDate = endDateStr
+                            )
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Gagal mengunduh: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
+                            e.printStackTrace()
                         }
                    }
                 ) 
@@ -299,8 +290,9 @@ fun RiwayatHeader(onExportClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(6.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-                .clickable { onExportClick() },
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onExportClick() }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {

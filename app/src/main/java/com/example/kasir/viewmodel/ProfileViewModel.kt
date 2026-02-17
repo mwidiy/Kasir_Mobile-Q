@@ -54,17 +54,23 @@ class ProfileViewModel : ViewModel() {
 
     fun fetchStore() {
         viewModelScope.launch {
-            _isLoading.value = true
+            // Only show full loading if we have no data yet (Skeleton/Spinner)
+            // If we have data, we do "Silent Refresh" (background update)
+            if (_storeState.value == null) {
+                _isLoading.value = true
+            }
+            
             try {
                 val response = RetrofitClient.instance.getStore()
                 if (response.success) {
                     _storeState.value = response.data
                 }
             } catch (e: Exception) {
-                // If 404 or auth fails, it might throw or return error
-                // For now, silent fail or log
                 e.printStackTrace()
-                _errorMessage.value = "Gagal memuat profil: ${e.localizedMessage}"
+                // Only show error if we have no data to show
+                if (_storeState.value == null) {
+                    _errorMessage.value = "Gagal memuat profil: ${e.localizedMessage}"
+                }
             } finally {
                 _isLoading.value = false
             }
@@ -72,17 +78,26 @@ class ProfileViewModel : ViewModel() {
     }
 
     fun updateName(newName: String) {
+        val oldState = _storeState.value
+        // Optimistic Update: Apply change immediately
+        _storeState.value = oldState?.copy(name = newName)
+
         viewModelScope.launch {
-            _isLoading.value = true
+            // No loading spinner for "instant" feel
             try {
                  val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(name = newName))
                  if (response.success && response.data != null) {
+                     // Confirm with server data (usually same)
                      _storeState.value = response.data
+                 } else {
+                     // Revert on server error
+                     _storeState.value = oldState
+                     _errorMessage.value = "Gagal update nama"
                  }
             } catch (e: Exception) {
+                // Revert on network error
+                _storeState.value = oldState
                 _errorMessage.value = "Gagal update nama: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
@@ -120,8 +135,26 @@ class ProfileViewModel : ViewModel() {
         ewalletName: String?,
         isDelete: Boolean = false
     ) {
+         val oldState = _storeState.value
+         
+         // Optimistic Update: Construct new state locally
+         // Note: handling nulls carefully to match Store model
+         val newState = oldState?.copy(
+             bankName = bankName,
+             bankNumber = bankNumber,
+             bankHolder = bankHolder,
+             ewalletType = ewalletType,
+             ewalletNumber = ewalletNumber,
+             ewalletName = ewalletName
+         )
+         _storeState.value = newState
+         
+         if (!isDelete) {
+            _errorMessage.value = "Pengaturan pembayaran disimpan"
+         }
+
          viewModelScope.launch {
-            _isLoading.value = true
+            // No loading spinner
             try {
                  val response = RetrofitClient.instance.updateStore(
                      com.example.kasir.data.model.StoreUpdateRequest(
@@ -135,17 +168,15 @@ class ProfileViewModel : ViewModel() {
                  )
                  if (response.success && response.data != null) {
                      _storeState.value = response.data
-                     if (!isDelete) {
-                        _errorMessage.value = "Pengaturan pembayaran disimpan"
-                     } else {
-                        // For delete, maybe separate message or just null (silent update)
-                        // If null, the ProfileScreen observing "Pengaturan pembayaran disimpan" won't show the popup.
-                     }
+                 } else {
+                     // Revert
+                     _storeState.value = oldState
+                     _errorMessage.value = "Gagal simpan pengaturan"
                  }
             } catch (e: Exception) {
+                // Revert
+                _storeState.value = oldState
                 _errorMessage.value = "Gagal simpan pengaturan: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }

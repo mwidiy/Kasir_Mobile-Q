@@ -71,7 +71,7 @@ fun FilterHistoryDialog(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
-                    Text("Terapkan Filter", fontWeight = FontWeight.Bold)
+                    Text("Terapkan Filter", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }

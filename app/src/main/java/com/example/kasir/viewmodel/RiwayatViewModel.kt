@@ -145,9 +145,24 @@ class RiwayatViewModel : ViewModel() {
     }
 
     private fun calculateAnalysis(orders: List<OrderResponse>) {
-        val total = orders.sumOf { it.totalAmount.toLong() }
+        // Only count COMPLETED orders for income
+        val completedOrders = orders.filter { it.status == "Completed" }
+        val total = completedOrders.sumOf { it.totalAmount.toLong() }
+        
+        // Count all transactions for count? Or also only completed? 
+        // Usually count is total transactions, but let's stick to visible list count for now
+        // or consistent with income? 
+        // User asked "why cancelled counted as income", so fixing income is priority.
+        // Let's keep count as total list size (including cancelled) so they know traffic,
+        // BUT user might want count of valid sales. 
+        // Let's stick to fixing INCOME specifically as requested.
+        
         val count = orders.size
-        val avg = if (count > 0) total / count else 0
+        val avg = if (count > 0) total / count else 0 // Avg per transaction (including cancelled/pending?)
+        // If we want True Avg Sales, we should divide by completedOrders.size
+        // Let's refine avg to be "Avg Income per Successful Order"
+        val successCount = completedOrders.size
+        val realAvg = if (successCount > 0) total / successCount else 0
 
         val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
         _analysis.value = AnalysisData(
@@ -157,32 +172,41 @@ class RiwayatViewModel : ViewModel() {
         )
     }
 
+    private fun parseIsoDate(dateStr: String): Date? {
+        val formats = arrayOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss"
+        )
+        for (format in formats) {
+            try {
+                val parser = SimpleDateFormat(format, Locale.US)
+                parser.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                return parser.parse(dateStr)
+            } catch (e: Exception) {
+                // Try next format
+            }
+        }
+        return null
+    }
+
     private fun isSameDay(dateStr: String, now: Date): Boolean {
-        return try {
-             val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-             val date = parser.parse(dateStr) ?: return false
-             val fmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-             fmt.format(date) == fmt.format(now)
-        } catch (e: Exception) { false }
+        val date = parseIsoDate(dateStr) ?: return false
+        val fmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault()) // Compare in Local Time
+        return fmt.format(date) == fmt.format(now)
     }
 
     private fun isThisWeek(dateStr: String, now: Date): Boolean {
-        return try {
-             val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-             val date = parser.parse(dateStr) ?: return false
-             val diff = now.time - date.time
-             val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diff)
-             days in 0..6
-        } catch (e: Exception) { false }
+        val date = parseIsoDate(dateStr) ?: return false
+        val diff = now.time - date.time
+        val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diff)
+        return days in 0..6
     }
 
     private fun isSameMonth(dateStr: String, now: Date): Boolean {
-        return try {
-             val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-             val date = parser.parse(dateStr) ?: return false
-             val fmt = SimpleDateFormat("yyyyMM", Locale.getDefault())
-             fmt.format(date) == fmt.format(now)
-        } catch (e: Exception) { false }
+        val date = parseIsoDate(dateStr) ?: return false
+        val fmt = SimpleDateFormat("yyyyMM", Locale.getDefault())
+        return fmt.format(date) == fmt.format(now)
     }
     
     override fun onCleared() {

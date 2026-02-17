@@ -74,7 +74,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun fetchOrders() {
         viewModelScope.launch {
-            _isLoading.value = true
+            // Silent Refresh: Only show full loader if list is empty
+            if (_orders.value.isEmpty()) {
+                _isLoading.value = true
+            }
             _error.value = null
             try {
                 // Fetch all orders regardless of status
@@ -111,45 +114,86 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun updateStatus(orderId: Int, newStatus: String) {
+        // Optimistic Update
+        val currentList = _orders.value
+        val oldOrderIndex = currentList.indexOfFirst { it.id == orderId }
+        
+        if (oldOrderIndex != -1) {
+            val oldOrder = currentList[oldOrderIndex]
+            val updatedOrder = oldOrder.copy(status = newStatus)
+            val newList = currentList.toMutableList()
+            newList[oldOrderIndex] = updatedOrder
+            _orders.value = newList
+        }
+
         viewModelScope.launch {
-            _isLoading.value = true
+            // No blocking loading
             try {
                 val response = apiService.updateOrderStatus(orderId, OrderStatusRequest(newStatus))
                 if (response.isSuccessful) {
-                    fetchOrders() // Refresh list on success
+                    fetchOrders() // Sync with server ensure consistency using Silent Refresh
                 } else {
-                     _error.value = "Failed to update status: ${response.message()}"
+                    // Revert
+                    _orders.value = currentList
+                    _error.value = "Failed to update status: ${response.message()}"
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                // Revert
+                _orders.value = currentList
                 _error.value = "Error update: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
 
     fun approveCancellation(orderId: Int) {
+         // Optimistic Update: Remove from list or set status to Cancelled depending on filter?
+         // Usually approve cancel means it becomes "Cancelled" (History)
+         val currentList = _orders.value
+         val oldOrderIndex = currentList.indexOfFirst { it.id == orderId }
+
+         if (oldOrderIndex != -1) {
+             val oldOrder = currentList[oldOrderIndex]
+             val updatedOrder = oldOrder.copy(status = "Cancelled")
+             val newList = currentList.toMutableList()
+             newList[oldOrderIndex] = updatedOrder
+             _orders.value = newList
+         }
+
         viewModelScope.launch {
-            _isLoading.value = true
+             // No blocking loading
             try {
                 val response = apiService.approveCancel(orderId)
                 if (response.isSuccessful) {
                     fetchOrders()
                 } else {
+                    // Revert
+                    _orders.value = currentList
                     _error.value = "Gagal menyetujui pembatalan"
                 }
             } catch (e: Exception) {
+                 // Revert
+                _orders.value = currentList
                 _error.value = "Error: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
 
     fun rejectCancellation(orderId: Int, reason: String? = null) {
+        // Optimistic Update: Revert to previous status (e.g. "Pending")? 
+        // Or remains "Pending"/"Processing"? Usually rejection means it goes back to active.
+        // Assuming "Pending" or keeping it as is but removing formatted "Cancellation Requested" flag if exists.
+        // Since we don't track "Requested" state explicitly in OrderResponse (it might be in status or separate flag),
+        // Simplest optimistic is to assume it goes back to "Pending" or stay same but we refresh.
+        // If we strictly follow "Anti-Blink", we should probably guess the next state.
+        // Let's assume rejection keeps it "Pending" or "Processing".
+        // WITHOUT specific state logic, Silent Refresh via fetchOrders is safest for complexity.
+        // BUT user wants Anti-Kedip.
+        // Let's rely on Silent Refresh for this one since logic is complex (Reject -> Back to what?),
+        // OR simply don't show loading spinner.
+
         viewModelScope.launch {
-            _isLoading.value = true
+            // No blocking loading, just silent refresh
             try {
                 // Construct body
                 val body = if (reason != null) mapOf("reason" to reason) else emptyMap()
@@ -162,8 +206,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             } catch (e: Exception) {
                 _error.value = "Error: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
@@ -186,7 +228,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             if (socket.connected()) {
                  socket.off("new_order")
                  socket.off("order_status_updated")
-                 SocketHandler.closeConnection()
+                 // SocketHandler.closeConnection() // BUG FIX: Don't kill connection! Service might use it (if shared) but now Service is independent.
+                 // However, keeping connection alive when app is killed is not ViewModel's job.
+                 // Service handles background. ViewModel just detaches listeners.
             }
         } catch (e: Exception) {
             e.printStackTrace()

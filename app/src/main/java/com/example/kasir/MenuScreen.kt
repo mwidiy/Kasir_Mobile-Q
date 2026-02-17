@@ -188,8 +188,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
     // Logic Effects: Force Dark Status Bar Icons
     val view = androidx.compose.ui.platform.LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
+    // Fix: Use LaunchedEffect so it only runs ONCE on enter, not every recomposition
+    LaunchedEffect(Unit) {
+        if (!view.isInEditMode) {
             val window = (view.context as android.app.Activity).window
             androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
@@ -417,7 +418,8 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                                         categoryId = item.categoryId,
                                         description = item.description,
                                         image = item.image,
-                                        isActive = item.isActive
+                                        isActive = item.isActive,
+                                        isArActive = item.isArActive
                                     )
                                     viewModel.toggleProductStatus(p)
                                 },

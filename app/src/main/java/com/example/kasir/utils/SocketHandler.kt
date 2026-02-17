@@ -10,6 +10,7 @@ object SocketHandler {
 
     @Synchronized
     fun setSocket() {
+        if (::mSocket.isInitialized) return // Prevent re-initialization
         try {
             // Using the base URL from local.properties
             mSocket = IO.socket(BuildConfig.API_BASE_URL)

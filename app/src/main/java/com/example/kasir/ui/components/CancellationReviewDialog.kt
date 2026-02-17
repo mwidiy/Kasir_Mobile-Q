@@ -100,7 +100,7 @@ fun CancellationReviewDialog(
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Setujui Batal", color = Color.White)
+                        Text("Setujui", color = Color.White)
                     }
                 }
             }

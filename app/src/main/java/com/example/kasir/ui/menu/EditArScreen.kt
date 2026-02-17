@@ -76,10 +76,19 @@ fun EditArScreen(
     // Status Bar Modification (Dark BG, White Icons)
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
-        SideEffect {
+        DisposableEffect(Unit) {
             val window = (view.context as Activity).window
+            val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
+
+            // ON ENTER: Set Header Color & White Icons
             window.statusBarColor = Color(0xFF1E2A38).toArgb() // Match Header
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false // White Icons
+            controller.isAppearanceLightStatusBars = false // White Icons
+
+            onDispose {
+                // ON EXIT: Restore Default (Black Icons) for MenuScreen
+                // Note: Background color usually handled by next screen or theme, but icon color needs explicit reset
+                controller.isAppearanceLightStatusBars = true // Restore Black Icons
+            }
         }
     }
 

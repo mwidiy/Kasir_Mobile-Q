@@ -15,18 +15,19 @@ class ArViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Fullscreen / Immersive Mode
-        window.decorView.systemUiVisibility = (
-            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-            or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
-
+        // Strategy 1: Edge-to-Edge WITHOUT hiding bars
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        
+        // Explicit Dark Status Bar Color
+        window.statusBarColor = android.graphics.Color.parseColor("#1E1E1E")
+        
         val webView = WebView(this)
         setContentView(webView)
+        
+        // Force WHITE icons (Dark BG = Light Icons OFF)
+        androidx.core.view.WindowCompat.getInsetsController(window, webView)?.apply {
+            isAppearanceLightStatusBars = false
+        }
 
         // Settings for 3D/AR
         webView.settings.apply {
@@ -38,7 +39,7 @@ class ArViewActivity : ComponentActivity() {
             mediaPlaybackRequiresUserGesture = false
         }
 
-        // Hardware Acceleration is usually on by default for standard views, ensuring it:
+        // Hardware Acceleration
         webView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
         webView.webChromeClient = WebChromeClient()
@@ -48,11 +49,11 @@ class ArViewActivity : ComponentActivity() {
                 
                 // Intercept Deep Link to close activity
                 if (url.startsWith("kasir://return")) {
-                    finish() // Close Activity
+                    finish()
                     return true
                 }
                 
-                return false // Let WebView load other URLs
+                return false
             }
         }
 
