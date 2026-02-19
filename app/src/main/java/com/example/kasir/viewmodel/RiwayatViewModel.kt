@@ -135,6 +135,11 @@ class RiwayatViewModel : ViewModel() {
             // Backend types: "dinein", "takeaway"
             result = result.filter { it.orderType.equals(typeFilter, ignoreCase = true) }
         }
+
+        // 5. GLOBAL SAFETY FILTER: Hide WaitingPayment unless Paid
+        result = result.filter { 
+            !it.status.equals("WaitingPayment", ignoreCase = true) || it.paymentStatus.equals("Paid", ignoreCase = true)
+        }
         
         _displayedOrders.value = result
         calculateAnalysis(result)

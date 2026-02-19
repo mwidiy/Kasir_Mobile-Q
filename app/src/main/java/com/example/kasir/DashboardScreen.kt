@@ -242,6 +242,24 @@ fun DashboardScreenContent(
     var isSearchFocused by remember { mutableStateOf(false) } // Local state for Dashboard Focus
 
     val filteredOrders = orders.filter { order ->
+        // STRICT FILTER REFINED: 
+        // Hide only if it is QRIS AND it is strictly "Waiting Payment" AND NOT "Paid"
+        // This ensures if backend marks it as "Paid" but status is still "WaitingPayment" (race condition), IT SHOWS UP.
+        
+        val pMethod = order.paymentMethod ?: ""
+        val status = order.status ?: ""
+        val payStatus = order.paymentStatus ?: ""
+
+        val isQris = pMethod.contains("qris", ignoreCase = true)
+        val isWaiting = status.contains("waiting", ignoreCase = true) // Covers "WaitingPayment", "Waiting Payment", etc.
+        val isPaid = payStatus.equals("Paid", ignoreCase = true)
+
+        // STRICT FILTER: HIDE ALL 'Waiting Payment'
+        // Cashier should only see Valid (Paid) orders or COD/PayLater which have status 'Pending'.
+        if (isWaiting) {
+            return@filter false
+        }
+
         if (searchQuery.isNotEmpty()) {
             // SMART SEARCH (Token Based + Comprehensive Scope)
             val queryTokens = searchQuery.lowercase().split(" ").filter { it.isNotBlank() }

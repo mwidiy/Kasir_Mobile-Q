@@ -37,7 +37,12 @@ android {
         apiBaseUrl = apiBaseUrl.replace("\"", "")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
 
-        var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL") ?: "http://192.168.1.4:3001/"
+        // Dynamic PWA_BASE_URL: Derive from API_BASE_URL if not set
+        var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL")
+        if (pwaBaseUrl == null) {
+             // Default to API URL but switch port 3000 -> 3001
+             pwaBaseUrl = apiBaseUrl.replace(":3000", ":3001")
+        }
         pwaBaseUrl = pwaBaseUrl.replace("\"", "")
         buildConfigField("String", "PWA_BASE_URL", "\"$pwaBaseUrl\"")
 
