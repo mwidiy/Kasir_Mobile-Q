@@ -132,6 +132,18 @@ fun DashboardScreen(
         profileViewModel.fetchStore()
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Listen for error changes and show Snackbar
+    LaunchedEffect(error) {
+        if (error != null) {
+            snackbarHostState.showSnackbar(
+                message = error!!,
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
     var cancellationOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for cancellation review
     var forceCancelOrder by remember { mutableStateOf<OrderResponse?>(null) } // Local state for force cancel
 
@@ -148,6 +160,7 @@ fun DashboardScreen(
         store = storeState, // Pass store data
         isSoundEnabled = isSoundEnabled,
         isAlwaysOn = isAlwaysOn,
+        snackbarHostState = snackbarHostState,
         onToggleSound = { viewModel.toggleSound(!isSoundEnabled) },
         onToggleAlwaysOn = { viewModel.toggleAlwaysOn(!isAlwaysOn) },
         onLongClickAlwaysOn = { showAlwaysOnGuide = true },
@@ -233,6 +246,7 @@ fun DashboardScreenContent(
     onScanClick: () -> Unit,
     onReviewCancellation: (OrderResponse) -> Unit,
     onForceCancel: (OrderResponse) -> Unit,
+    snackbarHostState: SnackbarHostState,
     // SEARCH FOCUS PARAMS
     isSearchFocused: Boolean = false,
     onSearchFocusChange: (Boolean) -> Unit = {}
@@ -336,6 +350,7 @@ fun DashboardScreenContent(
     Box(modifier = Modifier.fillMaxSize().background(BgBody)) {
         Scaffold(
             containerColor = Color.Transparent, 
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 AnimatedVisibility(
                     visible = !isSearchFocused,
@@ -363,10 +378,14 @@ fun DashboardScreenContent(
                     .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp, start = 16.dp, end = 16.dp) else Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp)),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Search Bar
+                // Search Bar (With Sanitization)
                 SearchBar(
                     query = searchQuery,
-                    onQueryChange = { searchQuery = it },
+                    onQueryChange = { rawInput -> 
+                        // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
+                        val sanitized = rawInput.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        searchQuery = sanitized
+                    },
                     isFocused = isSearchFocused,
                     onBack = { isSearchFocused = false },
                     onFocusTrigger = { isSearchFocused = true },
@@ -378,13 +397,10 @@ fun DashboardScreenContent(
                     FilterSection(selectedFilter) { selectedFilter = it }
                 }
 
-                if (isLoading) {
+                if (isLoading && filteredOrders.isEmpty()) {
+                    // Cuma tampilkan loading penuh kalau data memang kosong (Fresh load)
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = CardHeaderBg)
-                    }
-                } else if (error != null) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Error: $error", color = Color.Red)
                     }
                 } else if (filteredOrders.isEmpty()) {
                     EmptyState()
@@ -868,14 +884,17 @@ fun ActionButtons(
         } else if (order.status == "Processing") {
             Button(
                 onClick = { onUpdateStatus(order.id, "Completed") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF374151)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF374151),
+                    contentColor = Color.White
+                ),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth().height(45.dp),
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("Selesai / Antar", fontSize = 14.sp)
+                Text("Selesai / Antar", fontSize = 14.sp, color = Color.White)
             }
         } else {
              Button(

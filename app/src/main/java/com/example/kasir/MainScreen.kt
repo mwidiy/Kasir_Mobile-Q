@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.kasir.ui.components.CustomBottomNavigation
+import com.example.kasir.ui.components.NetworkErrorDialog
+import com.example.kasir.utils.NetworkConnectivityObserver
 import com.example.kasir.viewmodel.DashboardViewModel
 
 import android.view.WindowManager
@@ -31,9 +33,13 @@ fun MainScreen(
     var currentScreen by remember { mutableStateOf(initialScreen) }
     var backPressedTime by remember { mutableLongStateOf(0L) }
     
+    // --- GLOBAL LOGIC: Real-Time Network Monitor ---
+    val context = LocalContext.current
+    val networkObserver = remember { NetworkConnectivityObserver(context) }
+    val isNetworkAvailable by networkObserver.observe().collectAsState(initial = com.example.kasir.utils.NetworkUtils.isNetworkAvailable(context))
+    
     // --- GLOBAL LOGIC: Always On Display ---
     val isAlwaysOn by viewModel.isAlwaysOn.collectAsState()
-    val context = LocalContext.current
     val window = (context as? android.app.Activity)?.window
     val activity = (context as? android.app.Activity)
 
@@ -157,9 +163,11 @@ fun MainScreen(
                     "profile" -> ProfileScreen(onNavigate = { target -> 
                          if (target == "login") onLogout() else currentScreen = target
                     })
-                    else -> DashboardScreen(onNavigate = { currentScreen = it }, viewModel = viewModel)
                 }
             }
+            
+            // GLOBAL NETWORK ERROR POPUP (Tampil di atas semuanya)
+            NetworkErrorDialog(isVisible = !isNetworkAvailable)
         }
     }
 }
