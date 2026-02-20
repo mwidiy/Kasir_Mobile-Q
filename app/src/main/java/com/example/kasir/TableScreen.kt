@@ -138,6 +138,23 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     // Edit Table State
     var currentEditingTable by remember { mutableStateOf<Table?>(null) }
     
+    // UI Resilience (Snackbar)
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Anti-Spam (Race Condition) lock for individual table switches
+    var submittingTableIds by remember { mutableStateOf(emptySet<Int>()) }
+    
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(
+                message = msg,
+                duration = SnackbarDuration.Short
+            )
+            // Clear message after showing to allow consecutive errors to trigger
+            errorMessage = null
+        }
+    }
+    
     // New Dialog States
     var showAddOptionDialog by remember { mutableStateOf(false) }
     var showAddLocationDialog by remember { mutableStateOf(false) }
@@ -189,9 +206,13 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         tableList.filter { it.location?.name == selectedLocation }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(QrBg)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = QrBg
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -208,16 +229,15 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = QrPrimaryBlue)
                 }
-            } else if (errorMessage != null) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text(text = errorMessage ?: "Error", color = Color.Red, modifier = Modifier.padding(16.dp))
-                }
             } else {
                 // Fixed Header Area
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                     // Status Card
-                    StatusCard(globalStatus, 
+                    var isStatusSubmitting by remember { mutableStateOf(false) }
+                    StatusCard(globalStatus, isSubmitting = isStatusSubmitting,
                         onToggle = { 
+                            if(isStatusSubmitting) return@StatusCard
+                            isStatusSubmitting = true
                             val newStatus = !globalStatus.isOpen
                             // Optimistic Update
                             globalStatus = globalStatus.copy(isOpen = newStatus)
@@ -237,6 +257,8 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                 } catch(e: Exception) {
                                      globalStatus = globalStatus.copy(isOpen = !newStatus)
                                      errorMessage = "Error: ${e.localizedMessage}"
+                                } finally {
+                                    isStatusSubmitting = false
                                 }
                             }
                         },
@@ -282,10 +304,12 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                     TableCard(
                                         item = item,
                                         isGlobalOpen = globalStatus.isOpen,
+                                        isSubmitting = submittingTableIds.contains(item.id),
                                         onToggle = { isActive ->
                                             // Optimistic Update
                                              val optimisticItem = item.copy(isActive = isActive)
                                              tableList = tableList.map { if (it.id == item.id) optimisticItem else it }
+                                             submittingTableIds = submittingTableIds + item.id
 
                                              scope.launch {
                                                  try {
@@ -303,6 +327,8 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                                      // Error: Revert to original item
                                                      tableList = tableList.map { if (it.id == item.id) item else it }
                                                      errorMessage = "Error status: ${e.localizedMessage}"
+                                                 } finally {
+                                                     submittingTableIds = submittingTableIds - item.id
                                                  }
                                              }
                                         },
@@ -659,19 +685,18 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 }
             )
         }
+        }
     }
 }
 
-
-
 @Composable
-fun StatusCard(status: QrStatus, onToggle: () -> Unit, onInfoClick: () -> Unit) {
+fun StatusCard(status: QrStatus, isSubmitting: Boolean = false, onToggle: () -> Unit, onInfoClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = if (status.isOpen) StatusOpenBg else StatusClosedBg),
         border = BorderStroke(2.dp, if (status.isOpen) StatusOpenBorder else StatusClosedBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().then(if (isSubmitting) Modifier.alpha(0.7f) else Modifier)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -695,6 +720,7 @@ fun StatusCard(status: QrStatus, onToggle: () -> Unit, onInfoClick: () -> Unit) 
                     Switch(
                         checked = status.isOpen,
                         onCheckedChange = { onToggle() },
+                        enabled = !isSubmitting,
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = QrActiveGreen)
                     )
                     if (!status.isOpen) {
@@ -1157,7 +1183,7 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClic
 }
 
 @Composable
-fun TableCard(item: Table, isGlobalOpen: Boolean, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+fun TableCard(item: Table, isGlobalOpen: Boolean, isSubmitting: Boolean = false, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
     val isLocked = !isGlobalOpen
 
     Card(
@@ -1252,7 +1278,7 @@ fun TableCard(item: Table, isGlobalOpen: Boolean, onToggle: (Boolean) -> Unit, o
                         checked = item.isActive,
                         onCheckedChange = { onToggle(it) },
                         modifier = Modifier.scaleCustom(0.8f),
-                        enabled = !isLocked, // Disable switch if locked
+                        enabled = !isLocked && !isSubmitting, // Disable switch if locked or submitting
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White, 
                             checkedTrackColor = QrActiveGreen,
@@ -1389,8 +1415,9 @@ fun AddTableDialog(
     var name by remember { mutableStateOf(initialName) }
     var selectedLocation by remember { mutableStateOf<Location?>(initialLocation) }
     var expanded by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) } // Anti-spam lock
 
-    Dialog(onDismissRequest = onCancel) {
+    Dialog(onDismissRequest = { if (!isSubmitting) onCancel() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
                 // Header with Close Button
@@ -1400,19 +1427,26 @@ fun AddTableDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(if(isEditMode) "Edit Meja" else "Tambah Meja Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                        contentDescription = "Close",
-                        tint = Color.Gray,
-                        modifier = Modifier.clickable { onCancel() }
-                    )
+                    if (!isSubmitting) {
+                        Icon(
+                            painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                            contentDescription = "Close",
+                            tint = Color.Gray,
+                            modifier = Modifier.clickable { onCancel() }
+                        )
+                    }
                 }
                 
                 Text("Nomor / Nama Meja", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
-                    onValueChange = { name = it }, 
+                    onValueChange = { newValue -> 
+                        // Sanitasi XSS & Max Length 30 (Alphanumeric + Space/Dash)
+                        if (newValue.length <= 30) {
+                            name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        }
+                    }, 
                     placeholder = { Text("Contoh: Meja 12") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -1473,16 +1507,21 @@ fun AddTableDialog(
                 
                 Button(
                     onClick = { 
-                        if (name.isNotEmpty() && selectedLocation != null) {
-                            onSave(name, selectedLocation!!.id)
+                        if (name.isNotEmpty() && selectedLocation != null && !isSubmitting) {
+                            isSubmitting = true
+                            // Trim to remove trailing spaces mimicking spaces bypass
+                            onSave(name.trim(), selectedLocation!!.id)
+                            // isSubmitting reset intentionally left out, assuming parent closes dialog on success/catch
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSubmitting) Color.Gray else Color(0xFF2D3E50)
+                    ),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = name.isNotEmpty() && selectedLocation != null
+                    enabled = name.isNotEmpty() && selectedLocation != null && !isSubmitting
                 ) { 
-                    Text("Simpan", color = Color.White) 
+                    Text(if (isSubmitting) "Menyimpan..." else "Simpan", color = Color.White) 
                 }
             }
         }
@@ -1495,8 +1534,9 @@ fun AddLocationDialog(
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onCancel) {
+    Dialog(onDismissRequest = { if (!isSubmitting) onCancel() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
                 
@@ -1507,19 +1547,26 @@ fun AddLocationDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Tambah Lokasi Baru", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
-                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                        contentDescription = "Close",
-                        tint = Color.Gray,
-                        modifier = Modifier.clickable { onCancel() }
-                    )
+                    if (!isSubmitting) {
+                        Icon(
+                            painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                            contentDescription = "Close",
+                            tint = Color.Gray,
+                            modifier = Modifier.clickable { onCancel() }
+                        )
+                    }
                 }
                 
                 Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
-                    onValueChange = { name = it }, 
+                    onValueChange = { newValue -> 
+                        // Sanitasi XSS & Max Length 50 (Lokasi butuh slightly longer misal "Lantai 2 - Samping Kaca")
+                        if (newValue.length <= 50) {
+                            name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        }
+                    }, 
                     placeholder = { Text("Contoh: Rooftop") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -1537,16 +1584,19 @@ fun AddLocationDialog(
                 
                 Button(
                     onClick = { 
-                        if (name.isNotEmpty()) {
-                            onSave(name)
+                        if (name.isNotEmpty() && !isSubmitting) {
+                            isSubmitting = true
+                            onSave(name.trim())
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSubmitting) Color.Gray else Color(0xFF2D3E50)
+                    ),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = name.isNotEmpty()
+                    enabled = name.isNotEmpty() && !isSubmitting
                 ) { 
-                    Text("Simpan", color = Color.White) 
+                    Text(if (isSubmitting) "Menyimpan..." else "Simpan", color = Color.White) 
                 }
             }
         }
@@ -1560,8 +1610,9 @@ fun EditLocationDialog(
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(location.name) }
+    var isSubmitting by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onCancel) {
+    Dialog(onDismissRequest = { if (!isSubmitting) onCancel() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text("Edit Lokasi", fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -1571,7 +1622,11 @@ fun EditLocationDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
-                    onValueChange = { name = it }, 
+                    onValueChange = { newValue -> 
+                        if (newValue.length <= 50) {
+                            name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        }
+                    }, 
                     placeholder = { Text("Contoh: Rooftop") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -1582,16 +1637,19 @@ fun EditLocationDialog(
                 
                 Button(
                     onClick = { 
-                        if (name.isNotEmpty()) {
-                            onSave(location.id, name)
+                        if (name.isNotEmpty() && !isSubmitting) {
+                            isSubmitting = true
+                            onSave(location.id, name.trim())
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSubmitting) Color.Gray else Color(0xFF2D3E50)
+                    ),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = name.isNotEmpty()
+                    enabled = name.isNotEmpty() && !isSubmitting
                 ) { 
-                    Text("Simpan Perubahan") 
+                    Text(if (isSubmitting) "Menyimpan..." else "Simpan Perubahan") 
                 }
             }
         }
@@ -1626,7 +1684,9 @@ private fun TableActionSheetModal(title: String, onEdit: () -> Unit, onDelete: (
 
 @Composable
 private fun TableConfirmationModal(title: String, desc: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
-    Dialog(onDismissRequest = onCancel) {
+    var isSubmitting by remember { mutableStateOf(false) }
+    
+    Dialog(onDismissRequest = { if (!isSubmitting) onCancel() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                  Box(modifier = Modifier.size(72.dp).background(Color(0xFF1F2937), CircleShape), contentAlignment = Alignment.Center) {
@@ -1638,8 +1698,26 @@ private fun TableConfirmationModal(title: String, desc: String, onConfirm: () ->
                  Text(desc, textAlign = TextAlign.Center, color = Color.Gray, fontSize = 14.sp)
                  Spacer(modifier = Modifier.height(24.dp))
                  Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                     Button(onClick = onCancel, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.weight(1f)) { Text("Batal") }
-                     Button(onClick = onConfirm, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus") }
+                     Button(
+                         onClick = onCancel, 
+                         shape = RoundedCornerShape(12.dp), 
+                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), 
+                         modifier = Modifier.weight(1f),
+                         enabled = !isSubmitting
+                     ) { Text("Batal") }
+                     
+                     Button(
+                         onClick = {
+                             if (!isSubmitting) {
+                                 isSubmitting = true
+                                 onConfirm()
+                             }
+                         }, 
+                         shape = RoundedCornerShape(12.dp), 
+                         colors = ButtonDefaults.buttonColors(containerColor = if (isSubmitting) Color.Gray else DeleteRed), 
+                         modifier = Modifier.weight(1f),
+                         enabled = !isSubmitting
+                     ) { Text(if (isSubmitting) "..." else "Hapus") }
                  }
             }
         }
