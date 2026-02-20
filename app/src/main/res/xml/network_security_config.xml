@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Default rule: deny cleartext, enforce HTTPS everywhere else -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Exception for local development IPs -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Add your local IPs here -->
+        <domain includeSubdomains="true">10.214.241.194</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <!-- Common local network ranges just in case -->
+        <domain includeSubdomains="true">192.168.0.1</domain>
+        <domain includeSubdomains="true">192.168.1.1</domain>
+        <!-- You can add more domains if your IP changes frequently -->
+    </domain-config>
+</network-security-config>

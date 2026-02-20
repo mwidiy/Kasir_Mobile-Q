@@ -1626,19 +1626,13 @@ fun FooterActions(onNavigate: (String) -> Unit) {
             onConfirm = {
                 showLogoutDialog = false
                 // Professional Logout Sequence
-                scope.launch {
-                    com.example.kasir.utils.SessionManager.clear(context)
-                    // Navigate to Login/Welcome
-                    // Since onNavigate is String based, and graph might expect route. Assuming "login" or similar.
-                    // But ProfileScreen usually just clears and relies on MainActivity to observe session or similar.
-                    // For now, let's trigger the restart/navigation logic.
-                    // If onNavigate expects a route:
-                     val packageManager = context.packageManager
-                     val intent = packageManager.getLaunchIntentForPackage(context.packageName)
-                     val componentName = intent?.component
-                     val mainIntent = android.content.Intent.makeRestartActivityTask(componentName)
-                     context.startActivity(mainIntent)
-                     Runtime.getRuntime().exit(0)
+                com.example.kasir.utils.SessionManager.logout(context, scope) {
+                    // Navigate to Login/Welcome by restarting the app
+                    val packageManager = context.packageManager
+                    val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+                    val componentName = intent?.component
+                    val mainIntent = android.content.Intent.makeRestartActivityTask(componentName)
+                    context.startActivity(mainIntent)
                 }
             },
             onDismiss = { showLogoutDialog = false }

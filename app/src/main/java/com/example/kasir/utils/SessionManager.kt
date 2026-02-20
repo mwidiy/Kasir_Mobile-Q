@@ -7,9 +7,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.example.kasir.data.model.User
 import com.example.kasir.data.model.LoginStore
 import com.google.gson.Gson
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 private val Context.dataStore by preferencesDataStore(name = "user_session")
 
@@ -22,12 +25,33 @@ object SessionManager {
     var jwtToken: String? = null
     var currentUser: User? = null
 
+    private fun getEncryptedPrefs(context: Context): android.content.SharedPreferences? {
+        return try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            EncryptedSharedPreferences.create(
+                context,
+                "secret_shared_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("SessionManager", "Error init EncryptedSharedPreferences", e)
+            null
+        }
+    }
+
     // Load session from DataStore (Called in MainActivity/Splash)
     suspend fun loadSession(context: Context) {
         // use first() to get data once and resume, instead of collect() which waits forever
         val preferences = context.dataStore.data.first()
         
-        jwtToken = preferences[TOKEN_KEY]
+        val encryptedPrefs = getEncryptedPrefs(context)
+        jwtToken = encryptedPrefs?.getString("jwt_token", null) ?: preferences[TOKEN_KEY]
+
         val userJson = preferences[USER_KEY]
         if (userJson != null) {
             currentUser = gson.fromJson(userJson, User::class.java)
@@ -37,43 +61,59 @@ object SessionManager {
     // Observe session state
     fun getSessionToken(context: Context): Flow<String?> {
         return context.dataStore.data.map { preferences ->
-             preferences[TOKEN_KEY]
+             jwtToken ?: getEncryptedPrefs(context)?.getString("jwt_token", null) ?: preferences[TOKEN_KEY]
         }
     }
 
     suspend fun saveSession(context: Context, token: String, user: User) {
         jwtToken = token
         currentUser = user
+        
+        getEncryptedPrefs(context)?.edit()?.putString("jwt_token", token)?.apply()
+
         context.dataStore.edit { preferences ->
-            preferences[TOKEN_KEY] = token
+            preferences.remove(TOKEN_KEY)
             preferences[USER_KEY] = gson.toJson(user)
         }
     }
 
-    suspend fun clear(context: Context) {
+    private suspend fun clear(context: Context) {
         jwtToken = null
         currentUser = null
+        getEncryptedPrefs(context)?.edit()?.clear()?.commit()
         context.dataStore.edit { preferences ->
             preferences.clear()
         }
     }
 
     // Professional Logout: Clear Session + Revoke Google
-    fun logout(context: Context, onComplete: () -> Unit = {}) {
-        // 1. Clear Local Data (Run in coroutine scope if needed, or assume caller handles suspension)
-        // Since clear() is suspend, we might need a scope. 
-        // But to keep it simple, we let the caller call clear() first or we do it here if possible.
-        // Better: Make logout() suspend or callback based.
-        
-        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-            com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
-        ).build()
-        
-        val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
-        
-        googleSignInClient.signOut().addOnCompleteListener {
-            // Google Session Cleared
-            onComplete()
+    fun logout(context: Context, scope: kotlinx.coroutines.CoroutineScope, onComplete: () -> Unit = {}) {
+        // 1. Clear Local Data
+        scope.launch {
+            clear(context)
+            
+            // 2. Revoke Google Session (Harus pakai konfigurasi ClientID yang sama dengan saat Login)
+            val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
+                com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
+            )
+            .requestIdToken(com.example.kasir.BuildConfig.WEB_CLIENT_ID)
+            .requestEmail()
+            .build()
+            
+            val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
+            
+            googleSignInClient.signOut()
+                .addOnCompleteListener {
+                    // Coba revoke access sekalian untuk menjamin lepas komplit dari riwayat email
+                    googleSignInClient.revokeAccess().addOnCompleteListener {
+                        onComplete()
+                    }
+                }
+                .addOnFailureListener {
+                    // Kalaupun gagal di Google SDK, setidaknya kita panggil onComplete
+                    // supaya app tetep lanjut restart.
+                    onComplete()
+                }
         }
     }
 
