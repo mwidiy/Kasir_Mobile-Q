@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 
@@ -37,6 +40,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isSoundEnabled = MutableStateFlow(true)
     val isSoundEnabled: StateFlow<Boolean> = _isSoundEnabled.asStateFlow()
 
+    private var socketDebounceJob: Job? = null
+
     init {
         initSocket()
         fetchOrders()
@@ -57,13 +62,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             // Listen for "new_order" event from backend
             socket.on("new_order") {
                 Log.d("DashboardViewModel", "Socket event received: new_order")
-                fetchOrders()
+                socketDebounceJob?.cancel()
+                socketDebounceJob = viewModelScope.launch {
+                    delay(1000L) // 1 second debounce
+                    fetchOrders()
+                }
             }
             
             // Listen for update status event if consistent with backend
             socket.on("order_status_updated") {
                 Log.d("DashboardViewModel", "Socket event received: order_status_updated")
-                fetchOrders()
+                socketDebounceJob?.cancel()
+                socketDebounceJob = viewModelScope.launch {
+                    delay(1000L) // 1 second debounce
+                    fetchOrders()
+                }
             }
             
         } catch (e: Exception) {

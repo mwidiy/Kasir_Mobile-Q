@@ -122,12 +122,17 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    // Show Error Toast
+    // Show Error Toast -> Changed to Snackbar
     val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             if (it.isNotEmpty()) {
-                android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+                snackbarHostState.showSnackbar(
+                    message = it,
+                    duration = SnackbarDuration.Short
+                )
             }
         }
     }
@@ -215,18 +220,13 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MenuPrimaryBlue)
             }
-        } else if (errorMessage != null && menuList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "Error: $errorMessage", color = Color.Red)
-                    Button(onClick = { viewModel.fetchProducts() }) {
-                        Text("Coba Lagi")
-                    }
-                }
-            }
         } else {
-            // Main Content when not loading and no error
-            Column(modifier = Modifier.fillMaxSize()) {
+            // Main Content
+            Scaffold(
+                snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                containerColor = Color.Transparent
+            ) { paddingValues ->
+                Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             // Only show Header and Tabs if in List mode for both Tabs AND NOT SEARCHING
             if (bannerScreenState == "list" && currentScreen == "menu_list" && !isSearchFocused) {
                 // Header (Shared)
@@ -337,7 +337,15 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 BasicTextField(
                                     value = searchQuery,
-                                    onValueChange = { searchQuery = it },
+                                    onValueChange = { newQuery ->
+                                        // Sanitize and Limit Input to 50 chars max to prevent ReDoS and Injection
+                                        val maxLength = 50
+                                        if (newQuery.length <= maxLength) {
+                                            // Only allow alphanumeric characters and spaces
+                                            val sanitized = newQuery.replace(Regex("[^a-zA-Z0-9 ]"), "")
+                                            searchQuery = sanitized
+                                        }
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .onFocusChanged { state ->
@@ -503,8 +511,9 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                     }
                 }
             }
-        }
-            }
+                }
+            } // End of Scaffold Column
+            } // End of Scaffold
 
         // Floating Action Button (FAB) Area
         val isMenuTabActive = activeTab == "menu" && currentScreen == "menu_list"
@@ -982,7 +991,13 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = text, 
-                    onValueChange = { text = it }, 
+                    onValueChange = { input -> 
+                        // Strict Regex for XSS/SQLi prevention
+                        // Allow only letters, numbers, spaces, and hyphens. Max 50 chars.
+                        if (input.length <= 50) {
+                            text = input.replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        }
+                    }, 
                     placeholder = { Text(placeholder) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -994,7 +1009,13 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                     )
                 )
                  Spacer(modifier = Modifier.height(24.dp))
-                 Button(onClick = { onSave(text) }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.fillMaxWidth()) { Text("Simpan", color = Color.White) }
+                 Button(
+                     onClick = { onSave(text.trim()) }, 
+                     shape = RoundedCornerShape(10.dp), 
+                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), 
+                     modifier = Modifier.fillMaxWidth(),
+                     enabled = text.trim().isNotEmpty() // Prevent saving empty categories
+                 ) { Text("Simpan", color = Color.White) }
             }
         }
     }

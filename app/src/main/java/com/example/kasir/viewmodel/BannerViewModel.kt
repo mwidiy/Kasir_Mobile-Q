@@ -14,6 +14,8 @@ import com.example.kasir.utils.SocketHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -30,6 +32,8 @@ class BannerViewModel : ViewModel() {
     val errorMessage = _errorMessage.asStateFlow()
 
     var selectedImageUri by mutableStateOf<Uri?>(null)
+    
+    private var socketDebounceJob: Job? = null
 
     init {
         try {
@@ -42,8 +46,12 @@ class BannerViewModel : ViewModel() {
             SocketHandler.establishConnection()
             
             SocketHandler.getSocket()?.on("banners_updated") {
-                // Handle event on background thread, fetchBanners handles scope
-                fetchBanners(isSilent = true)
+                // Trigger fetch in silent mode with 1-second debounce (DoS Protection)
+                socketDebounceJob?.cancel()
+                socketDebounceJob = viewModelScope.launch {
+                    delay(1000L)
+                    fetchBanners(isSilent = true)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -97,6 +105,7 @@ class BannerViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var tempFile: java.io.File? = null // TRACK CACHE FOR DELETION
             try {
                 val titlePart = createPartFromString(title)
                 val subtitlePart = if (subtitle != null) createPartFromString(subtitle) else null
@@ -106,6 +115,7 @@ class BannerViewModel : ViewModel() {
                 var imagePart: MultipartBody.Part? = null
                 if (selectedImageUri != null) {
                     val file = FileUtils.getFileFromUri(context, selectedImageUri!!)
+                    tempFile = file // TRACK THIS IMAGE FILE
                     if (file != null) {
                         // VALIDASI UKURAN FILE (Max 5MB)
                         val fileSizeInBytes = file.length()
@@ -160,6 +170,7 @@ class BannerViewModel : ViewModel() {
                 _errorMessage.value = "Gagal menyimpan banner: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
+                tempFile?.delete() // GARBAGE COLLECTION: Prevent Cache Leak (Local DoS)
             }
         }
     }

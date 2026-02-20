@@ -73,20 +73,17 @@ fun EditArScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // Status Bar Modification (Dark BG, White Icons)
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
         DisposableEffect(Unit) {
             val window = (view.context as Activity).window
             val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
 
-            // ON ENTER: Set Header Color & White Icons
-            window.statusBarColor = Color(0xFF1E2A38).toArgb() // Match Header
+            // ON ENTER: Only handle icon colors. EdgeToEdge background is handled by Compose Modifiers below.
             controller.isAppearanceLightStatusBars = false // White Icons
 
             onDispose {
-                // ON EXIT: Restore Default (Black Icons) for MenuScreen
-                // Note: Background color usually handled by next screen or theme, but icon color needs explicit reset
+                // ON EXIT: Restore Default State
                 controller.isAppearanceLightStatusBars = true // Restore Black Icons
             }
         }
@@ -141,13 +138,16 @@ fun EditArScreen(
             scope.launch {
                 isUploading = true
                 uploadProgress = 0f
+                var tempFile: java.io.File? = null
                 try {
                     val file = FileUtils.getFileFromUri(context, uri)
+                    tempFile = file // TRACK FOR DELETION
                     if (file != null) {
                         // 1. Strict Format Check
                         if (!file.name.endsWith(".glb", ignoreCase = true)) {
                              Toast.makeText(context, "Format salah! Hanya menerima .glb", Toast.LENGTH_SHORT).show()
                              isUploading = false
+                             tempFile?.delete() // Cleanup on failure
                              return@launch
                         }
 
@@ -156,6 +156,7 @@ fun EditArScreen(
                         if (sizeInMb > 40) {
                              Toast.makeText(context, "File terlalu besar (Max 40MB)", Toast.LENGTH_SHORT).show()
                              isUploading = false
+                             tempFile?.delete() // Cleanup on failure
                              return@launch
                         }
 
@@ -214,6 +215,7 @@ fun EditArScreen(
                 } finally {
                     isUploading = false
                     uploadProgress = 0f
+                    tempFile?.delete() // DELETE TEMP FILE TO PREVENT EXHAUSTION DOS
                 }
             }
         }
@@ -269,8 +271,10 @@ fun EditArScreen(
         }
     }
 
-    // ROOT BOX (Standard)
-    Box(modifier = Modifier.fillMaxSize()) {
+    // ROOT BOX (Material 3 TopAppBar Edge-To-Edge Fix)
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -280,7 +284,8 @@ fun EditArScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E2A38))
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E2A38)),
+                    windowInsets = androidx.compose.foundation.layout.WindowInsets.statusBars // Forcing Edge-To-Edge Color
                 )
             },
             containerColor = Color(0xFFF5F6F8)
@@ -453,11 +458,6 @@ fun EditArScreen(
                         }
                     }
                 }
-                
-                // Info Toast Hint
-                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) { 
-                    Text("💡 Tekan tahan gambar untuk preview AR di Browser", fontSize = 11.sp, color = Color.Gray)
-                } 
             }
         }
         

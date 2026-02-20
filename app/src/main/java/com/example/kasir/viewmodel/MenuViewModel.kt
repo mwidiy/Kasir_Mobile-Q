@@ -9,6 +9,8 @@ import com.example.kasir.utils.FileUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +31,8 @@ class MenuViewModel : ViewModel() {
     val categories: StateFlow<List<Category>> = _categories
 
     var selectedCategoryId by mutableStateOf(0)
+    
+    private var socketDebounceJob: Job? = null
 
     init {
         // Initialize Socket
@@ -37,8 +41,12 @@ class MenuViewModel : ViewModel() {
         
         val mSocket = com.example.kasir.utils.SocketHandler.getSocket()
         mSocket.on("products_updated") {
-            // Trigger fetch in silent mode
-            fetchProducts(isSilent = true)
+            // Trigger fetch in silent mode with 1-second debounce (DoS Protection)
+            socketDebounceJob?.cancel()
+            socketDebounceJob = viewModelScope.launch {
+                delay(1000L)
+                fetchProducts(isSilent = true)
+            }
         }
 
         fetchProducts()
@@ -132,6 +140,7 @@ class MenuViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var tempFile: java.io.File? = null
             try {
                 val name = createPartFromString(product.name)
                 // val category = createPartFromString(product.category)
@@ -145,7 +154,18 @@ class MenuViewModel : ViewModel() {
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null) {
                     val file = FileUtils.getFileFromUri(context, imageUri)
+                    tempFile = file // TRACK FOR DELETION
                     if (file != null) {
+                        // VALIDASI UKURAN FILE (Max 5MB)
+                        val fileSizeInBytes = file.length()
+                        if (fileSizeInBytes > 5 * 1024 * 1024) {
+                            val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                            _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                            _isLoading.value = false
+                            tempFile?.delete() // Cleanup on failure
+                            return@launch
+                        }
+
                         val contentResolver = context.contentResolver
                         val type = contentResolver.getType(imageUri) ?: "image/jpeg"
                         val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
@@ -166,6 +186,7 @@ class MenuViewModel : ViewModel() {
                 _errorMessage.value = "Gagal menambah produk: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
+                tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
             }
         }
     }
@@ -174,6 +195,7 @@ class MenuViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var tempFile: java.io.File? = null
             try {
                 val name = createPartFromString(product.name)
                 // val category = createPartFromString(product.category)
@@ -187,7 +209,18 @@ class MenuViewModel : ViewModel() {
                 var imagePart: okhttp3.MultipartBody.Part? = null
                 if (imageUri != null && context != null) {
                     val file = FileUtils.getFileFromUri(context, imageUri)
+                    tempFile = file // TRACK FOR DELETION
                     if (file != null) {
+                        // VALIDASI UKURAN FILE (Max 5MB)
+                        val fileSizeInBytes = file.length()
+                        if (fileSizeInBytes > 5 * 1024 * 1024) {
+                            val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                            _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                            _isLoading.value = false
+                            tempFile?.delete() // Cleanup on failure
+                            return@launch
+                        }
+
                         val contentResolver = context.contentResolver
                         val type = contentResolver.getType(imageUri) ?: "image/jpeg"
                         val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
@@ -216,6 +249,7 @@ class MenuViewModel : ViewModel() {
                 _errorMessage.value = "Gagal mengupdate produk: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
+                tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
             }
         }
     }

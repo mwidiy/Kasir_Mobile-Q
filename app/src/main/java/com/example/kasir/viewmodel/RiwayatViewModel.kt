@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,6 +43,8 @@ class RiwayatViewModel : ViewModel() {
     var statusFilter = "All" // All, Completed, Cancelled
     var typeFilter = "All" // All, dinein, takeaway
 
+    private var socketDebounceJob: Job? = null
+
     init {
         initSocket()
         fetchHistory()
@@ -54,9 +58,11 @@ class RiwayatViewModel : ViewModel() {
 
             // Listen for any order update
             socket.on("order_status_updated") { args ->
-                // Refresh if the updated order is Completed or Cancelled
-                // For simplicity, we just refetch or checking the status arg could be optimized
-                fetchHistory()
+                socketDebounceJob?.cancel()
+                socketDebounceJob = viewModelScope.launch {
+                    delay(1000L) // 1 second debounce
+                    fetchHistory()
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

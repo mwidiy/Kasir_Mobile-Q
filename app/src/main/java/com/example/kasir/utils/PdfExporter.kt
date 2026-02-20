@@ -23,16 +23,18 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object PdfExporter {
 
-    fun export(
+    suspend fun export(
         context: Context,
         orders: List<OrderResponse>,
         analysis: RiwayatViewModel.AnalysisData,
         startDate: String?,
         endDate: String?
-    ) {
+    ) = withContext(Dispatchers.IO) {
         val pdfDocument = PdfDocument()
         val paint = Paint()
         val titlePaint = Paint()
@@ -197,8 +199,10 @@ object PdfExporter {
                     outputStream?.use {
                         pdfDocument.writeTo(it)
                     }
-                    Toast.makeText(context, "Laporan disimpan di Downloads", Toast.LENGTH_LONG).show()
-                    openFile(context, uri)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Laporan disimpan di Downloads", Toast.LENGTH_LONG).show()
+                        openFile(context, uri)
+                    }
                 } else {
                     throw IOException("Failed to create MediaStore entry")
                 }
@@ -210,12 +214,16 @@ object PdfExporter {
                 pdfDocument.writeTo(outputStream)
                 outputStream.close()
                 
-                Toast.makeText(context, "Disimpan di: Android/data/.../files/Download", Toast.LENGTH_LONG).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Disimpan di: Android/data/.../files/Download", Toast.LENGTH_LONG).show()
+                }
                 // Can't easily open without FileProvider, but at least it's saved.
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "Gagal menyimpan PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Gagal menyimpan PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         } finally {
             pdfDocument.close()
         }

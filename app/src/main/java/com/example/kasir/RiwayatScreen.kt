@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -75,6 +76,8 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     
     var selectedTransaction by remember { mutableStateOf<OrderResponse?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     // SEARCH FOCUS STATE
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -92,6 +95,16 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     }
 
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(error) {
+        if (error != null) {
+            snackbarHostState.showSnackbar(
+                message = error!!,
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
 
     // Logic Effects
     val view = androidx.compose.ui.platform.LocalView.current
@@ -118,6 +131,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
     Box(modifier = Modifier.fillMaxSize().background(RiwayatBgBody)) {
         Scaffold(
             containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = { 
                 AnimatedVisibility(
                     visible = !isSearchFocused,
@@ -125,7 +139,11 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                     exit = slideOutVertically() + fadeOut()
                 ) {
                     RiwayatHeader(
+                   isExporting = isExporting,
                    onExportClick = {
+                        // Anti-Spam Lock
+                        if (isExporting) return@RiwayatHeader
+
                         // 1. Validation: Prevent export if no data
                         if (transactions.isEmpty()) {
                             val periodName = when(selectedTab) {
@@ -159,25 +177,29 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                             // else -> "Semua" (null dates)
                         }
 
-                        // 3. Client-Side Export (NEW STRATEGY)
-                        // No network, no tokens, no timeouts.
-                        try {
-                            Toast.makeText(context, "Memproses PDF...", Toast.LENGTH_SHORT).show()
-                            
-                            // Get Analysis Data from ViewModel
-                            val analysis = viewModel.analysis.value
-                            
-                            // Export via Utility
-                            PdfExporter.export(
-                                context = context,
-                                orders = transactions, // Currently filtered list
-                                analysis = analysis,
-                                startDate = startDateStr,
-                                endDate = endDateStr
-                            )
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
-                            e.printStackTrace()
+                        // 3. Client-Side Export (NEW STRATEGY - Background Threaded)
+                        coroutineScope.launch {
+                            try {
+                                isExporting = true
+                                Toast.makeText(context, "Memproses PDF...", Toast.LENGTH_SHORT).show()
+                                
+                                // Get Analysis Data from ViewModel
+                                val analysis = viewModel.analysis.value
+                                
+                                // Export via Utility (now suspend function)
+                                PdfExporter.export(
+                                    context = context,
+                                    orders = transactions, // Currently filtered list
+                                    analysis = analysis,
+                                    startDate = startDateStr,
+                                    endDate = endDateStr
+                                )
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Gagal export: ${e.message}", Toast.LENGTH_SHORT).show()
+                                e.printStackTrace()
+                            } finally {
+                                isExporting = false
+                            }
                         }
                    }
                 ) 
@@ -210,7 +232,11 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                 FilterBar(
                     query = searchQuery, 
                     onFilterClick = { showFilterDialog = true }, 
-                    onQueryChange = { searchQuery = it },
+                    onQueryChange = { rawQuery -> 
+                        // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
+                        val sanitized = rawQuery.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
+                        searchQuery = sanitized 
+                    },
                     isFocused = isSearchFocused,
                     onBack = { isSearchFocused = false },
                     onFocusTrigger = { isSearchFocused = true },
@@ -218,15 +244,10 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
                 )
 
                 // TRANSACTION LIST
-                 if (isLoading) {
+                 if (isLoading && transactions.isEmpty()) {
                      Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                          CircularProgressIndicator(color = RiwayatCardBg)
                      }
-                } else if (error != null) {
-                      // Error State
-                      Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                          Text("Gagal memuat data: $error", color = PriceRed)
-                      }
                 } else {
                     LazyColumn(
                         contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
@@ -268,7 +289,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
 // --- COMPONENTS ---
 
 @Composable
-fun RiwayatHeader(onExportClick: () -> Unit) {
+fun RiwayatHeader(isExporting: Boolean, onExportClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -289,15 +310,24 @@ fun RiwayatHeader(onExportClick: () -> Unit) {
         // Export Button
         Row(
             modifier = Modifier
-                .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(6.dp))
+                .border(1.dp, if (isExporting) Color(0xFF9CA3AF) else Color(0xFF1F2937), RoundedCornerShape(6.dp))
                 .clip(RoundedCornerShape(6.dp))
-                .clickable { onExportClick() }
+                .clickable(enabled = !isExporting) { onExportClick() }
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = RiwayatTextMain)
-            Text("Ekspor PDF", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain))
+            if (isExporting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = Color(0xFF9CA3AF),
+                    strokeWidth = 2.dp
+                )
+                Text("Memproses...", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, color = Color(0xFF9CA3AF)))
+            } else {
+                Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = RiwayatTextMain)
+                Text("Ekspor PDF", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, color = RiwayatTextMain))
+            }
         }
     }
 }

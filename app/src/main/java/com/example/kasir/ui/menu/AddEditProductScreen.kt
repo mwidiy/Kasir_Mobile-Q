@@ -46,6 +46,7 @@ fun AddEditProductScreen(
     var isActive by remember { mutableStateOf(true) }
     var isInitialized by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) } // Anti-spam lock
 
     // Load data if edit mode
     LaunchedEffect(productId, products) {
@@ -106,7 +107,12 @@ fun AddEditProductScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { input -> 
+                            // Sanitize: Alphanumeric and spaces/hyphens only. Max 100 chars
+                            if (input.length <= 100) {
+                                name = input.replace(Regex("[^a-zA-Z0-9 -]"), "")
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -171,7 +177,11 @@ fun AddEditProductScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = price,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) price = it },
+                        onValueChange = { input -> 
+                            // Sanitize: purely digits
+                            val sanitized = input.filter { it.isDigit() }
+                            price = sanitized 
+                        },
                         prefix = { Text("Rp ", color = Color.Gray) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
@@ -194,7 +204,12 @@ fun AddEditProductScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = description,
-                        onValueChange = { description = it },
+                        onValueChange = { input -> 
+                            // Sanitize: Alphanumeric, spaces, basic punctuation allowed. Stop scripts/SQLi
+                            if (input.length <= 500) {
+                                description = input.replace(Regex("[^a-zA-Z0-9 .,!()\\n-]"), "")
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -296,7 +311,8 @@ fun AddEditProductScreen(
 
             Button(
                 onClick = {
-                    if (isFormValid) {
+                    if (isFormValid && !isSubmitting) {
+                        isSubmitting = true // INSTANT LOCK (Anti-Spam)
                         val p = Product(
                             id = if (isEditMode) productId!!.toInt() else 0,
                             name = name,
@@ -313,16 +329,16 @@ fun AddEditProductScreen(
                         } else {
                             viewModel.addProduct(p, selectedImageUri, context)
                         }
-                        onBack()
-                    } else {
+                        onBack() // UX Tetap Instan (Optimistic)
+                    } else if (!isFormValid) {
                             android.widget.Toast.makeText(context, "Mohon lengkapi Nama, Harga, dan Kategori", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
-                enabled = true,
+                enabled = !isSubmitting,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isFormValid) Color(0xFF2D3E50) else Color.Gray,
+                    containerColor = if (isFormValid && !isSubmitting) Color(0xFF2D3E50) else Color.Gray,
                     disabledContainerColor = Color.Gray
                 )
             ) {

@@ -293,6 +293,7 @@ fun BannerFormScreen(
     var bannerTitle by remember { mutableStateOf(initialBanner?.title ?: "") }
     var bannerDesc by remember { mutableStateOf(initialBanner?.subtitle ?: "") }
     var bannerPromo by remember { mutableStateOf(initialBanner?.highlightText ?: "") }
+    var isSubmitting by remember { mutableStateOf(false) } // Instant Anti-Spam Lock
     
     val selectedImageUri = viewModel.selectedImageUri
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -404,9 +405,16 @@ fun BannerFormScreen(
                      }
                 }
 
-                BannerInputField("Judul Utama", "Contoh: Paket Hemat", bannerTitle) { bannerTitle = it }
-                BannerInputField("Sub-judul", "Contoh: Nasi + Ayam", bannerDesc) { bannerDesc = it }
-                BannerInputField("Teks Promo (Highlight Kuning)", "Contoh: 20% OFF", bannerPromo) { bannerPromo = it }
+                // XSS, SQLi & Buffer Overflow Protection applied directly on Input
+                BannerInputField("Judul Utama", "Contoh: Paket Hemat", bannerTitle, maxLength = 50) { 
+                    bannerTitle = it.replace(Regex("[^a-zA-Z0-9 %!.,&#-]"), "")
+                }
+                BannerInputField("Sub-judul", "Contoh: Nasi + Ayam", bannerDesc, maxLength = 50) { 
+                    bannerDesc = it.replace(Regex("[^a-zA-Z0-9 %!.,&#-]"), "")
+                }
+                BannerInputField("Teks Promo (Highlight Kuning)", "Contoh: 30% OFF", bannerPromo, maxLength = 20) { 
+                    bannerPromo = it.replace(Regex("[^a-zA-Z0-9 %!.,&#-]"), "")
+                }
                 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -425,23 +433,29 @@ fun BannerFormScreen(
 
                 Button(
                     onClick = {
-                        viewModel.saveBanner(
-                            context = context,
-                            id = if (initialBanner?.id != 0 && initialBanner?.id != null) initialBanner.id else null,
-                            title = bannerTitle,
-                            subtitle = bannerDesc,
-                            highlightText = bannerPromo,
-                            isActive = initialBanner?.isActive ?: true,
-                            onSuccess = { onSave() } // Navigate ONLY on success
-                        )
-                         // Removed immediate onSave()
+                        if (!isSubmitting) {
+                            isSubmitting = true // Lock the UI button instantly down to the millisecond
+                            viewModel.saveBanner(
+                                context = context,
+                                id = if (initialBanner?.id != 0 && initialBanner?.id != null) initialBanner.id else null,
+                                title = bannerTitle,
+                                subtitle = bannerDesc,
+                                highlightText = bannerPromo,
+                                isActive = initialBanner?.isActive ?: true,
+                                onSuccess = { onSave() } // Navigate purely on backend success, though UI reacts fast locally
+                            )
+                            onBack() // Optimistic UX: Close sheet instantly regardless of network speed
+                        }
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    enabled = !isLoading // Disable double click
+                    colors = ButtonDefaults.buttonColors(
+                         containerColor = if (!isSubmitting) PrimaryBlue else Color.Gray,
+                         disabledContainerColor = Color.Gray
+                    ),
+                    enabled = !isSubmitting // Disable double click using fast local lock, not network state
                 ) {
-                    if (isLoading) {
+                    if (isSubmitting || isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                     } else {
                         Text(if (title.contains("Edit")) "Simpan Perubahan" else "Terbitkan Banner", fontWeight = FontWeight.Bold, color = Color.White)
@@ -455,12 +469,12 @@ fun BannerFormScreen(
 }
 
 @Composable
-fun BannerInputField(label: String, placeholder: String, value: String, onValueChange: (String) -> Unit) {
+fun BannerInputField(label: String, placeholder: String, value: String, maxLength: Int = 100, onValueChange: (String) -> Unit) {
     Column(modifier = Modifier.padding(bottom = 20.dp)) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 8.dp), color = Color(0xFF374151))
         OutlinedTextField(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { if (it.length <= maxLength) onValueChange(it) },
             placeholder = { Text(placeholder, color = Color(0xFFD1D5DB)) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(8.dp),
