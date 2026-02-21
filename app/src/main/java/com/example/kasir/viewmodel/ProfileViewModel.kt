@@ -94,6 +94,13 @@ class ProfileViewModel : ViewModel() {
                      _storeState.value = oldState
                      _errorMessage.value = "Gagal update nama"
                  }
+            } catch (e: retrofit2.HttpException) {
+                _storeState.value = oldState
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal update nama: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 // Revert on network error
                 _storeState.value = oldState
@@ -116,6 +123,13 @@ class ProfileViewModel : ViewModel() {
                     _storeState.value = oldState
                     _errorMessage.value = "Gagal update WhatsApp"
                 }
+            } catch (e: retrofit2.HttpException) {
+                _storeState.value = oldState
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal update WhatsApp: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 _storeState.value = oldState
                 _errorMessage.value = "Gagal update WhatsApp: ${e.localizedMessage}"
@@ -194,6 +208,13 @@ class ProfileViewModel : ViewModel() {
                      _storeState.value = oldState
                      _errorMessage.value = "Gagal simpan pengaturan"
                  }
+            } catch (e: retrofit2.HttpException) {
+                _storeState.value = oldState
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal simpan pengaturan: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 // Revert
                 _storeState.value = oldState
@@ -216,6 +237,12 @@ class ProfileViewModel : ViewModel() {
                 } else {
                      _errorMessage.value = "Gagal tarik dana"
                 }
+            } catch (e: retrofit2.HttpException) {
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal tarik dana: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal tarik dana: ${e.localizedMessage}"
             } finally {
@@ -240,6 +267,12 @@ class ProfileViewModel : ViewModel() {
                         _storeState.value = response.data
                     }
                 }
+            } catch (e: retrofit2.HttpException) {
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal upload logo: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal upload logo: ${e.localizedMessage}"
             } finally {
@@ -264,6 +297,12 @@ class ProfileViewModel : ViewModel() {
                         _storeState.value = response.data
                     }
                 }
+            } catch (e: retrofit2.HttpException) {
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal upload QRIS: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 _errorMessage.value = "Gagal upload QRIS: ${e.localizedMessage}"
             } finally {

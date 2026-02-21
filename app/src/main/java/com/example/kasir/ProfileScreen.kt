@@ -670,7 +670,7 @@ fun WithdrawalSettingsSection(
 
                             OutlinedTextField(
                                 value = bankNumber,
-                                onValueChange = { if (it.all { c -> c.isDigit() }) bankNumber = it },
+                                onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 20) bankNumber = it },
                                 label = { Text("Nomor Rekening") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
@@ -686,7 +686,7 @@ fun WithdrawalSettingsSection(
 
                             OutlinedTextField(
                                 value = bankHolder,
-                                onValueChange = { bankHolder = it },
+                                onValueChange = { if (it.length <= 50 && it.matches(Regex("^[a-zA-Z0-9\\s.,'-]*$"))) bankHolder = it },
                                 label = { Text("Atas Nama") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
@@ -770,7 +770,7 @@ fun WithdrawalSettingsSection(
 
                             OutlinedTextField(
                                 value = ewalletNumber,
-                                onValueChange = { if (it.all { c -> c.isDigit() }) ewalletNumber = it },
+                                onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 20) ewalletNumber = it },
                                 label = { Text("Nomor HP (E-Wallet)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
@@ -786,7 +786,7 @@ fun WithdrawalSettingsSection(
 
                             OutlinedTextField(
                                 value = ewalletName,
-                                onValueChange = { ewalletName = it },
+                                onValueChange = { if (it.length <= 50 && it.matches(Regex("^[a-zA-Z0-9\\s.,'-]*$"))) ewalletName = it },
                                 label = { Text("Atas Nama Akun") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
@@ -833,9 +833,9 @@ fun WithdrawalSettingsSection(
                             disabledContentColor = Color.LightGray
                         ),
                         enabled = if (selectedTab == "Bank") {
-                            !hasBank && bankName.isNotEmpty() && bankNumber.isNotEmpty() && bankHolder.isNotEmpty()
+                            !hasBank && bankName.isNotBlank() && bankNumber.isNotBlank() && bankHolder.isNotBlank()
                         } else {
-                            !hasEwallet && ewalletType.isNotEmpty() && ewalletNumber.isNotEmpty() && ewalletName.isNotEmpty()
+                            !hasEwallet && ewalletType.isNotBlank() && ewalletNumber.isNotBlank() && ewalletName.isNotBlank()
                         }
                     ) {
                         Text("Simpan Metode", fontWeight = FontWeight.Bold)
@@ -1046,10 +1046,18 @@ fun WithdrawalDialog(
                     }
                 }
 
+                // Limit Information
+                Text(
+                    text = "Minimal penarikan Rp 50.000, maksimal Rp 3.000.000",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = QuackYellow,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+
                 // Amount Input
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) amountText = it },
+                    onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 9) amountText = it },
                     label = { Text("Jumlah (Rp)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -1078,7 +1086,9 @@ fun WithdrawalDialog(
                         onConfirm(amt, selectedMethod)
                     }
                 },
-                enabled = ((selectedMethod == "Bank Transfer" && bankAvailable) || (selectedMethod == "ShopeePay" && shopeeAvailable)) && (amountText.toIntOrNull() ?: 0) > 0,
+                enabled = ((selectedMethod == "Bank Transfer" && bankAvailable) || (selectedMethod == "ShopeePay" && shopeeAvailable)) && 
+                          ((amountText.toIntOrNull() ?: 0) in 50000..3000000) && 
+                          ((amountText.toIntOrNull() ?: 0) <= balance),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = QuackYellow, // High contrast Yellow
                     contentColor = Navy, // Navy text
@@ -1389,8 +1399,8 @@ fun WhatsAppNumberEditor(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { 
-                        // Only allow numbers
-                        if (it.all { char -> char.isDigit() }) text = it 
+                        // Only allow numbers and limit to 15 digits
+                        if (it.all { char -> char.isDigit() } && it.length <= 15) text = it 
                     },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
@@ -1488,7 +1498,7 @@ fun RestaurantNameEditor(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = { if (it.length <= 50 && it.matches(Regex("^[a-zA-Z0-9\\s.,'&!-]*$"))) text = it },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
