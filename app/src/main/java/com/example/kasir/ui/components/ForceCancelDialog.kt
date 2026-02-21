@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,9 +55,13 @@ fun ForceCancelDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                     OutlinedTextField(
+                        // SECURITY: Mencegah Paste/Type panjang & Karakter Aneh
                         value = reason,
-                        onValueChange = { reason = it },
-                        placeholder = { Text("Alasan (Min. 4 huruf)") },
+                        onValueChange = { input -> 
+                            val filtered = input.replace(Regex("[^a-zA-Z0-9 .,!?\\-]"), "")
+                            reason = filtered.take(150)
+                        },
+                        placeholder = { Text("Alasan (Min. 4 huruf, Max 150)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -74,27 +80,39 @@ fun ForceCancelDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    var isSubmitting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
                     Button(
                         onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD1D5DB)),
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSubmitting
                     ) {
                         Text("Batal", color = Color(0xFF374151))
                     }
                     
                     Button(
-                        onClick = { onConfirm(reason) },
-                        enabled = isEnabled,
+                        onClick = {
+                            if (!isSubmitting) {
+                                isSubmitting = true
+                                onConfirm(reason)
+                            }
+                        },
+                        enabled = isEnabled && !isSubmitting,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFDC2626),
+                            containerColor = if (isSubmitting) Color.Gray else Color(0xFFDC2626),
                             disabledContainerColor = Color(0xFFFCA5A5)
                         ),
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Tolak", color = Color.White)
+                        if (isSubmitting) {
+                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Tolak", color = Color.White)
+                        }
                     }
                 }
             }

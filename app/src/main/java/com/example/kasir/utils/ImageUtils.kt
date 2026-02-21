@@ -31,14 +31,29 @@ object ImageUtils {
     }
 
     /**
-     * Decodes a QR Code from a Uri.
-     * Returns the decoded text string, or null if no QR code found or error.
+     * Decodes a QR Code from a Uri securely without crashing OOM.
      */
     fun decodeQrFromUri(context: Context, uri: Uri): String? {
         return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
+            // SECURITY FIX: Calculate inSampleSize first to avoid OOM
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options)
+            }
+
+            // Calculate ratios for ~1024px maximum bounds
+            val reqWidth = 1024
+            val reqHeight = 1024
+            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+            options.inJustDecodeBounds = false
+
+            // Decode actual bitmap with downsampling
+            val bitmap = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                 BitmapFactory.decodeStream(inputStream, null, options)
+            }
 
             if (bitmap == null) return null
 
@@ -57,5 +72,25 @@ object ImageUtils {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Calculates optimal downsampling ratio to prevent OOM
+     */
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height: Int, width: Int) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 }

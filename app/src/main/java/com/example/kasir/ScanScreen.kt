@@ -468,11 +468,16 @@ fun ManualInputSheet(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
                         Spacer(modifier = Modifier.height(24.dp))
                         
                         var text by remember { mutableStateOf("") }
+                        var isSubmitting by remember { mutableStateOf(false) }
                         val focusRequester = remember { FocusRequester() }
 
                         OutlinedTextField(
+                            // SECURITY: Mencegah Paste/Type panjang & Karakter Aneh (Hanya A-Z, 0-9, Strip)
                             value = text,
-                            onValueChange = { text = it },
+                            onValueChange = { input -> 
+                                val filtered = input.replace(Regex("[^a-zA-Z0-9-]"), "").uppercase()
+                                text = filtered.take(30)
+                            },
                             placeholder = { Text("Contoh: INV-88229", color = Color.Gray) },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -497,18 +502,29 @@ fun ManualInputSheet(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
                         Spacer(modifier = Modifier.height(24.dp))
                         
                         Button(
-                            onClick = { if(text.isNotEmpty()) onSubmit(text) },
+                            onClick = { 
+                                if (text.isNotEmpty() && !isSubmitting) {
+                                    isSubmitting = true
+                                    onSubmit(text)
+                                    // Reset in case dialog is dismissed naturally
+                                    isSubmitting = false 
+                                } 
+                            },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ScanPrimaryBtn),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isSubmitting) Color.Gray else ScanPrimaryBtn),
                             shape = RoundedCornerShape(12.dp),
-                            enabled = text.isNotEmpty()
+                            enabled = text.isNotEmpty() && !isSubmitting
                         ) {
-                            Text(
-                                "Cari Pesanan", 
-                                fontWeight = FontWeight.Bold, 
-                                fontSize = 16.sp,
-                                color = Color.White // Set White Text
-                            )
+                            if (isSubmitting) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(
+                                    "Cari Pesanan", 
+                                    fontWeight = FontWeight.Bold, 
+                                    fontSize = 16.sp,
+                                    color = Color.White // Set White Text
+                                )
+                            }
                         }
                         
                         Spacer(modifier = Modifier.height(16.dp))

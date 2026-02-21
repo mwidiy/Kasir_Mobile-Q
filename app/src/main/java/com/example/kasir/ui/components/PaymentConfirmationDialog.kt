@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -214,15 +216,27 @@ private fun PaymentConfirmationContent(
             
             // Footer
             Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp)) {
+                var isSubmitting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
                 Button(
-                    onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(containerColor = ColorButton),
+                    onClick = {
+                        if (!isSubmitting) {
+                            isSubmitting = true
+                            onConfirm()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubmitting) Color.Gray else ColorButton),
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isSubmitting
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Konfirmasi Pembayaran", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    if (isSubmitting) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Konfirmasi Pembayaran", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }
