@@ -79,12 +79,19 @@ fun EditArScreen(
             val window = (view.context as Activity).window
             val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
 
-            // ON ENTER: Only handle icon colors. EdgeToEdge background is handled by Compose Modifiers below.
+            // Save original status bar color (transparent from enableEdgeToEdge)
+            val originalStatusBarColor = window.statusBarColor
+
+            // ON ENTER: Force dark status bar background + white icons
+            // This overrides the transparent status bar from enableEdgeToEdge(),
+            // bypassing nested Scaffold containerColor conflicts.
+            window.statusBarColor = android.graphics.Color.parseColor("#1E2A38")
             controller.isAppearanceLightStatusBars = false // White Icons
 
             onDispose {
-                // ON EXIT: Restore Default State
-                controller.isAppearanceLightStatusBars = true // Restore Black Icons
+                // ON EXIT: Restore original transparent status bar + black icons
+                window.statusBarColor = originalStatusBarColor
+                controller.isAppearanceLightStatusBars = true
             }
         }
     }
@@ -271,30 +278,23 @@ fun EditArScreen(
         }
     }
 
-    // ROOT BOX (Material 3 TopAppBar Edge-To-Edge Fix)
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("AR Experience", fontWeight = FontWeight.Bold, color = Color.White) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E2A38)),
-                    windowInsets = androidx.compose.foundation.layout.WindowInsets.statusBars // Forcing Edge-To-Edge Color
-                )
-            },
-            containerColor = Color(0xFFF5F6F8)
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize()
-            ) {
+    // ROOT: Manual Column layout (bypasses nested Scaffold inset issue)
+    Box(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF5F6F8))) {
+        // Manual Header (same pattern as Dashboard/TableScreen)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1E2A38))
+                .statusBarsPadding()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Text("AR Experience", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
+        }
                 // ... (UI Content same as before)
                 // Helper to Auto-Save
                 val saveChanges = { newIsArActive: Boolean, newModelUrl: String? ->
@@ -458,9 +458,8 @@ fun EditArScreen(
                         }
                     }
                 }
-            }
-        }
-        
+        } // end Column
+
         // GLOBAL UPLOAD PROGRESS DIALOG
         if (isUploading) {
             Dialog(onDismissRequest = {}) {

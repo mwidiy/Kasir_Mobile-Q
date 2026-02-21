@@ -215,6 +215,24 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         (searchQuery.isEmpty() || item.name.contains(searchQuery, ignoreCase = true))
     }
 
+    // FULLSCREEN AR SCREEN (Outside all Scaffolds — so header can extend behind status bar)
+    if (currentScreen == "edit_ar") {
+        val productToEdit = products.find { it.id.toString() == selectedProductId }
+        if (productToEdit != null) {
+            EditArScreen(
+                product = productToEdit,
+                viewModel = viewModel,
+                onBack = {
+                    currentScreen = "menu_list"
+                    selectedProductId = null
+                }
+            )
+        } else {
+            currentScreen = "menu_list"
+        }
+        return
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(MenuBg)) {
         if (isLoading && menuList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -454,23 +472,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         },
                         viewModel = viewModel
                     )
-                } else if (currentScreen == "edit_ar") {
-                    // Find product
-                    val productToEdit = products.find { it.id.toString() == selectedProductId }
-                    if (productToEdit != null) {
-                         EditArScreen(
-                            product = productToEdit,
-                            viewModel = viewModel,
-                            onBack = {
-                                currentScreen = "menu_list"
-                                selectedProductId = null
-                            }
-                        )
-                    } else {
-                        // Error fallback
-                        currentScreen = "menu_list"
-                    }
-                }
+                } // edit_ar is handled above, outside the Scaffold
             } else {
                 // --- BANNER CONTENT ---
                 when (bannerScreenState) {

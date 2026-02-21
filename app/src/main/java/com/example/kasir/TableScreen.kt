@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.kasir.data.model.Location
+import com.example.kasir.data.model.LocationData
 import com.example.kasir.data.model.Table
 import com.example.kasir.data.model.TableRequest
 import androidx.compose.ui.platform.LocalContext
@@ -208,11 +209,8 @@ fun TableScreen(onNavigate: (String) -> Unit) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = QrBg
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Header
+        containerColor = QrBg,
+        topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -224,6 +222,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             ) {
                 Text("Manajemen Meja & QR", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(modifier = Modifier.fillMaxSize()) {
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -247,8 +249,11 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                     val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(isOpen = newStatus))
                                     if (response.success && response.data != null) {
                                         globalStatus = globalStatus.copy(isOpen = response.data.isOpen)
-                                        // Cascade Update on Backend -> Refresh UI to show all Switches flipped
-                                        refreshData()
+                                        // Targeted refresh: only update table list (no full reload)
+                                        try {
+                                            val updatedTables = RetrofitClient.instance.getTables()
+                                            tableList = updatedTables
+                                        } catch (_: Exception) { }
                                     } else {
                                         // Revert on failure
                                         globalStatus = globalStatus.copy(isOpen = !newStatus)
@@ -476,13 +481,21 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         if (showAddLocationDialog) {
             AddLocationDialog(
                 onSave = { name ->
+                    // Optimistic: add placeholder & close immediately
+                    val tempId = -(System.currentTimeMillis() % 100000).toInt()
+                    val placeholder = Location(id = tempId, name = name)
+                    locationList = locationList + placeholder
+                    showAddLocationDialog = false
+
                     scope.launch {
                         try {
                             RetrofitClient.instance.addLocation(mapOf("name" to name))
-                            refreshData() // Refresh chips
-                            showAddLocationDialog = false
+                            // Sync with server truth
+                            val locations = RetrofitClient.instance.getLocations()
+                            locationList = listOf(Location(-1, "Semua")) + locations.sortedBy { it.name }
                         } catch(e: Exception) {
-                            e.printStackTrace()
+                            // Revert placeholder
+                            locationList = locationList.filter { it.id != tempId }
                             errorMessage = "Gagal tambah lokasi: ${e.localizedMessage}"
                         }
                     }
@@ -493,15 +506,24 @@ fun TableScreen(onNavigate: (String) -> Unit) {
 
         // 3. Edit Location Dialog
         if (showEditLocationDialog != null) {
+            val editingLoc = showEditLocationDialog!!
             EditLocationDialog(
-                location = showEditLocationDialog!!,
+                location = editingLoc,
                 onSave = { id, name ->
+                    // Optimistic: update name in list & close immediately
+                    val originalList = locationList.toList()
+                    locationList = locationList.map { if (it.id == id) it.copy(name = name) else it }
+                    // Also update selected filter if it was the renamed location
+                    if (selectedLocation == editingLoc.name) selectedLocation = name
+                    showEditLocationDialog = null
+
                     scope.launch {
                         try {
                             RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
-                            refreshData()
-                            showEditLocationDialog = null
                         } catch(e: Exception) {
+                            // Revert
+                            locationList = originalList
+                            if (selectedLocation == name) selectedLocation = editingLoc.name
                             errorMessage = "Gagal update lokasi: ${e.localizedMessage}"
                         }
                     }
@@ -534,21 +556,27 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 title = "Hapus Lokasi?",
                 desc = "Menghapus lokasi '${showDeleteLocationConfirm!!.name}' mungkin memengaruhi meja yang ada di sana.",
                 onConfirm = {
-                    val id = showDeleteLocationConfirm!!.id
+                    val locToDelete = showDeleteLocationConfirm!!
+                    val originalLocList = locationList.toList()
+                    val originalSelection = selectedLocation
+
+                    // Optimistic: remove from list & close immediately
+                    locationList = locationList.filter { it.id != locToDelete.id }
+                    if (selectedLocation == locToDelete.name) selectedLocation = "Semua"
+                    showDeleteLocationConfirm = null
+
                     scope.launch {
                         try {
-                            val res = RetrofitClient.instance.deleteLocation(id)
-                            if (res.isSuccessful) {
-                                // If current selected location is deleted, reset to "Semua"
-                                if (selectedLocation == showDeleteLocationConfirm!!.name) {
-                                    selectedLocation = "Semua"
-                                }
-                                refreshData()
-                            } else {
+                            val res = RetrofitClient.instance.deleteLocation(locToDelete.id)
+                            if (!res.isSuccessful) {
+                                // Revert
+                                locationList = originalLocList
+                                selectedLocation = originalSelection
                                 errorMessage = "Gagal hapus: ${res.code()}"
                             }
-                            showDeleteLocationConfirm = null
                         } catch(e: Exception) {
+                            locationList = originalLocList
+                            selectedLocation = originalSelection
                             errorMessage = "Gagal hapus lokasi: ${e.localizedMessage}"
                         }
                     }
@@ -590,19 +618,25 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 title = "Hapus Meja Ini?",
                 desc = "Menghapus meja akan menghilangkan QR code dan data terkait. Tindakan ini tidak dapat dibatalkan.",
                 onConfirm = {
-                    val id = showDeleteTableConfirm!!.id
+                    val tableToDelete = showDeleteTableConfirm!!
+                    val originalTableList = tableList.toList()
+
+                    // Optimistic: remove from list & close immediately
+                    tableList = tableList.filter { it.id != tableToDelete.id }
+                    showDeleteTableConfirm = null
+
                     scope.launch {
                         try {
-                            val response = RetrofitClient.instance.deleteTable(id)
-                            if (response.isSuccessful) {
-                                tableList = tableList.filter { it.id != id }
-                            } else {
+                            val response = RetrofitClient.instance.deleteTable(tableToDelete.id)
+                            if (!response.isSuccessful) {
+                                // Revert
+                                tableList = originalTableList
                                 errorMessage = "Gagal hapus meja: ${response.code()}"
                             }
                         } catch(e: Exception) {
+                            tableList = originalTableList
                             errorMessage = "Gagal hapus meja: ${e.localizedMessage}"
                         }
-                        showDeleteTableConfirm = null
                     }
                 },
                 onCancel = { showDeleteTableConfirm = null }
@@ -623,59 +657,68 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 initialLocation = initialLocation,
                 isEditMode = currentEditingTable != null,
                 onSave = { name, locationId ->
-                    scope.launch {
-                        try {
-                            if (currentEditingTable != null) {
-                                // UPDATE MODE
-                                val qrCode = currentEditingTable!!.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
-                                val tableRequest = TableRequest(
-                                    name = name,
-                                    locationId = locationId,
-                                    qrCode = qrCode,
-                                    isActive = currentEditingTable!!.isActive
-                                )
-                                val response = RetrofitClient.instance.updateTable(currentEditingTable!!.id, tableRequest)
+                    val selectedLoc = locationList.find { it.id == locationId }
+                    val locData = if (selectedLoc != null) LocationData(selectedLoc.id, selectedLoc.name) else null
+
+                    if (currentEditingTable != null) {
+                        // === UPDATE MODE — Optimistic ===
+                        val editingTable = currentEditingTable!!
+                        val originalTableList = tableList.toList()
+
+                        // 1. Update UI immediately
+                        val optimisticItem = editingTable.copy(name = name, location = locData)
+                        tableList = tableList.map { if (it.id == editingTable.id) optimisticItem else it }
+                        showAddTableModal = false
+                        currentEditingTable = null
+
+                        // 2. API in background
+                        scope.launch {
+                            try {
+                                val qrCode = editingTable.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
+                                val tableRequest = TableRequest(name = name, locationId = locationId, qrCode = qrCode, isActive = editingTable.isActive)
+                                val response = RetrofitClient.instance.updateTable(editingTable.id, tableRequest)
                                 if (response.isSuccessful && response.body() != null) {
-                                    val updatedItem = response.body()!!
-                                    
-                                    // Live Update Logic
-                                    val index = tableList.indexOfFirst { it.id == updatedItem.id }
-                                    if (index != -1) {
-                                        val mutableList = tableList.toMutableList()
-                                        mutableList[index] = updatedItem
-                                        tableList = mutableList
-                                    }
-                                    
-                                    showAddTableModal = false
-                                    currentEditingTable = null
+                                    // Sync with server truth
+                                    val serverItem = response.body()!!
+                                    tableList = tableList.map { if (it.id == serverItem.id) serverItem else it }
                                 } else {
+                                    // Revert
+                                    tableList = originalTableList
                                     errorMessage = "Gagal update meja: ${response.code()}"
                                 }
-                            } else {
-                                // CREATE MODE
-                                val qrCode = "QR-${name}-${System.currentTimeMillis()}"
-                                
-                                // AUTO-INACTIVE IF STORE CLOSED
-                                val initialActiveState = if (globalStatus.isOpen) true else false
-                                
-                                val tableRequest = TableRequest(
-                                    name = name,
-                                    locationId = locationId,
-                                    qrCode = qrCode,
-                                    isActive = initialActiveState
-                                )
-                                val newTableResponse = RetrofitClient.instance.addTable(tableRequest)
-                                if (newTableResponse.isSuccessful && newTableResponse.body() != null) {
-                                    val newItem = newTableResponse.body()!!
-                                    tableList = tableList + newItem
-                                    showAddTableModal = false
-                                } else {
-                                    errorMessage = "Gagal tambah meja: ${newTableResponse.code()}"
-                                }
+                            } catch(e: Exception) {
+                                tableList = originalTableList
+                                errorMessage = "Error: ${e.localizedMessage}"
                             }
-                        } catch(e: Exception) {
-                            e.printStackTrace()
-                            errorMessage = "Error: ${e.localizedMessage}"
+                        }
+                    } else {
+                        // === CREATE MODE — Optimistic ===
+                        val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+                        val initialActiveState = globalStatus.isOpen
+                        val tempId = -(System.currentTimeMillis() % 100000).toInt()
+
+                        // 1. Add placeholder & close immediately
+                        val placeholder = Table(id = tempId, name = name, location = locData, qrCode = qrCode, isActive = initialActiveState)
+                        tableList = tableList + placeholder
+                        showAddTableModal = false
+
+                        // 2. API in background
+                        scope.launch {
+                            try {
+                                val tableRequest = TableRequest(name = name, locationId = locationId, qrCode = qrCode, isActive = initialActiveState)
+                                val response = RetrofitClient.instance.addTable(tableRequest)
+                                if (response.isSuccessful && response.body() != null) {
+                                    // Replace placeholder with server data
+                                    tableList = tableList.map { if (it.id == tempId) response.body()!! else it }
+                                } else {
+                                    // Remove placeholder
+                                    tableList = tableList.filter { it.id != tempId }
+                                    errorMessage = "Gagal tambah meja: ${response.code()}"
+                                }
+                            } catch(e: Exception) {
+                                tableList = tableList.filter { it.id != tempId }
+                                errorMessage = "Error: ${e.localizedMessage}"
+                            }
                         }
                     }
                 },
