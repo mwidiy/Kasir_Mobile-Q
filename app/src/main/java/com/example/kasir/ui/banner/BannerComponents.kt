@@ -431,9 +431,11 @@ fun BannerFormScreen(
                     )
                 }
 
+                val hasImage = selectedImageUri != null || (initialBanner != null && initialBanner.image.isNotEmpty())
+
                 Button(
                     onClick = {
-                        if (!isSubmitting) {
+                        if (!isSubmitting && hasImage) {
                             isSubmitting = true // Lock the UI button instantly down to the millisecond
                             viewModel.saveBanner(
                                 context = context,
@@ -450,10 +452,10 @@ fun BannerFormScreen(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                         containerColor = if (!isSubmitting) PrimaryBlue else Color.Gray,
+                         containerColor = if (!isSubmitting && hasImage) PrimaryBlue else Color.Gray,
                          disabledContainerColor = Color.Gray
                     ),
-                    enabled = !isSubmitting // Disable double click using fast local lock, not network state
+                    enabled = !isSubmitting && hasImage // Disable if submitting or image is missing
                 ) {
                     if (isSubmitting || isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))

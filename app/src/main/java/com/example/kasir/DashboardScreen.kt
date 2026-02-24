@@ -516,10 +516,16 @@ fun DashboardTopBar(
                         model = imageUrl,
                         contentDescription = "Profile",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        error = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt)
                     )
                 } else {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = TextMain)
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }

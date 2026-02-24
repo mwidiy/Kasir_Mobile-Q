@@ -16,6 +16,9 @@ object ImageUtils {
     fun getDynamicImageUrl(originalUrl: String?): String? {
         if (originalUrl.isNullOrBlank()) return null
 
+        // BYPASS: Do not rewrite Cloudinary CDN URLs
+        if (originalUrl.contains("cloudinary.com")) return originalUrl
+
         if (originalUrl.startsWith("http")) {
             return try {
                 val uri = Uri.parse(originalUrl)

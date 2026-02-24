@@ -59,12 +59,12 @@ class OrderNotificationService : Service() {
         try {
             // BUG FIX 1: Use independent socket connection, NOT Singleton
             // This ensures Service stays connected even if ViewModel disconnects
-            val options = io.socket.client.IO.Options().apply {
-                reconnection = true
-                reconnectionAttempts = Int.MAX_VALUE
-                reconnectionDelay = 1000
-                forceNew = true // Force new connection
-            }
+            val options = io.socket.client.IO.Options()
+            options.transports = arrayOf("websocket", "polling") // Fallback mechanism
+            options.reconnection = true
+            options.reconnectionAttempts = Int.MAX_VALUE
+            options.reconnectionDelay = 1000
+            options.forceNew = true // Force new connection
             
             mSocket = io.socket.client.IO.socket(com.example.kasir.BuildConfig.API_BASE_URL, options)
 

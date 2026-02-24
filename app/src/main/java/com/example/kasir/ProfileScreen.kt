@@ -1328,12 +1328,22 @@ fun RestaurantIdentitySection(
                 // Use ImageUtils for dynamic IP
                 val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(logoUrl)
 
-                Image(
-                    painter = rememberAsyncImagePainter(imageUrl ?: "https://via.placeholder.com/150"),
-                    contentDescription = "Restaurant Logo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (imageUrl != null) {
+                    coil.compose.AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Restaurant Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        error = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt)
+                    )
+                } else {
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt),
+                        contentDescription = "Restaurant Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
             
             // Camera Icon Badge
@@ -1591,12 +1601,22 @@ fun ProfilePictureDialog(
                         .background(Color.Gray)
                 ) {
                     val imageUrl = com.example.kasir.utils.ImageUtils.getDynamicImageUrl(logoUrl)
-                    Image(
-                        painter = rememberAsyncImagePainter(imageUrl ?: "https://via.placeholder.com/300"),
-                        contentDescription = "Full Profile",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (imageUrl != null) {
+                        coil.compose.AsyncImage(
+                            model = imageUrl,
+                            contentDescription = "Full Profile",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            error = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt)
+                        )
+                    } else {
+                        Image(
+                            painter = androidx.compose.ui.res.painterResource(id = R.drawable.profile_alt),
+                            contentDescription = "Full Profile",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
                 // Actions

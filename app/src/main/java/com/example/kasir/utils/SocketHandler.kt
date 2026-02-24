@@ -13,7 +13,14 @@ object SocketHandler {
         if (::mSocket.isInitialized) return // Prevent re-initialization
         try {
             // Using the base URL from local.properties
-            mSocket = IO.socket(BuildConfig.API_BASE_URL)
+            val options = IO.Options()
+            options.transports = arrayOf("websocket", "polling") // Fallback if WebSocket fails
+            options.reconnection = true
+            options.reconnectionAttempts = Int.MAX_VALUE
+            options.reconnectionDelay = 1000
+            options.timeout = 20000 // 20 seconds
+            
+            mSocket = IO.socket(BuildConfig.API_BASE_URL, options)
         } catch (e: URISyntaxException) {
             e.printStackTrace()
         }

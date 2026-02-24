@@ -70,6 +70,7 @@ import com.example.kasir.utils.QRCodeImage
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.scale
+import kotlinx.coroutines.async
 
 
 private val BASE_PWA_URL = BuildConfig.PWA_BASE_URL.removeSuffix("/")
@@ -172,18 +173,22 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     val refreshData = {
         scope.launch {
             try {
-                // Fetch Store Status (Added)
-                val storeResponse = RetrofitClient.instance.getStore()
+                // Optimasi Performa: Jalankan 3 panggilan API secara Paralel
+                val storeDeferred = async { RetrofitClient.instance.getStore() }
+                val tablesDeferred = async { RetrofitClient.instance.getTables() }
+                val locsDeferred = async { RetrofitClient.instance.getLocations() }
+
+                // Tunggu ketiga data selesai di-fetch secara bersamaan
+                val storeResponse = storeDeferred.await()
+                val tables = tablesDeferred.await()
+                val locations = locsDeferred.await()
+
                 if (storeResponse.success && storeResponse.data != null) {
                    globalStatus = globalStatus.copy(isOpen = storeResponse.data.isOpen)
                 }
 
-                // Fetch Tables
-                val tables = RetrofitClient.instance.getTables()
                 tableList = tables
                 
-                // Fetch Locations
-                val locations = RetrofitClient.instance.getLocations()
                 // Sort by ID or Name if needed. Assuming server order or alphabetical
                 val sortedLocs = locations.sortedBy { it.name }
                 locationList = listOf(Location(-1, "Semua")) + sortedLocs

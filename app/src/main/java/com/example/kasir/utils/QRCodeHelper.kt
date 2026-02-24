@@ -2,6 +2,7 @@ package com.example.kasir.utils
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -16,10 +17,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 object QRCodeHelper {
+    // Memasang LruCache dengan kapasitas 100 item untuk menyimpan Bitmap QR Code
+    // Hal ini akan memangkas patah-patah secara signifikan saat user men-scroll
+    // TableCard ke atas dan ke bawah secara berulang.
+    private val memoryCache: LruCache<String, Bitmap> = LruCache(100)
+
     fun generateQrBitmap(content: String, size: Int = 512): Bitmap? {
         return try {
             if (content.isBlank()) return null
             
+            // Cek apakah Cache sudah menyimpan versi Render Bitmap-nya
+            val cacheKey = "$content-$size"
+            memoryCache.get(cacheKey)?.let { return it }
+
             val bitMatrix: BitMatrix = MultiFormatWriter().encode(
                 content,
                 BarcodeFormat.QR_CODE,
@@ -36,6 +46,9 @@ object QRCodeHelper {
                     bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
                 }
             }
+            
+            // Simpan hasil Render ke dalam Cache sebelum di return
+            memoryCache.put(cacheKey, bitmap)
             bitmap
         } catch (e: Exception) {
             e.printStackTrace()
