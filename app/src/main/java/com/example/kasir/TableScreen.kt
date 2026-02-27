@@ -105,13 +105,19 @@ data class QrStatus(
 )
 
 @Composable
-fun TableScreen(onNavigate: (String) -> Unit) {
-    // State Management for Data
-    var tableList by remember { mutableStateOf<List<Table>>(emptyList()) }
-    
-    // Location Filter List from API (storing Objects now)
-    // Create a dummy Location for "Semua" to simplify the list
-    var locationList by remember { mutableStateOf<List<Location>>(listOf(Location(-1, "Semua"))) }
+fun TableScreen(
+    onNavigate: (String) -> Unit, 
+    viewModel: com.example.kasir.viewmodel.TableViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+) {
+    // State Management for Data from ViewModel
+    val tables by viewModel.tables.collectAsState()
+    val locations by viewModel.locations.collectAsState()
+    val isStoreOpen by viewModel.isStoreOpen.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val apiErrorMessage by viewModel.errorMessage.collectAsState()
+
+    // Location Filter List
+    val locationList = listOf(Location(-1, "Semua")) + locations.sortedBy { it.name }
     
     // Logic Effects: Force Light Status Bar Icons (White) like Dashboard
     val view = androidx.compose.ui.platform.LocalView.current
@@ -122,14 +128,16 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         }
     }
 
-    var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     // Filter State
     var selectedLocation by remember { mutableStateOf("Semua") }
 
-    var globalStatus by remember { mutableStateOf(QrStatus()) }
+    // Sync Store Status
+    var globalStatus by remember(isStoreOpen) { 
+        mutableStateOf(QrStatus(isOpen = isStoreOpen)) 
+    }
 
     // Modals & Dialogs
     var showTableOptions by remember { mutableStateOf<Table?>(null) }
@@ -144,7 +152,7 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Anti-Spam (Race Condition) lock for individual table switches
-    var submittingTableIds by remember { mutableStateOf(emptySet<Int>()) }
+    // submittingTableIds removed for local state shadow
     
     LaunchedEffect(errorMessage) {
         errorMessage?.let { msg ->
@@ -152,8 +160,16 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 message = msg,
                 duration = SnackbarDuration.Short
             )
-            // Clear message after showing to allow consecutive errors to trigger
             errorMessage = null
+        }
+    }
+
+    LaunchedEffect(apiErrorMessage) {
+        apiErrorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(
+                message = msg,
+                duration = SnackbarDuration.Short
+            )
         }
     }
     
@@ -169,47 +185,11 @@ fun TableScreen(onNavigate: (String) -> Unit) {
     var showEditLocationDialog by remember { mutableStateOf<Location?>(null) }
     var showDeleteLocationConfirm by remember { mutableStateOf<Location?>(null) }
 
-    // Helper to refresh data
-    val refreshData = {
-        scope.launch {
-            try {
-                // Optimasi Performa: Jalankan 3 panggilan API secara Paralel
-                val storeDeferred = async { RetrofitClient.instance.getStore() }
-                val tablesDeferred = async { RetrofitClient.instance.getTables() }
-                val locsDeferred = async { RetrofitClient.instance.getLocations() }
-
-                // Tunggu ketiga data selesai di-fetch secara bersamaan
-                val storeResponse = storeDeferred.await()
-                val tables = tablesDeferred.await()
-                val locations = locsDeferred.await()
-
-                if (storeResponse.success && storeResponse.data != null) {
-                   globalStatus = globalStatus.copy(isOpen = storeResponse.data.isOpen)
-                }
-
-                tableList = tables
-                
-                // Sort by ID or Name if needed. Assuming server order or alphabetical
-                val sortedLocs = locations.sortedBy { it.name }
-                locationList = listOf(Location(-1, "Semua")) + sortedLocs
-            } catch (e: Exception) {
-                errorMessage = "Gagal memuat ulang data: ${e.localizedMessage}"
-            }
-        }
-    }
-
-    // Fetch Tables and Locations Initial
-    LaunchedEffect(Unit) {
-        isLoading = true
-        refreshData()
-        isLoading = false
-    }
-
     // Filter Logic
     val filteredTables = if (selectedLocation == "Semua") {
-        tableList
+        tables
     } else {
-        tableList.filter { it.location?.name == selectedLocation }
+        tables.filter { it.location?.name == selectedLocation }
     }
 
     Scaffold(
@@ -232,44 +212,20 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Column(modifier = Modifier.fillMaxSize()) {
 
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = QrPrimaryBlue)
-                }
+            if (isLoading && tables.isEmpty()) {
+                // SHIMMER SKELETON UI LOADING
+                TableSkeletonLoading()
             } else {
                 // Fixed Header Area
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                     // Status Card
-                    var isStatusSubmitting by remember { mutableStateOf(false) }
-                    StatusCard(globalStatus, isSubmitting = isStatusSubmitting,
-                        onToggle = { 
-                            if(isStatusSubmitting) return@StatusCard
-                            isStatusSubmitting = true
+                    StatusCard(globalStatus,
+                        onToggle = { onComplete -> 
                             val newStatus = !globalStatus.isOpen
-                            // Optimistic Update
-                            globalStatus = globalStatus.copy(isOpen = newStatus)
+                            globalStatus = globalStatus.copy(isOpen = newStatus) // Optimistic Local for child tables
                             
-                            scope.launch {
-                                try {
-                                    val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(isOpen = newStatus))
-                                    if (response.success && response.data != null) {
-                                        globalStatus = globalStatus.copy(isOpen = response.data.isOpen)
-                                        // Targeted refresh: only update table list (no full reload)
-                                        try {
-                                            val updatedTables = RetrofitClient.instance.getTables()
-                                            tableList = updatedTables
-                                        } catch (_: Exception) { }
-                                    } else {
-                                        // Revert on failure
-                                        globalStatus = globalStatus.copy(isOpen = !newStatus)
-                                        errorMessage = "Gagal update status toko"
-                                    }
-                                } catch(e: Exception) {
-                                     globalStatus = globalStatus.copy(isOpen = !newStatus)
-                                     errorMessage = "Error: ${e.localizedMessage}"
-                                } finally {
-                                    isStatusSubmitting = false
-                                }
+                            viewModel.updateStoreStatus(newStatus) {
+                                onComplete() // Release lock ONLY when server finishes
                             }
                         },
                         onInfoClick = { showStatusGuideDialog = true }
@@ -314,33 +270,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                                     TableCard(
                                         item = item,
                                         isGlobalOpen = globalStatus.isOpen,
-                                        isSubmitting = submittingTableIds.contains(item.id),
-                                        onToggle = { isActive ->
-                                            // Optimistic Update
-                                             val optimisticItem = item.copy(isActive = isActive)
-                                             tableList = tableList.map { if (it.id == item.id) optimisticItem else it }
-                                             submittingTableIds = submittingTableIds + item.id
-
-                                             scope.launch {
-                                                 try {
-                                                     val response = RetrofitClient.instance.updateTableStatus(item.id, mapOf("isActive" to isActive))
-                                                     if (response.isSuccessful && response.body() != null) {
-                                                         // Success: Sync with backend truth
-                                                         val serverItem = response.body()!!
-                                                         tableList = tableList.map { if (it.id == serverItem.id) serverItem else it }
-                                                     } else {
-                                                         // Failed: Revert to original item
-                                                         tableList = tableList.map { if (it.id == item.id) item else it }
-                                                         errorMessage = "Gagal update status: ${response.code()}"
-                                                     }
-                                                 } catch (e: Exception) {
-                                                     // Error: Revert to original item
-                                                     tableList = tableList.map { if (it.id == item.id) item else it }
-                                                     errorMessage = "Error status: ${e.localizedMessage}"
-                                                 } finally {
-                                                     submittingTableIds = submittingTableIds - item.id
-                                                 }
-                                             }
+                                        onToggle = { isActive, onComplete ->
+                                            viewModel.updateTableStatus(item.id, isActive) {
+                                                onComplete()
+                                            }
                                         },
                                         onQrClick = { showQrModal = item },
                                         onOptionClick = { showTableOptions = item }
@@ -486,23 +419,8 @@ fun TableScreen(onNavigate: (String) -> Unit) {
         if (showAddLocationDialog) {
             AddLocationDialog(
                 onSave = { name ->
-                    // Optimistic: add placeholder & close immediately
-                    val tempId = -(System.currentTimeMillis() % 100000).toInt()
-                    val placeholder = Location(id = tempId, name = name)
-                    locationList = locationList + placeholder
-                    showAddLocationDialog = false
-
-                    scope.launch {
-                        try {
-                            RetrofitClient.instance.addLocation(mapOf("name" to name))
-                            // Sync with server truth
-                            val locations = RetrofitClient.instance.getLocations()
-                            locationList = listOf(Location(-1, "Semua")) + locations.sortedBy { it.name }
-                        } catch(e: Exception) {
-                            // Revert placeholder
-                            locationList = locationList.filter { it.id != tempId }
-                            errorMessage = "Gagal tambah lokasi: ${e.localizedMessage}"
-                        }
+                    viewModel.addLocation(name) { success ->
+                        if (success) showAddLocationDialog = false
                     }
                 },
                 onCancel = { showAddLocationDialog = false }
@@ -515,21 +433,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
             EditLocationDialog(
                 location = editingLoc,
                 onSave = { id, name ->
-                    // Optimistic: update name in list & close immediately
-                    val originalList = locationList.toList()
-                    locationList = locationList.map { if (it.id == id) it.copy(name = name) else it }
-                    // Also update selected filter if it was the renamed location
-                    if (selectedLocation == editingLoc.name) selectedLocation = name
-                    showEditLocationDialog = null
-
-                    scope.launch {
-                        try {
-                            RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
-                        } catch(e: Exception) {
-                            // Revert
-                            locationList = originalList
-                            if (selectedLocation == name) selectedLocation = editingLoc.name
-                            errorMessage = "Gagal update lokasi: ${e.localizedMessage}"
+                    viewModel.updateLocation(id, name) { success ->
+                        if (success) {
+                            if (selectedLocation == editingLoc.name) selectedLocation = name
+                            showEditLocationDialog = null
                         }
                     }
                 },
@@ -562,27 +469,10 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 desc = "Menghapus lokasi '${showDeleteLocationConfirm!!.name}' mungkin memengaruhi meja yang ada di sana.",
                 onConfirm = {
                     val locToDelete = showDeleteLocationConfirm!!
-                    val originalLocList = locationList.toList()
-                    val originalSelection = selectedLocation
-
-                    // Optimistic: remove from list & close immediately
-                    locationList = locationList.filter { it.id != locToDelete.id }
-                    if (selectedLocation == locToDelete.name) selectedLocation = "Semua"
-                    showDeleteLocationConfirm = null
-
-                    scope.launch {
-                        try {
-                            val res = RetrofitClient.instance.deleteLocation(locToDelete.id)
-                            if (!res.isSuccessful) {
-                                // Revert
-                                locationList = originalLocList
-                                selectedLocation = originalSelection
-                                errorMessage = "Gagal hapus: ${res.code()}"
-                            }
-                        } catch(e: Exception) {
-                            locationList = originalLocList
-                            selectedLocation = originalSelection
-                            errorMessage = "Gagal hapus lokasi: ${e.localizedMessage}"
+                    viewModel.deleteLocation(locToDelete.id) { success ->
+                        if (success) {
+                            if (selectedLocation == locToDelete.name) selectedLocation = "Semua"
+                            showDeleteLocationConfirm = null
                         }
                     }
                 },
@@ -624,23 +514,9 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 desc = "Menghapus meja akan menghilangkan QR code dan data terkait. Tindakan ini tidak dapat dibatalkan.",
                 onConfirm = {
                     val tableToDelete = showDeleteTableConfirm!!
-                    val originalTableList = tableList.toList()
-
-                    // Optimistic: remove from list & close immediately
-                    tableList = tableList.filter { it.id != tableToDelete.id }
-                    showDeleteTableConfirm = null
-
-                    scope.launch {
-                        try {
-                            val response = RetrofitClient.instance.deleteTable(tableToDelete.id)
-                            if (!response.isSuccessful) {
-                                // Revert
-                                tableList = originalTableList
-                                errorMessage = "Gagal hapus meja: ${response.code()}"
-                            }
-                        } catch(e: Exception) {
-                            tableList = originalTableList
-                            errorMessage = "Gagal hapus meja: ${e.localizedMessage}"
+                    viewModel.deleteTable(tableToDelete.id) { success ->
+                        if (success) {
+                            showDeleteTableConfirm = null
                         }
                     }
                 },
@@ -662,67 +538,22 @@ fun TableScreen(onNavigate: (String) -> Unit) {
                 initialLocation = initialLocation,
                 isEditMode = currentEditingTable != null,
                 onSave = { name, locationId ->
-                    val selectedLoc = locationList.find { it.id == locationId }
-                    val locData = if (selectedLoc != null) LocationData(selectedLoc.id, selectedLoc.name) else null
-
-                    if (currentEditingTable != null) {
-                        // === UPDATE MODE — Optimistic ===
-                        val editingTable = currentEditingTable!!
-                        val originalTableList = tableList.toList()
-
-                        // 1. Update UI immediately
-                        val optimisticItem = editingTable.copy(name = name, location = locData)
-                        tableList = tableList.map { if (it.id == editingTable.id) optimisticItem else it }
-                        showAddTableModal = false
-                        currentEditingTable = null
-
-                        // 2. API in background
-                        scope.launch {
-                            try {
-                                val qrCode = editingTable.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
-                                val tableRequest = TableRequest(name = name, locationId = locationId, qrCode = qrCode, isActive = editingTable.isActive)
-                                val response = RetrofitClient.instance.updateTable(editingTable.id, tableRequest)
-                                if (response.isSuccessful && response.body() != null) {
-                                    // Sync with server truth
-                                    val serverItem = response.body()!!
-                                    tableList = tableList.map { if (it.id == serverItem.id) serverItem else it }
-                                } else {
-                                    // Revert
-                                    tableList = originalTableList
-                                    errorMessage = "Gagal update meja: ${response.code()}"
+                    val locData = locationList.find { it.id == locationId }
+                    if (locData != null) {
+                        if (currentEditingTable != null) {
+                            // === EDIT MODE ===
+                            viewModel.updateTable(currentEditingTable!!.id, name, locationId) { success ->
+                                if (success) {
+                                    showAddTableModal = false
+                                    currentEditingTable = null
                                 }
-                            } catch(e: Exception) {
-                                tableList = originalTableList
-                                errorMessage = "Error: ${e.localizedMessage}"
                             }
-                        }
-                    } else {
-                        // === CREATE MODE — Optimistic ===
-                        val qrCode = "QR-${name}-${System.currentTimeMillis()}"
-                        val initialActiveState = globalStatus.isOpen
-                        val tempId = -(System.currentTimeMillis() % 100000).toInt()
-
-                        // 1. Add placeholder & close immediately
-                        val placeholder = Table(id = tempId, name = name, location = locData, qrCode = qrCode, isActive = initialActiveState)
-                        tableList = tableList + placeholder
-                        showAddTableModal = false
-
-                        // 2. API in background
-                        scope.launch {
-                            try {
-                                val tableRequest = TableRequest(name = name, locationId = locationId, qrCode = qrCode, isActive = initialActiveState)
-                                val response = RetrofitClient.instance.addTable(tableRequest)
-                                if (response.isSuccessful && response.body() != null) {
-                                    // Replace placeholder with server data
-                                    tableList = tableList.map { if (it.id == tempId) response.body()!! else it }
-                                } else {
-                                    // Remove placeholder
-                                    tableList = tableList.filter { it.id != tempId }
-                                    errorMessage = "Gagal tambah meja: ${response.code()}"
+                        } else {
+                            // === CREATE MODE ===
+                            viewModel.addTable(name, locationId) { success ->
+                                if (success) {
+                                    showAddTableModal = false
                                 }
-                            } catch(e: Exception) {
-                                tableList = tableList.filter { it.id != tempId }
-                                errorMessage = "Error: ${e.localizedMessage}"
                             }
                         }
                     }
@@ -738,13 +569,26 @@ fun TableScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun StatusCard(status: QrStatus, isSubmitting: Boolean = false, onToggle: () -> Unit, onInfoClick: () -> Unit) {
+fun StatusCard(status: QrStatus, onToggle: (onComplete: () -> Unit) -> Unit, onInfoClick: () -> Unit) {
+    val context = LocalContext.current
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
+
+    // === ZERO-BOUNCE UI ===
+    var isLocalOpen by remember(status.isOpen) { mutableStateOf(status.isOpen) }
+    var isUpdating by remember { mutableStateOf(false) }
+
+    LaunchedEffect(status.isOpen) {
+        if (!isUpdating) {
+            isLocalOpen = status.isOpen
+        }
+    }
+
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if (status.isOpen) StatusOpenBg else StatusClosedBg),
-        border = BorderStroke(2.dp, if (status.isOpen) StatusOpenBorder else StatusClosedBorder),
+        colors = CardDefaults.cardColors(containerColor = if (isLocalOpen) StatusOpenBg else StatusClosedBg),
+        border = BorderStroke(2.dp, if (isLocalOpen) StatusOpenBorder else StatusClosedBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().then(if (isSubmitting) Modifier.alpha(0.7f) else Modifier)
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -755,10 +599,10 @@ fun StatusCard(status: QrStatus, isSubmitting: Boolean = false, onToggle: () -> 
                 Column {
                     Text("Status Operasional QR", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QrTextDark)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                        Text("• ", color = if (status.isOpen) QrActiveGreen else DeleteRed, fontWeight = FontWeight.Bold)
+                        Text("• ", color = if (isLocalOpen) QrActiveGreen else DeleteRed, fontWeight = FontWeight.Bold)
                         Text(
-                            if (status.isOpen) status.openText else status.closedText,
-                            color = if (status.isOpen) QrActiveGreen else DeleteRed,
+                            if (isLocalOpen) status.openText else status.closedText,
+                            color = if (isLocalOpen) QrActiveGreen else DeleteRed,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -766,12 +610,28 @@ fun StatusCard(status: QrStatus, isSubmitting: Boolean = false, onToggle: () -> 
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Switch(
-                        checked = status.isOpen,
-                        onCheckedChange = { onToggle() },
-                        enabled = !isSubmitting,
+                        checked = isLocalOpen,
+                        onCheckedChange = { isOpen -> 
+                            val now = System.currentTimeMillis()
+                            val recentClicks = clickTimestamps.filter { now - it < 1500 }
+                            
+                            if (recentClicks.size >= 3) {
+                                Toast.makeText(context, "Terlalu cepat! Tunggu sebentar.", Toast.LENGTH_SHORT).show()
+                                clickTimestamps = recentClicks + now
+                                return@Switch
+                            }
+                            
+                            clickTimestamps = recentClicks + now
+                            isLocalOpen = isOpen
+                            isUpdating = true
+                            
+                            onToggle {
+                                isUpdating = false
+                            }
+                        },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = QrActiveGreen)
                     )
-                    if (!status.isOpen) {
+                    if (!isLocalOpen) {
                         Text("OFF", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -1231,8 +1091,22 @@ fun FilterPill(label: String, isActive: Boolean, onClick: () -> Unit, onLongClic
 }
 
 @Composable
-fun TableCard(item: Table, isGlobalOpen: Boolean, isSubmitting: Boolean = false, onToggle: (Boolean) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
+fun TableCard(item: Table, isGlobalOpen: Boolean, onToggle: (Boolean, onComplete: () -> Unit) -> Unit, onQrClick: () -> Unit, onOptionClick: () -> Unit) {
     val isLocked = !isGlobalOpen
+    val context = LocalContext.current
+    
+    // Anti-Spam UX logic
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
+
+    // === ZERO-BOUNCE UI ===
+    var isLocalActive by remember(item.id) { mutableStateOf(item.isActive) }
+    var isUpdating by remember(item.id) { mutableStateOf(false) }
+
+    LaunchedEffect(item.isActive) {
+        if (!isUpdating) {
+            isLocalActive = item.isActive
+        }
+    }
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -1280,19 +1154,19 @@ fun TableCard(item: Table, isGlobalOpen: Boolean, isSubmitting: Boolean = false,
                 
                 // QR Placeholder
                 Surface(
-                    color = if (item.isActive != false) Color(0xFFF8FAFC) else Color(0xFFF1F5F9), 
+                    color = if (isLocalActive) Color(0xFFF8FAFC) else Color(0xFFF1F5F9), 
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp)
-                        .clickable(enabled = !isLocked && item.isActive) { onQrClick() } // Disable click if locked
+                        .clickable(enabled = !isLocked && isLocalActive) { onQrClick() } // Disable click if locked
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        if (!item.qrCode.isNullOrBlank() && item.isActive) {
+                        if (!item.qrCode.isNullOrBlank() && isLocalActive) {
                              QRCodeImage(
                                 content = "$BASE_PWA_URL/?tableId=${item.qrCode}",
                                 modifier = Modifier
@@ -1304,11 +1178,11 @@ fun TableCard(item: Table, isGlobalOpen: Boolean, isSubmitting: Boolean = false,
                             Icon(
                                 painter = painterResource(id = android.R.drawable.ic_menu_camera),
                                 contentDescription = "QR",
-                                tint = if (item.isActive && !isLocked) QrPrimaryBlue else Color.Gray,
+                                tint = if (isLocalActive && !isLocked) QrPrimaryBlue else Color.Gray,
                                 modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (item.isActive && !isLocked) QrPrimaryBlue else Color.Gray)
+                            Text("Lihat QR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isLocalActive && !isLocked) QrPrimaryBlue else Color.Gray)
                         }
                     }
                 }
@@ -1321,12 +1195,32 @@ fun TableCard(item: Table, isGlobalOpen: Boolean, isSubmitting: Boolean = false,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (item.isActive) "Aktif" else "Nonaktif", fontSize = 11.sp, color = Color(0xFF888888), fontWeight = FontWeight.Medium)
+                    Text(if (isLocalActive) "Aktif" else "Nonaktif", fontSize = 11.sp, color = Color(0xFF888888), fontWeight = FontWeight.Medium)
                     Switch(
-                        checked = item.isActive,
-                        onCheckedChange = { onToggle(it) },
+                        checked = isLocalActive,
+                        onCheckedChange = { isActive ->
+                            // Rate Limiter Logic
+                            val now = System.currentTimeMillis()
+                            val recentClicks = clickTimestamps.filter { now - it < 1500 }
+                            
+                            if (recentClicks.size >= 3) {
+                                // Spam detected!
+                                Toast.makeText(context, "Terlalu cepat! Tunggu sebentar.", Toast.LENGTH_SHORT).show()
+                                clickTimestamps = recentClicks + now
+                                return@Switch
+                            } 
+                            
+                            // Safe to toggle
+                            clickTimestamps = recentClicks + now
+                            isLocalActive = isActive
+                            isUpdating = true
+                            
+                            onToggle(isActive) {
+                                isUpdating = false
+                            }
+                        },
                         modifier = Modifier.scaleCustom(0.8f),
-                        enabled = !isLocked && !isSubmitting, // Disable switch if locked or submitting
+                        enabled = !isLocked, // Only disabled if globally locked by store
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White, 
                             checkedTrackColor = QrActiveGreen,
@@ -1774,3 +1668,77 @@ private fun TableConfirmationModal(title: String, desc: String, onConfirm: () ->
 
 // Made PRIVATE
 private fun Modifier.scaleCustom(scale: Float) = this.then(Modifier.graphicsLayer(scaleX = scale, scaleY = scale))
+
+// =========================================================================
+// SKELETON LOADING (SHIMMER EFFECT)
+// =========================================================================
+
+@Composable
+fun TableSkeletonLoading() {
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer_transition")
+    val shimmerTranslate = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer_translate"
+    )
+
+    val shimmerBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f)
+        ),
+        start = Offset(shimmerTranslate.value - 200f, shimmerTranslate.value - 200f),
+        end = Offset(shimmerTranslate.value, shimmerTranslate.value)
+    )
+
+    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+        // Status Card Skeleton
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(shimmerBrush)
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Location Chips Skeleton
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(4) {
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(shimmerBrush)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Table Grid Skeleton
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(4) { // Rows
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    repeat(2) { // Columns
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(shimmerBrush)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

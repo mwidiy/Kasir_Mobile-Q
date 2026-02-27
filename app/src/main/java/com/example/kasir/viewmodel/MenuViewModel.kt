@@ -310,20 +310,17 @@ class MenuViewModel : ViewModel() {
 
     fun toggleProductStatus(product: Product, onComplete: () -> Unit = {}) {
         val updatedProduct = product.copy(isActive = !product.isActive)
-        val originalProducts = _products.value.toList() // Snapshot for Rollback
-
-        // OPTIMISTIC UI: Instant Switch
-        _products.value = _products.value.map {
-            if (it.id == product.id) updatedProduct else it
-        }
-
         // NO VIEWMODEL CANCEL DEBOUNCE HERE! 
-        // The UI's 3-click Anti-Spam (Tahap 21) already protects against single-item spam.
-        // If we cancel here, we destroy valid sequential mass-toggles (Item 2, 3, 4, 5).
+        // The UI's Anti-Spam (Tahap 21) already protects against single-item spam.
         
         toggleJobs[product.id] = viewModelScope.launch {
-             pendingTogglesCount.incrementAndGet() // Block socket updates globally
+             pendingTogglesCount.incrementAndGet() // Block socket updates & intermediate refreshes globally
              try {
+                // ZERO-BOUNCE OPTIMISTIC UI: Update instantly outside the Mutex queue!
+                _products.value = _products.value.map {
+                    if (it.id == product.id) updatedProduct else it
+                }
+
                 val name = createPartFromString(updatedProduct.name)
                 val categoryId = createPartFromString(updatedProduct.categoryId?.toString() ?: "0")
                 val price = createPartFromString(updatedProduct.price.toString())
@@ -332,21 +329,23 @@ class MenuViewModel : ViewModel() {
                 val ar3dModel = if (updatedProduct.ar3dModel != null) createPartFromString(updatedProduct.ar3dModel) else null
                 val isArActive = createPartFromString(updatedProduct.isArActive.toString())
                 
-                // WAIT IN LINE: Execute API requests one-by-one
-                val response = toggleMutex.withLock {
-                    RetrofitClient.instance.updateProduct(
+                // WAIT IN LINE: Execute API requests one-by-one via Mutex
+                toggleMutex.withLock {
+                    val response = RetrofitClient.instance.updateProduct(
                          updatedProduct.id, name, categoryId, price, description, null, isActive, ar3dModel, isArActive
                     )
-                }
-                
-                if (response.success) {
-                    fetchProducts(isSilent = true) // Final sync
-                } else {
-                    _products.value = originalProducts // Rollback
-                    _errorMessage.value = response.message
+                    
+                    if (response.success) {
+                        fetchProducts(isSilent = true) // Final sync (Gatekeeper protected now)
+                    } else {
+                        // Backend Error -> Full Server Sync (Better Rollback)
+                        fetchProducts(isSilent = false)  
+                        _errorMessage.value = response.message
+                    }
                 }
              } catch (e: Exception) {
-                 _products.value = originalProducts // Rollback
+                 // Network Error -> Full Server Sync
+                 fetchProducts(isSilent = false)
                  _errorMessage.value = "Gagal mengubah status: ${e.localizedMessage}"
                  e.printStackTrace()
              } finally {
