@@ -398,10 +398,8 @@ fun DashboardScreenContent(
                 }
 
                 if (isLoading && filteredOrders.isEmpty()) {
-                    // Cuma tampilkan loading penuh kalau data memang kosong (Fresh load)
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = CardHeaderBg)
-                    }
+                    // Tampilkan Shimmer Loading Profesional
+                    DashboardSkeletonLoading()
                 } else if (filteredOrders.isEmpty()) {
                     EmptyState()
                 } else {
@@ -796,6 +794,89 @@ fun OrderTypeBanner(orderType: String) {
             text = style.label,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = style.text)
         )
+    }
+}
+
+// --- SHIMMER LOADING COMPONENT ---
+@Composable
+fun dashboardShimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): androidx.compose.ui.graphics.Brush {
+    val shimmerColors = listOf(
+        Color.LightGray.copy(alpha = 0.6f),
+        Color.LightGray.copy(alpha = 0.2f),
+        Color.LightGray.copy(alpha = 0.6f)
+    )
+
+    val transition = rememberInfiniteTransition()
+    val translateAnimation = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = targetValue,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+    return androidx.compose.ui.graphics.Brush.linearGradient(
+        colors = shimmerColors,
+        start = androidx.compose.ui.geometry.Offset.Zero,
+        end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+    )
+}
+
+@Composable
+fun DashboardSkeletonLoading() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 120.dp)
+    ) {
+         items(4) {
+             Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    // Header Shimmer
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(dashboardShimmerBrush())
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top 
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(modifier = Modifier.width(150.dp).height(20.dp).background(Color.White.copy(alpha=0.5f), RoundedCornerShape(4.dp)))
+                            Box(modifier = Modifier.width(100.dp).height(14.dp).background(Color.White.copy(alpha=0.3f), RoundedCornerShape(4.dp)))
+                        }
+                        Box(modifier = Modifier.width(60.dp).height(24.dp).background(Color.White.copy(alpha=0.5f), RoundedCornerShape(20.dp)))
+                    }
+
+                    // Body Shimmer
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // Banner
+                        Box(modifier = Modifier.fillMaxWidth().height(40.dp).background(dashboardShimmerBrush(), RoundedCornerShape(8.dp)))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Menu Items
+                        repeat(2) {
+                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                  Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                      Box(modifier = Modifier.width(28.dp).height(24.dp).background(dashboardShimmerBrush(), RoundedCornerShape(4.dp)))
+                                      Box(modifier = Modifier.width(140.dp).height(20.dp).background(dashboardShimmerBrush(), RoundedCornerShape(4.dp)))
+                                  }
+                                  Box(modifier = Modifier.width(80.dp).height(20.dp).background(dashboardShimmerBrush(), RoundedCornerShape(4.dp)))
+                             }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Buttons
+                        Box(modifier = Modifier.fillMaxWidth().height(48.dp).background(dashboardShimmerBrush(), RoundedCornerShape(8.dp)))
+                    }
+                }
+            }
+         }
     }
 }
 

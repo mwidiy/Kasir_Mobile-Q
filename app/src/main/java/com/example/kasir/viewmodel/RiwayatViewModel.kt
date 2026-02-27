@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.example.kasir.utils.LocalEventBus
+import com.google.gson.Gson
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,10 +48,46 @@ class RiwayatViewModel : ViewModel() {
     var typeFilter = "All" // All, dinein, takeaway
 
     private var socketDebounceJob: Job? = null
+    private val historyMutex = Mutex()
+    private val gson = Gson()
 
     init {
         initSocket()
+        initLocalEventBus() // TAHAP 33: True Local Optimistic Sync
         fetchHistory()
+    }
+
+    private fun initLocalEventBus() {
+        viewModelScope.launch {
+            LocalEventBus.orderUpdateFlow.collect { order ->
+                historyMutex.withLock {
+                    try {
+                        val currentList = _allOrders.value
+                        val existingIndex = currentList.indexOfFirst { it.id == order.id }
+                        
+                        val isHistoryValid = order.status == "Completed" || order.status == "Cancelled"
+                        
+                        if (existingIndex != -1) {
+                            val newList = currentList.toMutableList()
+                            if (isHistoryValid) {
+                                newList[existingIndex] = order
+                            } else {
+                                newList.removeAt(existingIndex)
+                            }
+                            _allOrders.value = newList
+                        } else {
+                            if (isHistoryValid) {
+                                _allOrders.value = listOf(order) + currentList
+                            }
+                        }
+                        applyFilters()
+                        // 0ms Latency achieved!
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
     }
 
     private fun initSocket() {
@@ -58,10 +98,38 @@ class RiwayatViewModel : ViewModel() {
 
             // Listen for any order update
             socket.on("order_status_updated") { args ->
-                socketDebounceJob?.cancel()
-                socketDebounceJob = viewModelScope.launch {
-                    delay(1000L) // 1 second debounce
-                    fetchHistory()
+                val obj = args.getOrNull(0)
+                if (obj != null) {
+                    viewModelScope.launch {
+                        historyMutex.withLock {
+                            try {
+                                val order = gson.fromJson(obj.toString(), OrderResponse::class.java)
+                                val currentList = _allOrders.value
+                                val existingIndex = currentList.indexOfFirst { it.id == order.id }
+                                
+                                val isHistoryValid = order.status == "Completed" || order.status == "Cancelled"
+                                
+                                if (existingIndex != -1) {
+                                    val newList = currentList.toMutableList()
+                                    if (isHistoryValid) {
+                                        newList[existingIndex] = order
+                                    } else {
+                                        // Case where a history item was somehow rolled back
+                                        newList.removeAt(existingIndex)
+                                    }
+                                    _allOrders.value = newList
+                                } else {
+                                    // New Completed/Cancelled Order incoming
+                                    if (isHistoryValid) {
+                                        _allOrders.value = listOf(order) + currentList
+                                    }
+                                }
+                                applyFilters() // Instant Local Refresh (0.001s)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {

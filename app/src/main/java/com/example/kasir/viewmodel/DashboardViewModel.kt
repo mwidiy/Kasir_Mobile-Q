@@ -11,9 +11,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.kasir.utils.LocalEventBus
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -41,6 +44,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     val isSoundEnabled: StateFlow<Boolean> = _isSoundEnabled.asStateFlow()
 
     private var socketDebounceJob: Job? = null
+    
+    // ANTI-BOUNCE GATEKEEPER
+    val pendingTogglesCount = MutableStateFlow(0)
+    private val toggleMutex = Mutex()
 
     init {
         initSocket()
@@ -87,6 +94,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun fetchOrders() {
         viewModelScope.launch {
+            // ANTI-BOUNCE GATEKEEPER: Stop socket & auto-refresh from messing up UI during checkout Queue
+            if (_orders.value.isNotEmpty() && pendingTogglesCount.value > 0) {
+                return@launch
+            }
+
             // Silent Refresh: Only show full loader if list is empty
             if (_orders.value.isEmpty()) {
                 _isLoading.value = true
@@ -127,7 +139,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun updateStatus(orderId: Int, newStatus: String) {
-        // Optimistic Update
+        // ZERO-BOUNCE OPTIMISTIC UI: Instant remove card out of the screen without waiting logic
         val currentList = _orders.value
         val oldOrderIndex = currentList.indexOfFirst { it.id == orderId }
         
@@ -137,24 +149,34 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             val newList = currentList.toMutableList()
             newList[oldOrderIndex] = updatedOrder
             _orders.value = newList
+            
+            // TAHAP 33: TRUE OPTIMISTIC SYNC
+            // Broadcast the magically updated order directly to the History screen! (0 latency)
+            viewModelScope.launch {
+                LocalEventBus.emitOrderUpdate(updatedOrder)
+            }
         }
 
         viewModelScope.launch {
-            // No blocking loading
-            try {
-                val response = apiService.updateOrderStatus(orderId, OrderStatusRequest(newStatus))
-                if (response.isSuccessful) {
-                    fetchOrders() // Sync with server ensure consistency using Silent Refresh
-                } else {
-                    // Revert
-                    _orders.value = currentList
-                    _error.value = "Failed to update status: ${response.message()}"
+            pendingTogglesCount.value++
+            toggleMutex.withLock {
+                try {
+                    val response = apiService.updateOrderStatus(orderId, OrderStatusRequest(newStatus))
+                    if (response.isSuccessful) {
+                        fetchOrders() // Safely sync with server using Silent Refresh (Gatekeeper ignores it if queue > 1)
+                    } else {
+                        // Backend Error -> Full Server Sync
+                        fetchOrders()
+                        _error.value = "Failed to update status: ${response.message()}"
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // Network Error -> Full Server Sync
+                    fetchOrders()
+                    _error.value = "Error update: ${e.localizedMessage}"
+                } finally {
+                    pendingTogglesCount.value-- // INFINITE LOCK RELAY -> Release global sync block
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                // Revert
-                _orders.value = currentList
-                _error.value = "Error update: ${e.localizedMessage}"
             }
         }
     }

@@ -12,6 +12,8 @@ import com.example.kasir.utils.FileUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -25,6 +27,8 @@ class ProfileViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
+
+    private val withdrawMutex = Mutex() // TAHAP 34: Anti-Double Click Guard
 
     fun clearErrorMessage() {
         _errorMessage.value = null
@@ -58,6 +62,7 @@ class ProfileViewModel : ViewModel() {
             // If we have data, we do "Silent Refresh" (background update)
             if (_storeState.value == null) {
                 _isLoading.value = true
+                kotlinx.coroutines.delay(400) // TAHAP 34: Guarantee skeleton visibility on fast networks
             }
             
             try {
@@ -225,28 +230,52 @@ class ProfileViewModel : ViewModel() {
 
     fun requestWithdrawal(amount: Int, method: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            _isLoading.value = true
+            if (!withdrawMutex.tryLock()) return@launch // TAHAP 34: Reject spam clicks instantly (Anti-Double Click)
+            
             try {
-                val response = RetrofitClient.instance.requestWithdrawal(
-                    com.example.kasir.data.model.WithdrawalRequest(amount, method)
-                )
-                if (response.success) {
-                    fetchBalance() // Refresh balance
-                    fetchHistory() // Refresh history
-                    onSuccess()
-                } else {
-                     _errorMessage.value = "Gagal tarik dana"
+                _isLoading.value = true
+                
+                // OPTIMISTIC UPDATE: Instant Saldo Deduction (Zero-Latency for Cashier)
+                val previousAvailable = _availableBalance.value
+                val previousBalance = _balance.value
+                
+                _availableBalance.value -= amount
+                _balance.value -= amount
+                
+                onSuccess() // TAHAP 34: Close dialog IMMEDIATELY (0ms latency UI)
+                
+                try {
+                    val response = RetrofitClient.instance.requestWithdrawal(
+                        com.example.kasir.data.model.WithdrawalRequest(amount, method)
+                    )
+                    if (response.success) {
+                        fetchBalance() // Background sync to ensure precision
+                        fetchHistory() // Refresh history silently
+                    } else {
+                         // Rollback
+                         _availableBalance.value = previousAvailable
+                         _balance.value = previousBalance
+                         _errorMessage.value = "Gagal tarik dana"
+                    }
+                } catch (e: retrofit2.HttpException) {
+                    // Rollback
+                    _availableBalance.value = previousAvailable
+                    _balance.value = previousBalance
+                    val errorMsg = try {
+                        val errorBody = e.response()?.errorBody()?.string()
+                        org.json.JSONObject(errorBody!!).getString("error")
+                    } catch(ex: Exception) { "Gagal tarik dana: ${e.message()}" }
+                    _errorMessage.value = errorMsg
+                } catch (e: Exception) {
+                    // Rollback
+                    _availableBalance.value = previousAvailable
+                    _balance.value = previousBalance
+                    _errorMessage.value = "Gagal tarik dana: ${e.localizedMessage}"
+                } finally {
+                    _isLoading.value = false
                 }
-            } catch (e: retrofit2.HttpException) {
-                val errorMsg = try {
-                    val errorBody = e.response()?.errorBody()?.string()
-                    org.json.JSONObject(errorBody!!).getString("error")
-                } catch(ex: Exception) { "Gagal tarik dana: ${e.message()}" }
-                _errorMessage.value = errorMsg
-            } catch (e: Exception) {
-                _errorMessage.value = "Gagal tarik dana: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false
+                withdrawMutex.unlock()
             }
         }
     }

@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -228,10 +229,8 @@ fun ProfileScreen(
         },
         containerColor = BackgroundLight
     ) { paddingValues ->
-        if (isLoading) {
-             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                 CircularProgressIndicator(color = Navy)
-             }
+        if (isLoading && storeState == null) {
+             SettingSkeletonLoading(paddingValues)
         } else {
              Column(
                 modifier = Modifier
@@ -1115,6 +1114,102 @@ fun WithdrawalDialog(
         containerColor = Navy, // Dark Background
         shape = RoundedCornerShape(16.dp)
     )
+}
+
+@Composable
+fun SettingSkeletonLoading(paddingValues: PaddingValues) {
+    val brush = settingShimmerBrush()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Shimmer: Logo Identity
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(brush)
+            )
+            
+            // Name Input Skeleton
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(brush)
+            )
+            
+            // WhatsApp Skeleton
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(brush)
+            )
+        }
+
+        // Shimmer: Balance Card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(brush)
+        )
+
+        // Shimmer: Payment Methods Section
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(brush)
+        )
+    }
+}
+
+@Composable
+fun settingShimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): androidx.compose.ui.graphics.Brush {
+    return if (showShimmer) {
+        val shimmerColors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f),
+        )
+
+        val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "")
+        val translateAnimation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = targetValue,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = androidx.compose.animation.core.tween(800),
+                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+            ), label = ""
+        )
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = shimmerColors,
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+        )
+    } else {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(Color.Transparent, Color.Transparent),
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset.Zero
+        )
+    }
 }
 
 @Composable

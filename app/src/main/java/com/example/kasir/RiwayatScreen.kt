@@ -245,9 +245,7 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
 
                 // TRANSACTION LIST
                  if (isLoading && transactions.isEmpty()) {
-                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                         CircularProgressIndicator(color = RiwayatCardBg)
-                     }
+                     RiwayatSkeletonLoading()
                 } else {
                     LazyColumn(
                         contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
@@ -820,3 +818,70 @@ fun RiwayatNavItem(icon: ImageVector, label: String, isActive: Boolean, onClick:
         )
     }
 }
+
+// --- SHIMMER LOADING COMPONENT ---
+@Composable
+fun riwayatShimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): androidx.compose.ui.graphics.Brush {
+    val shimmerColors = listOf(
+        Color.LightGray.copy(alpha = 0.6f),
+        Color.LightGray.copy(alpha = 0.2f),
+        Color.LightGray.copy(alpha = 0.6f)
+    )
+
+    val transition = rememberInfiniteTransition()
+    val translateAnimation = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = targetValue,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+    return androidx.compose.ui.graphics.Brush.linearGradient(
+        colors = shimmerColors,
+        start = androidx.compose.ui.geometry.Offset.Zero,
+        end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+    )
+}
+
+@Composable
+fun RiwayatSkeletonLoading() {
+    LazyColumn(
+        contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+         items(5) { // 5 skeleton items
+             Row(
+                 modifier = Modifier
+                     .fillMaxWidth()
+                     .clip(RoundedCornerShape(12.dp))
+                     .background(Color.White)
+                     .padding(16.dp),
+                 verticalAlignment = Alignment.Top,
+                 horizontalArrangement = Arrangement.spacedBy(12.dp)
+             ) {
+                 // Meta (Left)
+                 Column(modifier = Modifier.width(50.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                     Box(modifier = Modifier.width(40.dp).height(16.dp).background(riwayatShimmerBrush(), RoundedCornerShape(4.dp)))
+                     Box(modifier = Modifier.width(30.dp).height(12.dp).background(riwayatShimmerBrush(), RoundedCornerShape(4.dp)))
+                 }
+                 
+                 // Desc (Middle)
+                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                      Box(modifier = Modifier.fillMaxWidth().height(16.dp).background(riwayatShimmerBrush(), RoundedCornerShape(4.dp)))
+                      Box(modifier = Modifier.fillMaxWidth(0.6f).height(16.dp).background(riwayatShimmerBrush(), RoundedCornerShape(4.dp)))
+                 }
+                 
+                 // End (Right)
+                 Row(
+                     verticalAlignment = Alignment.CenterVertically, 
+                     horizontalArrangement = Arrangement.spacedBy(8.dp)
+                 ) {
+                     Box(modifier = Modifier.width(60.dp).height(18.dp).background(riwayatShimmerBrush(), RoundedCornerShape(4.dp)))
+                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(riwayatShimmerBrush()))
+                 }
+             }
+         }
+    }
+}
+
