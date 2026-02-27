@@ -158,10 +158,10 @@ fun EditArScreen(
                              return@launch
                         }
 
-                        // 2. Strict Size Check (< 40MB)
+                        // 2. Strict Size Check (< 10MB)
                         val sizeInMb = file.length() / (1024 * 1024)
-                        if (sizeInMb > 40) {
-                             Toast.makeText(context, "File terlalu besar (Max 40MB)", Toast.LENGTH_SHORT).show()
+                        if (sizeInMb > 10) {
+                             Toast.makeText(context, "File terlalu besar (Max 10MB)", Toast.LENGTH_SHORT).show()
                              isUploading = false
                              tempFile?.delete() // Cleanup on failure
                              return@launch
@@ -426,7 +426,7 @@ fun EditArScreen(
                                     // HELPER TEXT BELOW CARD
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Ukuran maks: 40MB\nFormat: .glb saja",
+                                        text = "Ukuran maks: 10MB\nFormat: .glb saja",
                                         fontSize = 11.sp,
                                         color = Color.Gray,
                                         lineHeight = 14.sp

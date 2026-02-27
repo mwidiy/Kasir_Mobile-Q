@@ -1,5 +1,7 @@
 package com.example.kasir
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -235,9 +237,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(MenuBg)) {
         if (isLoading && menuList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MenuPrimaryBlue)
-            }
+            MenuSkeletonLoading()
         } else {
             // Main Content
             Scaffold(
@@ -433,7 +433,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                         ) { item ->
                             MenuItemRow(
                                 item = item,
-                                onToggle = { 
+                                onToggle = { onComplete -> 
                                     // Convert MenuItem back to Product for the toggle call
                                     // ideally we should just use Product everywhere but to minimize change risk:
                                     val p = com.example.kasir.data.model.Product(
@@ -447,7 +447,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                                         isActive = item.isActive,
                                         isArActive = item.isArActive
                                     )
-                                    viewModel.toggleProductStatus(p)
+                                    viewModel.toggleProductStatus(p, onComplete)
                                 },
                                 onOptionClick = { showActionSheet = item }
                             )
@@ -726,9 +726,24 @@ fun FilterChipCustom(label: String, isActive: Boolean, onClick: () -> Unit, onLo
 
 
 @Composable
-fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit) {
-    // Opacity logic: if not active, alpha is 0.5f
-    val alpha = if (item.isActive) 1f else 0.5f
+fun MenuItemRow(item: MenuItem, onToggle: (onComplete: () -> Unit) -> Unit, onOptionClick: () -> Unit) {
+    // === ZERO-BOUNCE UI (Local Shadow State) ===
+    var isLocalActive by remember(item.id) { mutableStateOf(item.isActive) }
+    var isUpdating by remember(item.id) { mutableStateOf(false) }
+    
+    // === HARD RATE LIMITING (Anti-Spam Bouncer) ===
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Only accept Server's truth if we are NOT actively mutating (debouncing)
+    LaunchedEffect(item.isActive) {
+        if (!isUpdating) {
+            isLocalActive = item.isActive
+        }
+    }
+
+    // Opacity logic: bound to Local State
+    val alpha = if (isLocalActive) 1f else 0.5f
     
     Row(
         modifier = Modifier
@@ -776,9 +791,33 @@ fun MenuItemRow(item: MenuItem, onToggle: () -> Unit, onOptionClick: () -> Unit)
         }
         
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            // DECOUPLED SWITCH: Bound to Local State to prevent Server Race Conditions
+            val scope = rememberCoroutineScope()
             Switch(
-                checked = item.isActive,
-                onCheckedChange = { onToggle() },
+                checked = isLocalActive,
+                onCheckedChange = { 
+                    val currentTime = System.currentTimeMillis()
+                    // Filter timestamps to only keep those within the last 2000ms
+                    val recentClicks = clickTimestamps.filter { currentTime - it < 2000 }
+                    
+                    if (recentClicks.size >= 3) {
+                        // SPAM DETECTED: Block action and warn user
+                        android.widget.Toast.makeText(context, "Terlalu cepat! Tunggu sebentar ⏳", android.widget.Toast.LENGTH_SHORT).show()
+                        clickTimestamps = recentClicks // Update memory
+                        return@Switch
+                    }
+                    
+                    // PASS THE BOUNCER: Record this click
+                    clickTimestamps = recentClicks + currentTime
+                    
+                    isLocalActive = it // 1. Instant UI Change (Guaranteed No-Bounce)
+                    isUpdating = true  // 2. Lock UI against Server refreshes
+                    
+                    // 3. Notify ViewModel to start Debounce, pass unlocking callback
+                    onToggle {
+                        isUpdating = false // 4. Unlocked ONLY when Server says "I'm Done"
+                    }
+                },
                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SwitchGreen)
             )
             Icon(
@@ -1132,4 +1171,81 @@ fun GuideModalAnimation() {
     }
 }
 
+// --- SKELETON LOADING UI ---
+@Composable
+fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush {
+    return if (showShimmer) {
+        val shimmerColors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f),
+        )
 
+        val transition = rememberInfiniteTransition()
+        val translateAnimation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = targetValue,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse
+            )
+        )
+        Brush.linearGradient(
+            colors = shimmerColors,
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color.Transparent, Color.Transparent),
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset.Zero
+        )
+    }
+}
+
+@Composable
+fun MenuSkeletonLoading() {
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        // Mock Header
+        Column(modifier = Modifier.statusBarsPadding().padding(top = 24.dp, start = 20.dp, end = 20.dp)) {
+            Box(modifier = Modifier.width(200.dp).height(24.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.weight(1f).height(20.dp).padding(horizontal = 40.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+                Box(modifier = Modifier.weight(1f).height(20.dp).padding(horizontal = 40.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Mock Search Bar
+        Box(modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(48.dp).background(shimmerBrush(), RoundedCornerShape(8.dp)))
+        Spacer(modifier = Modifier.height(20.dp))
+        
+        // Mock Chips
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(4) {
+                Box(modifier = Modifier.width(80.dp).height(34.dp).background(shimmerBrush(), RoundedCornerShape(20.dp)))
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Mock List Items
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            repeat(5) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(64.dp).background(shimmerBrush(), RoundedCornerShape(12.dp)))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Box(modifier = Modifier.width(120.dp).height(16.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.width(80.dp).height(12.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.width(60.dp).height(14.dp).background(shimmerBrush(), RoundedCornerShape(4.dp)))
+                    }
+                    Box(modifier = Modifier.width(40.dp).height(24.dp).background(shimmerBrush(), RoundedCornerShape(12.dp)))
+                }
+                Divider(color = Color(0xFFEEEEEE))
+            }
+        }
+    }
+}

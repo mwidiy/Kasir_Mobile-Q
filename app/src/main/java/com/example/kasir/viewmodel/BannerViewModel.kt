@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.example.kasir.data.model.Banner
 import com.example.kasir.data.network.RetrofitClient
 import com.example.kasir.utils.FileUtils
@@ -34,6 +36,13 @@ class BannerViewModel : ViewModel() {
     var selectedImageUri by mutableStateOf<Uri?>(null)
     
     private var socketDebounceJob: Job? = null
+    private val toggleJobs = mutableMapOf<Int, Job>()
+    
+    // SERIAL QUEUE: Prevent bombarding the single-threaded backend
+    private val toggleMutex = Mutex()
+    
+    // Track pending api requests to prevent socket overwrites during queued toggles
+    private val pendingTogglesCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     init {
         try {
@@ -62,6 +71,11 @@ class BannerViewModel : ViewModel() {
 
     fun fetchBanners(isSilent: Boolean = false) {
         viewModelScope.launch {
+            // Anti-Socket Overwrite: If we have queued toggles, ignore background socket updates
+            if (isSilent && pendingTogglesCount.get() > 0) {
+                return@launch
+            }
+
             if (!isSilent) {
                 _isLoading.value = true
             }
@@ -103,9 +117,24 @@ class BannerViewModel : ViewModel() {
         onSuccess: () -> Unit // Callback added
     ) {
         viewModelScope.launch {
-            _isLoading.value = true
+            // Remove full-screen loading for Optimistic UX
             _errorMessage.value = null
             var tempFile: java.io.File? = null // TRACK CACHE FOR DELETION
+            
+            // OPTIMISTIC UI PREPARATION
+            val originalBanners = _banners.value.toList()
+            if (id == null) {
+                // SKELETON UI: Fake Add
+                val dummyId = -(System.currentTimeMillis().toInt())
+                val optimisticBanner = Banner(dummyId, title, subtitle, highlightText, "uploading", isActive)
+                _banners.value = listOf(optimisticBanner) + _banners.value
+            } else {
+                // SKELETON UI: Fake Update
+                _banners.value = _banners.value.map {
+                    if (it.id == id) Banner(id, title, subtitle, highlightText, it.image, isActive) else it
+                }
+            }
+
             try {
                 val titlePart = createPartFromString(title)
                 val subtitlePart = if (subtitle != null) createPartFromString(subtitle) else null
@@ -137,6 +166,7 @@ class BannerViewModel : ViewModel() {
                 if (id == null) {
                     // Add Banner
                     if (imagePart == null) {
+                        _banners.value = originalBanners // Rollback
                         _errorMessage.value = "Gambar wajib diisi untuk banner baru"
                         return@launch
                     }
@@ -146,9 +176,10 @@ class BannerViewModel : ViewModel() {
                     
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
-                        fetchBanners()
+                        fetchBanners(isSilent = true) // Silent sync to remove skeleton
                         onSuccess() // Trigger navigation
                     } else {
+                        _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal menambah banner"
                     }
                 } else {
@@ -160,16 +191,18 @@ class BannerViewModel : ViewModel() {
 
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
-                        fetchBanners()
+                        fetchBanners(isSilent = true) // Silent sync
                         onSuccess() // Trigger navigation
                     } else {
+                        _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal update banner"
                     }
                 }
             } catch (e: Exception) {
+                _banners.value = originalBanners // Rollback
                 _errorMessage.value = "Gagal menyimpan banner: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false
+                // No need to set isLoading to false anymore for this action
                 tempFile?.delete() // GARBAGE COLLECTION: Prevent Cache Leak (Local DoS)
             }
         }
@@ -177,20 +210,69 @@ class BannerViewModel : ViewModel() {
 
     fun deleteBanner(id: Int) {
         viewModelScope.launch {
-            _isLoading.value = true
+            // OPTIMISTIC UI: Instant remove from screen (No Loading Dialog)
+            val originalBanners = _banners.value.toList()
+            _banners.value = _banners.value.filter { it.id != id }
+            
             _errorMessage.value = null
             try {
                 val response = RetrofitClient.instance.deleteBanner(id)
                 if (response.isSuccessful && response.body()?.success == true) {
-                    fetchBanners()
+                    fetchBanners(isSilent = true) // Silent sync
                 } else {
+                    // Rollback
+                    _banners.value = originalBanners
                      _errorMessage.value = response.body()?.message ?: "Gagal menghapus banner"
                 }
             } catch (e: Exception) {
+                // Rollback
+                _banners.value = originalBanners
                 _errorMessage.value = "Gagal menghapus banner: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
+        }
+    }
+
+    fun toggleBannerStatus(banner: Banner, onComplete: () -> Unit = {}) {
+        val updatedBanner = banner.copy(isActive = !banner.isActive)
+        val originalBanners = _banners.value.toList() // Snapshot for Rollback
+
+        // OPTIMISTIC UI: Instant Switch
+        _banners.value = _banners.value.map {
+            if (it.id == banner.id) updatedBanner else it
+        }
+
+        // NO VIEWMODEL CANCEL DEBOUNCE HERE! 
+        // The UI's 3-click Anti-Spam (Tahap 21) already protects against single-item spam.
+        // If we cancel here, we destroy valid sequential mass-toggles (Item 2, 3, 4, 5).
+        
+        toggleJobs[banner.id] = viewModelScope.launch {
+             pendingTogglesCount.incrementAndGet() // Block socket updates globally
+             try {
+                val titlePart = createPartFromString(updatedBanner.title)
+                val subtitlePart = if (updatedBanner.subtitle != null) createPartFromString(updatedBanner.subtitle) else null
+                val highlightPart = if (updatedBanner.highlightText != null) createPartFromString(updatedBanner.highlightText) else null
+                val isActivePart = createPartFromString(updatedBanner.isActive.toString())
+                
+                // WAIT IN LINE: Execute API requests one-by-one
+                val response = toggleMutex.withLock {
+                    RetrofitClient.instance.updateBanner(
+                         updatedBanner.id, titlePart, subtitlePart, highlightPart, null, isActivePart
+                    )
+                }
+                
+                if (response.isSuccessful && response.body()?.success == true) {
+                    fetchBanners(isSilent = true) // Final sync
+                } else {
+                    _banners.value = originalBanners // Rollback
+                    _errorMessage.value = response.body()?.message ?: "Gagal mengubah status"
+                }
+             } catch (e: Exception) {
+                 _banners.value = originalBanners // Rollback
+                 _errorMessage.value = "Gagal mengubah status: ${e.localizedMessage}"
+             } finally {
+                 pendingTogglesCount.decrementAndGet() // Unblock socket updates
+                 onComplete() // INFINITE LOCK RELAY: Tell BannerCard to unlock
+             }
         }
     }
 }

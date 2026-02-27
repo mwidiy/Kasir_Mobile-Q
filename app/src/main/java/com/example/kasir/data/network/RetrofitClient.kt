@@ -6,6 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 import okhttp3.OkHttpClient
 import okhttp3.Interceptor
+import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     const val BASE_URL = BuildConfig.API_BASE_URL
@@ -24,6 +25,9 @@ object RetrofitClient {
 
     private val client = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .connectTimeout(60, TimeUnit.SECONDS) // Long timeout for mass-toggle safety
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
     
     val instance: ApiService by lazy {

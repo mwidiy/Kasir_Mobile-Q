@@ -20,10 +20,14 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -80,8 +84,13 @@ fun BannerListScreen(
         viewModel.fetchBanners()
     }
 
+    val isLoading by viewModel.isLoading.collectAsState() // Added for Skeleton state
+
     Box(modifier = Modifier.fillMaxSize().background(BannerBg)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        if (isLoading && banners.isEmpty()) {
+            BannerSkeletonLoading()
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
             // Info Alert
             Box(
                 modifier = Modifier
@@ -126,16 +135,8 @@ fun BannerListScreen(
                     items(banners) { banner ->
                         BannerCard(
                             banner = banner,
-                            onToggle = {
-                                 viewModel.saveBanner(
-                                    context = context, 
-                                    id = banner.id,
-                                    title = banner.title,
-                                    subtitle = banner.subtitle,
-                                    highlightText = banner.highlightText,
-                                    isActive = !banner.isActive,
-                                    onSuccess = {}
-                                )
+                            onToggle = { onComplete ->
+                                viewModel.toggleBannerStatus(banner = banner, onComplete = onComplete)
                             },
                             onEdit = { onNavigateToEdit(banner) },
                             onDelete = { showDeleteConfirm = banner }
@@ -163,14 +164,29 @@ fun BannerListScreen(
         }
     }
 }
+}
 
 @Composable
 fun BannerCard(
     banner: Banner,
-    onToggle: () -> Unit,
+    onToggle: (onComplete: () -> Unit) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    // === ZERO-BOUNCE UI (Local Shadow State) ===
+    var isLocalActive by remember(banner.id) { mutableStateOf(banner.isActive) }
+    var isUpdating by remember(banner.id) { mutableStateOf(false) }
+    
+    // === HARD RATE LIMITING (Anti-Spam Bouncer) ===
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Only accept Server's truth if we are NOT actively mutating (debouncing)
+    LaunchedEffect(banner.isActive) {
+        if (!isUpdating) {
+            isLocalActive = banner.isActive
+        }
+    }
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -218,17 +234,41 @@ fun BannerCard(
                     Icon(painter = painterResource(android.R.drawable.ic_menu_sort_by_size), contentDescription = "Drag", tint = Color.Gray, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        if (banner.isActive) "Status: Aktif" else "Status: Nonaktif",
+                        if (isLocalActive) "Status: Aktif" else "Status: Nonaktif",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (banner.isActive) StatusGreen else StatusGray
+                        color = if (isLocalActive) StatusGreen else StatusGray
                     )
                 }
                 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // DECOUPLED SWITCH: Bound to Local State to prevent Server Race Conditions
+                    val scope = rememberCoroutineScope()
                     Switch(
-                        checked = banner.isActive,
-                        onCheckedChange = { onToggle() },
+                        checked = isLocalActive,
+                        onCheckedChange = { 
+                            val currentTime = System.currentTimeMillis()
+                            // Filter timestamps to only keep those within the last 2000ms
+                            val recentClicks = clickTimestamps.filter { currentTime - it < 2000 }
+                            
+                            if (recentClicks.size >= 3) {
+                                // SPAM DETECTED: Block action and warn user
+                                android.widget.Toast.makeText(context, "Terlalu cepat! Tunggu sebentar ⏳", android.widget.Toast.LENGTH_SHORT).show()
+                                clickTimestamps = recentClicks // Update memory
+                                return@Switch
+                            }
+                            
+                            // PASS THE BOUNCER: Record this click
+                            clickTimestamps = recentClicks + currentTime
+                            
+                            isLocalActive = it // 1. Instant UI Change (Guaranteed No-Bounce)
+                            isUpdating = true  // 2. Lock UI against Server refreshes
+                            
+                            // 3. Notify ViewModel to start Debounce, pass unlocking callback
+                            onToggle {
+                                isUpdating = false // 4. Unlocked ONLY when Server says "I'm Done"
+                            }
+                        },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = StatusGreen)
                     )
                     Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp).clickable { onEdit() })
@@ -487,5 +527,95 @@ fun BannerInputField(label: String, placeholder: String, value: String, maxLengt
                 unfocusedTextColor = Color.Black
             )
         )
+    }
+}
+
+// --- BANNER SKELETON LOADING ---
+@Composable
+fun bannerShimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): Brush {
+    return if (showShimmer) {
+        val shimmerColors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f),
+        )
+
+        val transition = androidx.compose.animation.core.rememberInfiniteTransition()
+        val translateAnimation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = targetValue,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = androidx.compose.animation.core.tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing), 
+                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+            )
+        )
+        Brush.linearGradient(
+            colors = shimmerColors,
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color.Transparent, Color.Transparent),
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset.Zero
+        )
+    }
+}
+
+@Composable
+fun BannerSkeletonLoading() {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Mock Info Panel
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+                .height(60.dp)
+                .background(bannerShimmerBrush(), RoundedCornerShape(8.dp))
+        )
+        
+        // Mock Cards
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            repeat(4) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Top Part
+                        Row(modifier = Modifier.fillMaxWidth().background(Color(0xFF2D3E50)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(80.dp).background(bannerShimmerBrush(), RoundedCornerShape(8.dp)))
+                            Spacer(modifier = Modifier.width(15.dp))
+                            Column {
+                                Box(modifier = Modifier.width(150.dp).height(16.dp).background(bannerShimmerBrush(), RoundedCornerShape(4.dp)))
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Box(modifier = Modifier.width(100.dp).height(12.dp).background(bannerShimmerBrush(), RoundedCornerShape(4.dp)))
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Box(modifier = Modifier.width(80.dp).height(14.dp).background(bannerShimmerBrush(), RoundedCornerShape(4.dp)))
+                            }
+                        }
+                        // Bottom Part
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.width(100.dp).height(20.dp).background(bannerShimmerBrush(), RoundedCornerShape(4.dp)))
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Box(modifier = Modifier.width(40.dp).height(20.dp).background(bannerShimmerBrush(), RoundedCornerShape(10.dp)))
+                                Box(modifier = Modifier.size(20.dp).background(bannerShimmerBrush(), CircleShape))
+                                Box(modifier = Modifier.size(20.dp).background(bannerShimmerBrush(), CircleShape))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

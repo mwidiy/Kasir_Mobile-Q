@@ -16,6 +16,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class MenuViewModel : ViewModel() {
     private val _products = MutableStateFlow<List<Product>>(emptyList())
@@ -33,6 +35,13 @@ class MenuViewModel : ViewModel() {
     var selectedCategoryId by mutableStateOf(0)
     
     private var socketDebounceJob: Job? = null
+    private val toggleJobs = mutableMapOf<Int, Job>()
+    
+    // SERIAL QUEUE: Prevent bombarding the single-threaded backend
+    private val toggleMutex = Mutex()
+    
+    // Track pending api requests to prevent socket overwrites during queued toggles
+    private val pendingTogglesCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     init {
         // Initialize Socket
@@ -60,6 +69,11 @@ class MenuViewModel : ViewModel() {
 
     fun fetchProducts(isSilent: Boolean = false) {
         viewModelScope.launch {
+            // Anti-Socket Overwrite: If we have queued toggles, ignore background socket updates
+            if (isSilent && pendingTogglesCount.get() > 0) {
+                return@launch
+            }
+
             if (!isSilent) {
                 _isLoading.value = true
             }
@@ -96,10 +110,23 @@ class MenuViewModel : ViewModel() {
 
     fun addCategory(name: String) {
         viewModelScope.launch {
+            // OPTIMISTIC UI: Instant add to state with dummy ID
+            val dummyId = -(System.currentTimeMillis().toInt()) // Ensure uniqueness
+            val optimisticCategory = Category(id = dummyId, name = name)
+            _categories.value = _categories.value + optimisticCategory
+
             try {
                 val response = RetrofitClient.instance.addCategory(mapOf("name" to name))
-                if (response.success) fetchCategories()
+                if (response.success) {
+                    fetchCategories() // Silently fetch real ID from server
+                } else {
+                    // Rollback on failure
+                    _categories.value = _categories.value.filter { it.id != dummyId }
+                    _errorMessage.value = response.message
+                }
             } catch (e: Exception) {
+                // Rollback on crash
+                _categories.value = _categories.value.filter { it.id != dummyId }
                 _errorMessage.value = "Gagal menambah kategori: ${e.localizedMessage}"
             }
         }
@@ -107,10 +134,24 @@ class MenuViewModel : ViewModel() {
 
     fun updateCategory(id: Int, name: String) {
         viewModelScope.launch {
+            // OPTIMISTIC UI: Instant update in state
+            val originalCategories = _categories.value.toList()
+            _categories.value = _categories.value.map {
+                if (it.id == id) it.copy(name = name) else it
+            }
+
             try {
                 val response = RetrofitClient.instance.updateCategory(id, mapOf("name" to name))
-                if (response.success) fetchCategories()
+                if (response.success) {
+                    fetchCategories() // Silent sync
+                } else {
+                    // Rollback
+                    _categories.value = originalCategories
+                    _errorMessage.value = response.message
+                }
             } catch (e: Exception) {
+                // Rollback
+                _categories.value = originalCategories
                 _errorMessage.value = "Gagal update kategori: ${e.localizedMessage}"
             }
         }
@@ -118,14 +159,22 @@ class MenuViewModel : ViewModel() {
 
     fun deleteCategory(id: Int) {
         viewModelScope.launch {
+            // OPTIMISTIC UI: Instant remove from state
+            val originalCategories = _categories.value.toList()
+            _categories.value = _categories.value.filter { it.id != id }
+
             try {
                 val response = RetrofitClient.instance.deleteCategory(id)
                 if (response.success) {
-                    fetchCategories()
+                    fetchCategories() // Silent sync
                 } else {
+                    // Rollback
+                    _categories.value = originalCategories
                     _errorMessage.value = response.message // Display backend error (e.g., used by products)
                 }
             } catch (e: Exception) {
+                // Rollback
+                _categories.value = originalCategories
                 _errorMessage.value = "Gagal menghapus kategori: ${e.localizedMessage}"
             }
         }
@@ -138,7 +187,12 @@ class MenuViewModel : ViewModel() {
 
     fun addProduct(product: Product, imageUri: android.net.Uri? = null, context: android.content.Context) {
         viewModelScope.launch {
-            _isLoading.value = true
+            // OPTIMISTIC SKELETON UI: Instant add to state with dummy ID to simulate upload
+            val dummyId = -(System.currentTimeMillis().toInt()) // Ensure uniqueness
+            val optimisticProduct = product.copy(id = dummyId, image = "uploading")
+            val originalProducts = _products.value.toList()
+            _products.value = listOf(optimisticProduct) + _products.value
+
             _errorMessage.value = null
             var tempFile: java.io.File? = null
             try {
@@ -178,14 +232,15 @@ class MenuViewModel : ViewModel() {
                 )
                 
                 if (response.success) {
-                    fetchProducts()
+                    fetchProducts(isSilent = true) // Silent sync to replace dummy with real data
                 } else {
+                    _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
                 }
             } catch (e: Exception) {
+                _products.value = originalProducts // Rollback
                 _errorMessage.value = "Gagal menambah produk: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false
                 tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
             }
         }
@@ -193,7 +248,12 @@ class MenuViewModel : ViewModel() {
 
     fun updateProduct(id: Int, product: Product, imageUri: android.net.Uri? = null, context: android.content.Context? = null) {
         viewModelScope.launch {
-            _isLoading.value = true
+            // OPTIMISTIC UPDATE
+            val originalProducts = _products.value.toList()
+            _products.value = _products.value.map {
+                if (it.id == id) product.copy(id = id, image = it.image) else it // Keep old image during update upload
+            }
+
             _errorMessage.value = null
             var tempFile: java.io.File? = null
             try {
@@ -233,33 +293,36 @@ class MenuViewModel : ViewModel() {
                 )
                 
                 if (response.success) {
-                    // Optimistic/Immediate Update for Realtime UX
-                    val updatedItem = response.data
-                    if (updatedItem != null) {
-                        _products.value = _products.value.map {
-                            if (it.id == id) updatedItem else it
-                        }
-                    }
-                    // Sync with backend (silent)
+                    // Sync with backend (silent) to get real image URL if changed
                     fetchProducts(isSilent = true)
                 } else {
+                    _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
                 }
             } catch (e: Exception) {
+                _products.value = originalProducts // Rollback
                 _errorMessage.value = "Gagal mengupdate produk: ${e.localizedMessage}"
             } finally {
-                _isLoading.value = false
                 tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
             }
         }
     }
 
-    fun toggleProductStatus(product: Product) {
+    fun toggleProductStatus(product: Product, onComplete: () -> Unit = {}) {
         val updatedProduct = product.copy(isActive = !product.isActive)
-        // For toggle, we don't change image, so pass null context/uri
-        // But we need to use the new signature. The function handles nulls gracefully.
-        // We do basic update without file.
-        viewModelScope.launch {
+        val originalProducts = _products.value.toList() // Snapshot for Rollback
+
+        // OPTIMISTIC UI: Instant Switch
+        _products.value = _products.value.map {
+            if (it.id == product.id) updatedProduct else it
+        }
+
+        // NO VIEWMODEL CANCEL DEBOUNCE HERE! 
+        // The UI's 3-click Anti-Spam (Tahap 21) already protects against single-item spam.
+        // If we cancel here, we destroy valid sequential mass-toggles (Item 2, 3, 4, 5).
+        
+        toggleJobs[product.id] = viewModelScope.launch {
+             pendingTogglesCount.incrementAndGet() // Block socket updates globally
              try {
                 val name = createPartFromString(updatedProduct.name)
                 val categoryId = createPartFromString(updatedProduct.categoryId?.toString() ?: "0")
@@ -269,31 +332,50 @@ class MenuViewModel : ViewModel() {
                 val ar3dModel = if (updatedProduct.ar3dModel != null) createPartFromString(updatedProduct.ar3dModel) else null
                 val isArActive = createPartFromString(updatedProduct.isArActive.toString())
                 
-                RetrofitClient.instance.updateProduct(
-                     updatedProduct.id, name, categoryId, price, description, null, isActive, ar3dModel, isArActive
-                )
-                fetchProducts(isSilent = true)
+                // WAIT IN LINE: Execute API requests one-by-one
+                val response = toggleMutex.withLock {
+                    RetrofitClient.instance.updateProduct(
+                         updatedProduct.id, name, categoryId, price, description, null, isActive, ar3dModel, isArActive
+                    )
+                }
+                
+                if (response.success) {
+                    fetchProducts(isSilent = true) // Final sync
+                } else {
+                    _products.value = originalProducts // Rollback
+                    _errorMessage.value = response.message
+                }
              } catch (e: Exception) {
+                 _products.value = originalProducts // Rollback
+                 _errorMessage.value = "Gagal mengubah status: ${e.localizedMessage}"
                  e.printStackTrace()
+             } finally {
+                 pendingTogglesCount.decrementAndGet() // Unblock socket updates
+                 onComplete() // INFINITE LOCK RELAY: Tell UI it is safe to listen to server again
              }
         }
     }
 
     fun deleteProduct(id: Int) {
         viewModelScope.launch {
-            _isLoading.value = true
+            // OPTIMISTIC UI: Instant remove from screen (No Loading Dialog)
+            val originalProducts = _products.value.toList()
+            _products.value = _products.value.filter { it.id != id }
+            
             _errorMessage.value = null
             try {
                 val response = RetrofitClient.instance.deleteProduct(id)
                 if (response.success) {
-                    fetchProducts()
+                    fetchProducts(isSilent = true) // Silent sync
                 } else {
+                    // Rollback
+                    _products.value = originalProducts
                     _errorMessage.value = response.message
                 }
             } catch (e: Exception) {
+                // Rollback
+                _products.value = originalProducts
                 _errorMessage.value = "Gagal menghapus produk: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
