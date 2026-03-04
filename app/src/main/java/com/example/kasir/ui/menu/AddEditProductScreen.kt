@@ -44,9 +44,23 @@ fun AddEditProductScreen(
     var existingImageUrl by remember { mutableStateOf<String?>(null) }
     
     var isActive by remember { mutableStateOf(true) }
+    var isToggling by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) } // Anti-spam lock
+    
+    // Toggle state variables
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isLocalActive by remember(isActive) { mutableStateOf(isActive) }
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
+
+    LaunchedEffect(isActive) {
+        if (!isToggling) {
+            isLocalActive = isActive
+        }
+    }
+    
+    val isFormValid = name.isNotBlank() && price.isNotBlank() && category.isNotBlank()
 
     // Load data if edit mode
     LaunchedEffect(productId, products) {
@@ -230,7 +244,6 @@ fun AddEditProductScreen(
                     Text("Gambar Produk", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF374151))
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    val context = androidx.compose.ui.platform.LocalContext.current
                     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
                         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
                     ) { uri: android.net.Uri? ->
@@ -290,8 +303,31 @@ fun AddEditProductScreen(
                         Text(if (isActive) "Menu aktif dan dapat dipesan" else "Menu tidak tersedia", fontSize = 12.sp, color = Color(0xFF6B7280))
                     }
                     Switch(
-                        checked = isActive,
-                        onCheckedChange = { isActive = it },
+                        checked = isLocalActive,
+                        onCheckedChange = { newStatus -> 
+                            val currentTime = System.currentTimeMillis()
+                            val recentClicks = clickTimestamps.filter { currentTime - it < 2000 }
+                            
+                            if (recentClicks.size >= 3) {
+                                android.widget.Toast.makeText(context, "Terlalu cepat! Tunggu sebentar ⏳", android.widget.Toast.LENGTH_SHORT).show()
+                                clickTimestamps = recentClicks
+                                return@Switch
+                            }
+                            clickTimestamps = recentClicks + currentTime
+                            
+                            isLocalActive = newStatus // Instant UI Fix
+                            isActive = newStatus // Reflect internal form state
+                            
+                            if (isEditMode && !isToggling) {
+                                val currentProduct = products.find { it.id.toString() == productId }
+                                if (currentProduct != null) {
+                                    isToggling = true
+                                    viewModel.toggleProductStatus(currentProduct) {
+                                        isToggling = false
+                                    }
+                                }
+                            }
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = Color(0xFF1F2937),
@@ -306,9 +342,6 @@ fun AddEditProductScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            val isFormValid = name.isNotBlank() && price.isNotBlank() && category.isNotBlank()
-            val context = androidx.compose.ui.platform.LocalContext.current
-
             Button(
                 onClick = {
                     if (isFormValid && !isSubmitting) {

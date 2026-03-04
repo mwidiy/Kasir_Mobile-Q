@@ -18,7 +18,9 @@ data class Withdrawal(
     val bankName: String,
     val accountNumber: String,
     val accountName: String,
-    val createdAt: String
+    val createdAt: String,
+    val updatedAt: String? = null,
+    val storeId: Int? = null
 )
 
 data class BalanceResponse(

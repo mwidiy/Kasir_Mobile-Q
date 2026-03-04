@@ -87,10 +87,10 @@ fun BannerListScreen(
     val isLoading by viewModel.isLoading.collectAsState() // Added for Skeleton state
 
     Box(modifier = Modifier.fillMaxSize().background(BannerBg)) {
-        if (isLoading && banners.isEmpty()) {
-            BannerSkeletonLoading()
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
+        // Only show full loading if strictly needed, otherwise trust local state
+        // Skeleton block removed per Tahap 61
+        
+        Column(modifier = Modifier.fillMaxSize()) {
             // Info Alert
             Box(
                 modifier = Modifier
@@ -145,8 +145,7 @@ fun BannerListScreen(
                 }
             }
         }
-        
-
+    }
 
         // --- Modals ---
         if (showDeleteConfirm != null) {
@@ -163,8 +162,6 @@ fun BannerListScreen(
             BannerInfoModal(onDismiss = { showInfoModal = false })
         }
     }
-}
-}
 
 @Composable
 fun BannerCard(

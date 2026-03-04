@@ -356,8 +356,19 @@ fun EditArScreen(
                 }
 
                 if (isLoadingAssets) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF1E2A38))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        item(span = { GridItemSpan(2) }) {
+                             Box(modifier = Modifier.padding(bottom = 8.dp).height(20.dp).width(120.dp).background(Color(0xFFE0E0E0), RoundedCornerShape(4.dp)))
+                        }
+                        items(4) { // Render 4 static glowing boxes
+                            ArSkeletonLoading()
+                        }
                     }
                 } else {
                     LazyVerticalGrid(
@@ -754,5 +765,43 @@ fun ArAssetItem(
     }
 }
 
-// ArPreviewOverlay removed - using External Browser Intent for better WebXR support
+@Composable
+fun ArSkeletonLoading() {
+    val infiniteTransition = rememberInfiniteTransition(label = "ar_skeleton")
+    val alphaAnim by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ar_skeleton_alpha"
+    )
 
+    Card(
+        modifier = Modifier
+            .height(140.dp)
+            .graphicsLayer { alpha = alphaAnim },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE5E7EB)),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Skeleton Model Icon
+                Box(
+                    modifier = Modifier.size(60.dp).background(Color(0xFFD1D5DB), CircleShape)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                // Skeleton Text
+                Box(
+                    modifier = Modifier.height(14.dp).width(80.dp).background(Color(0xFFD1D5DB), RoundedCornerShape(4.dp))
+                )
+            }
+        }
+    }
+}

@@ -43,6 +43,9 @@ class BannerViewModel : ViewModel() {
     
     // Track pending api requests to prevent socket overwrites during queued toggles
     private val pendingTogglesCount = java.util.concurrent.atomic.AtomicInteger(0)
+    
+    // TAHAP 63: Optimistic Image Cache (Key: Banner Title, Value: Local file:// URI)
+    private val optimisticImagesMap = mutableMapOf<String, String>()
 
     init {
         try {
@@ -86,7 +89,16 @@ class BannerViewModel : ViewModel() {
                 if (response.isSuccessful && response.body() != null) {
                     val apiResponse = response.body()!!
                     if (apiResponse.success) {
-                        _banners.value = apiResponse.data
+                        // TAHAP 63: Silent Interceptor (Bypass Cloudinary URL if we have a local cache for this session)
+                        val interceptedBanners = apiResponse.data.map { serverBanner ->
+                            val localImage = optimisticImagesMap[serverBanner.title]
+                            if (localImage != null) {
+                                serverBanner.copy(image = localImage)
+                            } else {
+                                serverBanner
+                            }
+                        }
+                        _banners.value = interceptedBanners
                     } else {
                         _errorMessage.value = apiResponse.message
                     }
@@ -117,24 +129,46 @@ class BannerViewModel : ViewModel() {
         onSuccess: () -> Unit // Callback added
     ) {
         viewModelScope.launch {
-            // Remove full-screen loading for Optimistic UX
             _errorMessage.value = null
-            var tempFile: java.io.File? = null // TRACK CACHE FOR DELETION
+            var tempFile: java.io.File? = null
+            var optimisticImageUrl: String? = null
+            _isLoading.value = true
             
-            // OPTIMISTIC UI PREPARATION
             val originalBanners = _banners.value.toList()
-            if (id == null) {
-                // SKELETON UI: Fake Add
-                val dummyId = -(System.currentTimeMillis().toInt())
-                val optimisticBanner = Banner(dummyId, title, subtitle, highlightText, "uploading", isActive)
-                _banners.value = listOf(optimisticBanner) + _banners.value
-            } else {
-                // SKELETON UI: Fake Update
-                _banners.value = _banners.value.map {
-                    if (it.id == id) Banner(id, title, subtitle, highlightText, it.image, isActive) else it
+
+            // 1. Prepare Local File if Image Exists (To prevent URI Permission drop)
+            if (selectedImageUri != null) {
+                tempFile = FileUtils.getFileFromUri(context, selectedImageUri!!)
+                if (tempFile != null) {
+                    val fileSizeInBytes = tempFile.length()
+                    val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                    
+                    if (fileSizeInBytes > 5 * 1024 * 1024) {
+                         _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                         _isLoading.value = false
+                         tempFile.delete()
+                         return@launch
+                    }
+                    optimisticImageUrl = "file://${tempFile.absolutePath}"
                 }
             }
-
+            
+            // 2. OPTIMISTIC LOCAL UI UPDATE (Secure file:// uri or old image)
+            if (id == null) {
+                val dummyId = -(System.currentTimeMillis().toInt())
+                val optimisticBanner = Banner(dummyId, title, subtitle, highlightText, optimisticImageUrl ?: "", isActive)
+                _banners.value = listOf(optimisticBanner) + originalBanners
+            } else {
+                _banners.value = originalBanners.map {
+                    if (it.id == id) Banner(id, title, subtitle, highlightText, optimisticImageUrl ?: it.image, isActive) else it
+                }
+            }
+            
+            // TAHAP 63: Save to interceptor map so fetchBanners doesn't overwrite it with Cloudinary URL
+            if (optimisticImageUrl != null) {
+                optimisticImagesMap[title] = optimisticImageUrl
+            }
+            
             try {
                 val titlePart = createPartFromString(title)
                 val subtitlePart = if (subtitle != null) createPartFromString(subtitle) else null
@@ -142,25 +176,11 @@ class BannerViewModel : ViewModel() {
                 val isActivePart = createPartFromString(isActive.toString())
 
                 var imagePart: MultipartBody.Part? = null
-                if (selectedImageUri != null) {
-                    val file = FileUtils.getFileFromUri(context, selectedImageUri!!)
-                    tempFile = file // TRACK THIS IMAGE FILE
-                    if (file != null) {
-                        // VALIDASI UKURAN FILE (Max 5MB)
-                        val fileSizeInBytes = file.length()
-                        val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
-                        
-                        if (fileSizeInBytes > 5 * 1024 * 1024) {
-                             _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
-                             _isLoading.value = false
-                             return@launch
-                        }
-
-                        val contentResolver = context.contentResolver
-                        val type = contentResolver.getType(selectedImageUri!!) ?: "image/jpeg"
-                        val requestFile = RequestBody.create(type.toMediaTypeOrNull(), file)
-                        imagePart = MultipartBody.Part.createFormData("image", file.name, requestFile)
-                    }
+                if (tempFile != null) {
+                    val contentResolver = context.contentResolver
+                    val type = contentResolver.getType(selectedImageUri!!) ?: "image/jpeg"
+                    val requestFile = RequestBody.create(type.toMediaTypeOrNull(), tempFile)
+                    imagePart = MultipartBody.Part.createFormData("image", tempFile.name, requestFile)
                 }
 
                 if (id == null) {
@@ -181,6 +201,7 @@ class BannerViewModel : ViewModel() {
                     } else {
                         _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal menambah banner"
+                        tempFile?.delete()
                     }
                 } else {
                     // Update Banner
@@ -196,14 +217,13 @@ class BannerViewModel : ViewModel() {
                     } else {
                         _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal update banner"
+                        tempFile?.delete()
                     }
                 }
             } catch (e: Exception) {
                 _banners.value = originalBanners // Rollback
                 _errorMessage.value = "Gagal menyimpan banner: ${e.localizedMessage}"
-            } finally {
-                // No need to set isLoading to false anymore for this action
-                tempFile?.delete() // GARBAGE COLLECTION: Prevent Cache Leak (Local DoS)
+                tempFile?.delete()
             }
         }
     }

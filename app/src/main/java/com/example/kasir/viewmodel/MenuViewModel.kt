@@ -42,6 +42,9 @@ class MenuViewModel : ViewModel() {
     
     // Track pending api requests to prevent socket overwrites during queued toggles
     private val pendingTogglesCount = java.util.concurrent.atomic.AtomicInteger(0)
+    
+    // TAHAP 63: Optimistic Image Cache (Key: ProductName, Value: Local file:// URI)
+    private val optimisticImagesMap = mutableMapOf<String, String>()
 
     init {
         // Initialize Socket
@@ -81,7 +84,16 @@ class MenuViewModel : ViewModel() {
             try {
                 val response = RetrofitClient.instance.getProducts()
                 if (response.success) {
-                    _products.value = response.data
+                    // TAHAP 63: Silent Interceptor (Bypass Cloudinary URL if we have a local cache for this session)
+                    val interceptedData = response.data.map { serverProduct ->
+                        val localImage = optimisticImagesMap[serverProduct.name]
+                        if (localImage != null) {
+                            serverProduct.copy(image = localImage)
+                        } else {
+                            serverProduct
+                        }
+                    }
+                    _products.value = interceptedData
                 } else {
                     _errorMessage.value = response.message
                 }
@@ -187,17 +199,40 @@ class MenuViewModel : ViewModel() {
 
     fun addProduct(product: Product, imageUri: android.net.Uri? = null, context: android.content.Context) {
         viewModelScope.launch {
-            // OPTIMISTIC SKELETON UI: Instant add to state with dummy ID to simulate upload
-            val dummyId = -(System.currentTimeMillis().toInt()) // Ensure uniqueness
-            val optimisticProduct = product.copy(id = dummyId, image = "uploading")
-            val originalProducts = _products.value.toList()
-            _products.value = listOf(optimisticProduct) + _products.value
-
+            _isLoading.value = true
             _errorMessage.value = null
             var tempFile: java.io.File? = null
+            var optimisticImageUrl: String = ""
+
+            // 1. Prepare Local File if Image Exists (To prevent URI Permission drop)
+            if (imageUri != null) {
+                tempFile = FileUtils.getFileFromUri(context, imageUri)
+                if (tempFile != null) {
+                    val fileSizeInBytes = tempFile.length()
+                    if (fileSizeInBytes > 5 * 1024 * 1024) {
+                        val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                        _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                        _isLoading.value = false
+                        tempFile.delete()
+                        return@launch
+                    }
+                    optimisticImageUrl = "file://${tempFile.absolutePath}"
+                }
+            }
+
+            // 2. OPTIMISTIC LOCAL UI UPDATE (Secure file:// uri)
+            val dummyId = -(System.currentTimeMillis().toInt())
+            val optimisticProduct = product.copy(id = dummyId, image = optimisticImageUrl)
+            val originalProducts = _products.value.toList()
+            _products.value = listOf(optimisticProduct) + originalProducts
+            
+            // TAHAP 63: Save to interceptor map so fetchProducts doesn't overwrite it with Cloudinary URL
+            if (optimisticImageUrl.isNotEmpty()) {
+                optimisticImagesMap[product.name] = optimisticImageUrl
+            }
+
             try {
                 val name = createPartFromString(product.name)
-                // val category = createPartFromString(product.category)
                 val categoryId = createPartFromString(product.categoryId?.toString() ?: "0")
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
@@ -206,25 +241,11 @@ class MenuViewModel : ViewModel() {
                 val isArActive = createPartFromString(product.isArActive.toString())
                 
                 var imagePart: okhttp3.MultipartBody.Part? = null
-                if (imageUri != null) {
-                    val file = FileUtils.getFileFromUri(context, imageUri)
-                    tempFile = file // TRACK FOR DELETION
-                    if (file != null) {
-                        // VALIDASI UKURAN FILE (Max 5MB)
-                        val fileSizeInBytes = file.length()
-                        if (fileSizeInBytes > 5 * 1024 * 1024) {
-                            val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
-                            _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
-                            _isLoading.value = false
-                            tempFile?.delete() // Cleanup on failure
-                            return@launch
-                        }
-
-                        val contentResolver = context.contentResolver
-                        val type = contentResolver.getType(imageUri) ?: "image/jpeg"
-                        val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
-                        imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
-                    }
+                if (tempFile != null) {
+                    val contentResolver = context.contentResolver
+                    val type = contentResolver.getType(imageUri!!) ?: "image/jpeg"
+                    val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), tempFile)
+                    imagePart = okhttp3.MultipartBody.Part.createFormData("image", tempFile.name, requestFile)
                 }
 
                 val response = RetrofitClient.instance.addProduct(
@@ -232,33 +253,56 @@ class MenuViewModel : ViewModel() {
                 )
                 
                 if (response.success) {
-                    fetchProducts(isSilent = true) // Silent sync to replace dummy with real data
+                    fetchProducts(isSilent = true) // Sync to get new ID gracefully
                 } else {
                     _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
+                    tempFile?.delete()
                 }
             } catch (e: Exception) {
                 _products.value = originalProducts // Rollback
                 _errorMessage.value = "Gagal menambah produk: ${e.localizedMessage}"
-            } finally {
-                tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
+                tempFile?.delete()
             }
         }
     }
 
     fun updateProduct(id: Int, product: Product, imageUri: android.net.Uri? = null, context: android.content.Context? = null) {
         viewModelScope.launch {
-            // OPTIMISTIC UPDATE
-            val originalProducts = _products.value.toList()
-            _products.value = _products.value.map {
-                if (it.id == id) product.copy(id = id, image = it.image) else it // Keep old image during update upload
-            }
-
+            _isLoading.value = true
             _errorMessage.value = null
             var tempFile: java.io.File? = null
+            var optimisticImageUrl: String? = null
+
+            // 1. Prepare Local File if Image Passed
+            if (imageUri != null && context != null) {
+                tempFile = FileUtils.getFileFromUri(context, imageUri)
+                if (tempFile != null) {
+                    val fileSizeInBytes = tempFile.length()
+                    if (fileSizeInBytes > 5 * 1024 * 1024) {
+                        val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
+                        _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
+                        _isLoading.value = false
+                        tempFile.delete()
+                        return@launch
+                    }
+                    optimisticImageUrl = "file://${tempFile.absolutePath}"
+                }
+            }
+
+            // 2. OPTIMISTIC LOCAL UI UPDATE (Secure file:// uri or old image)
+            val originalProducts = _products.value.toList()
+            _products.value = originalProducts.map {
+                if (it.id == id) product.copy(id = id, image = optimisticImageUrl ?: it.image) else it
+            }
+            
+            // TAHAP 63: Save to interceptor map so fetchProducts doesn't overwrite it with Cloudinary URL
+            if (optimisticImageUrl != null) {
+                optimisticImagesMap[product.name] = optimisticImageUrl
+            }
+
             try {
                 val name = createPartFromString(product.name)
-                // val category = createPartFromString(product.category)
                 val categoryId = createPartFromString(product.categoryId?.toString() ?: "0")
                 val price = createPartFromString(product.price.toString())
                 val description = createPartFromString(product.description ?: "")
@@ -267,25 +311,11 @@ class MenuViewModel : ViewModel() {
                 val isArActive = createPartFromString(product.isArActive.toString())
 
                 var imagePart: okhttp3.MultipartBody.Part? = null
-                if (imageUri != null && context != null) {
-                    val file = FileUtils.getFileFromUri(context, imageUri)
-                    tempFile = file // TRACK FOR DELETION
-                    if (file != null) {
-                        // VALIDASI UKURAN FILE (Max 5MB)
-                        val fileSizeInBytes = file.length()
-                        if (fileSizeInBytes > 5 * 1024 * 1024) {
-                            val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
-                            _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
-                            _isLoading.value = false
-                            tempFile?.delete() // Cleanup on failure
-                            return@launch
-                        }
-
-                        val contentResolver = context.contentResolver
-                        val type = contentResolver.getType(imageUri) ?: "image/jpeg"
-                        val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), file)
-                        imagePart = okhttp3.MultipartBody.Part.createFormData("image", file.name, requestFile)
-                    }
+                if (tempFile != null && context != null) {
+                    val contentResolver = context.contentResolver
+                    val type = contentResolver.getType(imageUri!!) ?: "image/jpeg"
+                    val requestFile = okhttp3.RequestBody.create(type.toMediaTypeOrNull(), tempFile)
+                    imagePart = okhttp3.MultipartBody.Part.createFormData("image", tempFile.name, requestFile)
                 }
 
                 val response = RetrofitClient.instance.updateProduct(
@@ -293,17 +323,16 @@ class MenuViewModel : ViewModel() {
                 )
                 
                 if (response.success) {
-                    // Sync with backend (silent) to get real image URL if changed
                     fetchProducts(isSilent = true)
                 } else {
                     _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
+                    tempFile?.delete()
                 }
             } catch (e: Exception) {
                 _products.value = originalProducts // Rollback
-                _errorMessage.value = "Gagal mengupdate produk: ${e.localizedMessage}"
-            } finally {
-                tempFile?.delete() // DELETE TEMP FILE TO PREVENT STORAGE LEAK
+                _errorMessage.value = "Gagal mengubah produk: ${e.localizedMessage}"
+                tempFile?.delete()
             }
         }
     }
