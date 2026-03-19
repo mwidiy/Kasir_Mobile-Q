@@ -190,4 +190,12 @@ interface ApiService {
     
     @GET("api/withdraw/history")
     suspend fun getWithdrawalHistory(): com.example.kasir.data.model.WithdrawalHistoryResponse
+
+    @POST("api/auth/fcm-token")
+    suspend fun updateFcmToken(@Body request: FcmTokenRequest): Response<Any>
 }
+
+data class FcmTokenRequest(
+    val userId: String,
+    val fcmToken: String
+)

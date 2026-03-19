@@ -30,8 +30,11 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import android.util.Log
-import com.example.kasir.service.OrderNotificationService
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.google.firebase.messaging.FirebaseMessaging
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class MainActivity : ComponentActivity() {
@@ -43,10 +46,45 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // --- LIFECYCLE OBSERVER ---
-        androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(com.example.kasir.utils.AppLifecycleObserver)
+        ProcessLifecycleOwner.get().lifecycle.addObserver(com.example.kasir.utils.AppLifecycleObserver)
         
-        // --- NATIVE SERVICE START ---
-        checkAndStartService()
+        // --- REQUEST POST_NOTIFICATIONS PERMISSION ---
+        requestNotificationPermission()
+
+        // --- FETCH FCM TOKEN ---
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("MainActivity", "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+            // Get new FCM registration token
+            val token = task.result
+            Log.d("MainActivity", "FCM Registration Token: $token")
+            
+            // Send token to backend if logged in
+            if (com.example.kasir.utils.SessionManager.isLoggedIn()) {
+                val userId = com.example.kasir.utils.SessionManager.currentUser?.id?.toString()
+                if (userId != null) {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val request = com.example.kasir.data.network.FcmTokenRequest(userId, token)
+                            val response = com.example.kasir.data.network.RetrofitClient.instance.updateFcmToken(request)
+                            if (response.isSuccessful) {
+                                Log.d("MainActivity", "FCM Token successfully sent to backend.")
+                            } else {
+                                Log.e("MainActivity", "Failed to send FCM token. Code: ${response.code()}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Exception sending FCM token", e)
+                        }
+                    }
+                } else {
+                    Log.d("MainActivity", "FCM Token not sent: User ID is null.")
+                }
+            } else {
+                Log.d("MainActivity", "FCM Token not sent: User is not logged in.")
+            }
+        }
 
         setContent {
             // --- ALWAYS ON LOGIC ---
@@ -64,10 +102,6 @@ class MainActivity : ComponentActivity() {
             KasirTheme {
                     // --- STATE ---
                     var currentScreen by remember { mutableStateOf("splash") }
-                    val context = androidx.compose.ui.platform.LocalContext.current
-
-                    // Note: Service logic moved to Native onCreate. 
-                    // Compose side-effects for service removed.
 
                     // --- ANIMATION STATES FOR PERSISTENT LOGO ---
                     val logoSize by androidx.compose.animation.core.animateDpAsState(
@@ -93,7 +127,6 @@ class MainActivity : ComponentActivity() {
                                 targetState = currentScreen,
                                 transitionSpec = {
                                     if (targetState == "login" && initialState == "splash") {
-                                        // Splash -> Login: Slide Up + Fade In (CONTENT ONLY)
                                         (androidx.compose.animation.slideInVertically { height -> height / 2 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(800, delayMillis = 300)))
                                             .with(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(800)))
                                     } else if (targetState == "dashboard") {
@@ -108,18 +141,9 @@ class MainActivity : ComponentActivity() {
                             ) { targetScreen ->
                                 when (targetScreen) {
                                     "splash" -> SplashScreen(onNavigate = { screen -> currentScreen = screen })
-                                    "login" -> LoginScreen(onLoginSuccess = { 
-                                        checkAndStartService()
-                                        currentScreen = "main" 
-                                    })
-                                    "main" -> MainScreen(onLogout = { 
-                                        stopOrderService()
-                                        currentScreen = "login" 
-                                    })
-                                    else -> MainScreen(onLogout = { 
-                                        stopOrderService()
-                                        currentScreen = "login" 
-                                    }) 
+                                    "login" -> LoginScreen(onLoginSuccess = { currentScreen = "main" }) // REMOVED SERVICE TRIGGER
+                                    "main" -> MainScreen(onLogout = { currentScreen = "login" }) // REMOVED SERVICE TRIGGER
+                                    else -> MainScreen(onLogout = { currentScreen = "login" }) 
                                 }
                             }
                         }
@@ -140,13 +164,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     
-    // --- NATIVE PERMISSION & SERVICE HANDLING ---
+    // --- NATIVE PERMISSION HANDLING ---
 
-    private fun checkAndStartService() {
+    private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                startOrderService()
-            } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 Log.d("MainActivity", "Requesting POST_NOTIFICATIONS permission")
                 ActivityCompat.requestPermissions(
                     this,
@@ -154,32 +176,6 @@ class MainActivity : ComponentActivity() {
                     REQUEST_PERMISSION_CODE
                 )
             }
-        } else {
-            startOrderService()
-        }
-    }
-
-    private fun startOrderService() {
-        try {
-            val intent = Intent(this, OrderNotificationService::class.java)
-            Log.d("MainActivity", "Starting OrderNotificationService")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start service", e)
-        }
-    }
-
-    private fun stopOrderService() {
-        try {
-            val intent = Intent(this, OrderNotificationService::class.java)
-            stopService(intent)
-            Log.d("MainActivity", "Stopped OrderNotificationService")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to stop service", e)
         }
     }
 
@@ -187,10 +183,9 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_PERMISSION_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d("MainActivity", "Permission GRANTED")
-                startOrderService()
+                Log.d("MainActivity", "Notification Permission GRANTED")
             } else {
-                Log.e("MainActivity", "Permission DENIED")
+                Log.e("MainActivity", "Notification Permission DENIED")
             }
         }
     }
