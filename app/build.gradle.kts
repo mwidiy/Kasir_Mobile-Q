@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.kasir"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 34
 
     buildFeatures {
         compose = true
@@ -21,7 +19,7 @@ android {
     defaultConfig {
         applicationId = "com.example.kasir"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -33,17 +31,14 @@ android {
         if (localPropertiesFile.exists()) {
             localProperties.load(FileInputStream(localPropertiesFile))
         }
-        var apiBaseUrl = localProperties.getProperty("API_BASE_URL") ?: "http://192.168.1.4:3000/"
-        apiBaseUrl = apiBaseUrl.replace("\"", "")
+        
+        // Priority: local.properties -> Production Fallback
+        var apiBaseUrl = localProperties.getProperty("API_BASE_URL")?.replace("\"", "") 
+            ?: "https://api.quacxel.my.id/"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
 
-        // Dynamic PWA_BASE_URL: Derive from API_BASE_URL if not set
-        var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL")
-        if (pwaBaseUrl == null) {
-             // Default to API URL but switch port 3000 -> 3001
-             pwaBaseUrl = apiBaseUrl.replace(":3000", ":3001")
-        }
-        pwaBaseUrl = pwaBaseUrl.replace("\"", "")
+        var pwaBaseUrl = localProperties.getProperty("PWA_BASE_URL")?.replace("\"", "") 
+            ?: "https://quacxel.my.id/"
         buildConfigField("String", "PWA_BASE_URL", "\"$pwaBaseUrl\"")
 
         // Load WEB_CLIENT_ID for Google Login
@@ -54,7 +49,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

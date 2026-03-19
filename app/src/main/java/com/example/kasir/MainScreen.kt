@@ -21,6 +21,7 @@ import com.example.kasir.viewmodel.DashboardViewModel
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import android.widget.Toast
+import com.example.kasir.ui.profile.PrivacyPolicyScreen
 import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -45,16 +46,22 @@ fun MainScreen(
 
     // HANDLE BACK PRESS
     BackHandler {
-        if (currentScreen != "dashboard") {
-            // If on another tab, go back to Dashboard
-            currentScreen = "dashboard"
-        } else {
-            // If on Dashboard, check for double press
-            if (System.currentTimeMillis() - backPressedTime < 2000) {
-                activity?.finish()
-            } else {
-                backPressedTime = System.currentTimeMillis()
-                Toast.makeText(context, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+        when {
+            currentScreen == "privacy_policy" -> {
+                currentScreen = "profile"
+            }
+            currentScreen != "dashboard" -> {
+                // If on another tab, go back to Dashboard
+                currentScreen = "dashboard"
+            }
+            else -> {
+                // If on Dashboard, check for double press
+                if (System.currentTimeMillis() - backPressedTime < 2000) {
+                    activity?.finish()
+                } else {
+                    backPressedTime = System.currentTimeMillis()
+                    Toast.makeText(context, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -163,6 +170,9 @@ fun MainScreen(
                     "profile" -> ProfileScreen(onNavigate = { target -> 
                          if (target == "login") onLogout() else currentScreen = target
                     })
+                    "privacy_policy" -> {
+                        PrivacyPolicyScreen(onNavigateBack = { currentScreen = "profile" })
+                    }
                 }
             }
             

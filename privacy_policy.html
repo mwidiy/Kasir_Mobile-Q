@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kebijakan Privasi - Qr Meja Pesan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: #2C3E50;
+            color: #F7DC6F;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            font-size: 15px;
+            color: #64748b;
+        }
+
+        .effective-date {
+            display: inline-block;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        /* Section Styling */
+        .section {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 28px 28px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .section:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+
+        .section h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h2 .icon {
+            font-size: 20px;
+        }
+
+        .section h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #334155;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+
+        .section p {
+            font-size: 14.5px;
+            margin-bottom: 12px;
+            color: #475569;
+        }
+
+        .section ul {
+            padding-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        .section ul li {
+            font-size: 14.5px;
+            color: #475569;
+            margin-bottom: 6px;
+            position: relative;
+        }
+
+        .section ul li::marker {
+            color: #2C3E50;
+        }
+
+        /* Highlight Box */
+        .highlight-box {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 14px 18px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .highlight-box p {
+            color: #166534;
+            font-weight: 500;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .warning-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 14px 18px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .warning-box p {
+            color: #92400e;
+            font-weight: 500;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        /* Permission Table */
+        .permission-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 16px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .permission-table thead th {
+            background: #2C3E50;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 12px 16px;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .permission-table tbody td {
+            padding: 12px 16px;
+            font-size: 14px;
+            border-top: 1px solid #f1f5f9;
+            color: #475569;
+        }
+
+        .permission-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .permission-table code {
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12.5px;
+            color: #2C3E50;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid #e2e8f0;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        .footer a {
+            color: #2C3E50;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container {
+                padding: 24px 16px 60px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .section {
+                padding: 20px 18px;
+            }
+
+            .permission-table thead th,
+            .permission-table tbody td {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <span class="badge">Dokumen Resmi</span>
+            <h1>Kebijakan Privasi</h1>
+            <p class="subtitle">Qr Meja Pesan &mdash; Aplikasi Point of Sale</p>
+            <span class="effective-date">Berlaku sejak: 19 Maret 2026</span>
+        </div>
+
+        <!-- 1. Pendahuluan -->
+        <div class="section">
+            <h2><span class="icon">📋</span> Pendahuluan</h2>
+            <p>
+                Selamat datang di <strong>Qr Meja Pesan</strong>. Kami menghargai kepercayaan Anda dan berkomitmen untuk melindungi privasi serta keamanan data pribadi Anda. 
+                Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi informasi Anda saat menggunakan aplikasi Qr Meja Pesan ("Aplikasi").
+            </p>
+            <p>
+                Dengan mengunduh, menginstal, atau menggunakan Aplikasi ini, Anda menyetujui praktik yang dijelaskan dalam Kebijakan Privasi ini. 
+                Jika Anda tidak setuju dengan kebijakan ini, mohon untuk tidak menggunakan Aplikasi kami.
+            </p>
+        </div>
+
+        <!-- 2. Informasi yang Kami Kumpulkan -->
+        <div class="section">
+            <h2><span class="icon">📦</span> Informasi yang Kami Kumpulkan</h2>
+            <h3>a. Informasi yang Anda Berikan Secara Langsung</h3>
+            <ul>
+                <li><strong>Data Akun:</strong> Nama restoran, logo, informasi kontak, dan metode pembayaran yang Anda simpan di profil toko.</li>
+                <li><strong>Data Transaksi:</strong> Rincian pesanan, riwayat transaksi, jumlah pembayaran, dan metode pembayaran pelanggan.</li>
+                <li><strong>Data Menu:</strong> Nama, deskripsi, harga, kategori, dan gambar menu yang Anda daftarkan.</li>
+            </ul>
+            <h3>b. Informasi yang Dikumpulkan Secara Otomatis</h3>
+            <ul>
+                <li><strong>Data Perangkat:</strong> Jenis perangkat, versi sistem operasi Android, dan pengidentifikasi unik perangkat untuk keperluan troubleshooting.</li>
+                <li><strong>Data Penggunaan:</strong> Log aktivitas dalam aplikasi untuk peningkatan kualitas layanan.</li>
+                <li><strong>Data Jaringan:</strong> Status koneksi internet untuk memastikan sinkronisasi data berjalan optimal.</li>
+            </ul>
+            <h3>c. Informasi yang TIDAK Kami Kumpulkan</h3>
+            <ul>
+                <li>Kami <strong>tidak</strong> mengumpulkan informasi lokasi presisi (GPS).</li>
+                <li>Kami <strong>tidak</strong> mengakses daftar kontak, SMS, atau riwayat panggilan Anda.</li>
+                <li>Kami <strong>tidak</strong> mengumpulkan data biometrik (sidik jari, pengenalan wajah).</li>
+            </ul>
+        </div>
+
+        <!-- 3. Izin Aplikasi -->
+        <div class="section">
+            <h2><span class="icon">🔐</span> Izin Aplikasi &amp; Penggunaannya</h2>
+            <p>
+                Aplikasi kami meminta beberapa izin perangkat yang diperlukan untuk fungsionalitas inti. Berikut penjelasan lengkap setiap izin yang kami gunakan untuk layanan <strong>Qr Meja Pesan</strong>:
+            </p>
+            
+            <table class="permission-table">
+                <thead>
+                    <tr>
+                        <th>Izin</th>
+                        <th>Tujuan Penggunaan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>CAMERA</code></td>
+                        <td>Digunakan untuk memindai <strong>kode QR</strong> pada meja pelanggan dan untuk fitur <strong>Augmented Reality (AR) View</strong> yang memungkinkan visualisasi menu secara interaktif. Kamera <strong>hanya aktif</strong> saat Anda secara eksplisit membuka fitur pemindaian atau AR.</td>
+                    </tr>
+                    <tr>
+                        <td><code>POST_NOTIFICATIONS</code></td>
+                        <td>Digunakan untuk mengirimkan <strong>notifikasi pembaruan pesanan</strong> secara real-time kepada Anda, seperti pesanan baru masuk, perubahan status pesanan, dan informasi pembayaran. Anda dapat menonaktifkan notifikasi kapan saja melalui pengaturan perangkat.</td>
+                    </tr>
+                    <tr>
+                        <td><code>FOREGROUND_SERVICE</code> &amp; <code>FOREGROUND_SERVICE_DATA_SYNC</code></td>
+                        <td>Digunakan untuk menjalankan <strong>layanan sinkronisasi data pesanan secara real-time</strong> di latar belakang. Layanan ini memastikan data pesanan selalu tersinkronisasi antara perangkat Anda dan server, bahkan saat aplikasi tidak sedang di layar utama. Layanan ini menampilkan notifikasi persisten sesuai kebijakan Android.</td>
+                    </tr>
+                    <tr>
+                        <td><code>INTERNET</code></td>
+                        <td>Digunakan untuk komunikasi dengan server API kami, termasuk mengirim dan menerima data pesanan, memproses pembayaran, serta koneksi <strong>Socket.io</strong> untuk pembaruan real-time.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ACCESS_NETWORK_STATE</code></td>
+                        <td>Digunakan untuk memeriksa ketersediaan koneksi jaringan sebelum melakukan sinkronisasi data, guna mencegah kegagalan operasi dan memastikan pengalaman pengguna yang optimal.</td>
+                    </tr>
+                    <tr>
+                        <td><code>WAKE_LOCK</code></td>
+                        <td>Digunakan untuk menjaga perangkat tetap aktif selama proses sinkronisasi data penting berlangsung, memastikan tidak ada data pesanan yang hilang.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="highlight-box">
+                <p>✅ Semua izin hanya digunakan untuk fungsionalitas yang disebutkan di atas. Kami tidak pernah mengakses kamera, mikrofon, atau fitur lain di luar keperluan yang telah dijelaskan.</p>
+            </div>
+        </div>
+
+        <!-- 4. Penggunaan Kamera -->
+        <div class="section">
+            <h2><span class="icon">📷</span> Penggunaan Kamera &amp; Data Visual</h2>
+            <p>Fitur kamera pada Qr Meja Pesan digunakan secara eksklusif untuk:</p>
+            <ul>
+                <li><strong>Pemindaian Kode QR:</strong> Memindai kode QR yang terdapat pada meja pelanggan untuk mengidentifikasi nomor meja dan menghubungkannya dengan pesanan. Data yang diproses hanya berupa teks ID meja dari kode QR.</li>
+                <li><strong>Tampilan Augmented Reality (AR):</strong> Menampilkan visualisasi menu secara 3D/AR menggunakan kamera perangkat untuk memberikan pengalaman interaktif kepada pengguna.</li>
+            </ul>
+            <div class="warning-box">
+                <p>⚠️ Kami TIDAK merekam, menyimpan, atau mengirimkan foto atau video apapun dari kamera Anda ke server kami. Pemrosesan kamera dilakukan secara lokal di perangkat Anda.</p>
+            </div>
+        </div>
+
+        <!-- 5. Bagaimana Kami Menggunakan Informasi -->
+        <div class="section">
+            <h2><span class="icon">⚙️</span> Bagaimana Kami Menggunakan Informasi Anda</h2>
+            <p>Kami menggunakan informasi yang dikumpulkan untuk tujuan berikut:</p>
+            <ul>
+                <li>Menyediakan, mengelola, dan meningkatkan layanan Aplikasi.</li>
+                <li>Memproses dan mengelola pesanan serta transaksi pembayaran.</li>
+                <li>Mengirimkan notifikasi terkait aktivitas pesanan Anda.</li>
+                <li>Menyinkronkan data secara real-time antara perangkat dan server.</li>
+                <li>Menyediakan dukungan pelanggan dan merespons pertanyaan Anda.</li>
+                <li>Mendeteksi, mencegah, dan mengatasi masalah teknis serta keamanan.</li>
+                <li>Mematuhi kewajiban hukum yang berlaku.</li>
+            </ul>
+        </div>
+
+        <!-- 6. Penjualan Data -->
+        <div class="section">
+            <h2><span class="icon">🚫</span> Kami Tidak Menjual Data Anda</h2>
+            <div class="highlight-box">
+                <p>✅ Kami TIDAK menjual, memperdagangkan, atau menyewakan informasi pribadi Anda kepada pihak ketiga untuk tujuan komersial atau pemasaran apapun.</p>
+            </div>
+            <p>
+                Kami tidak memberikan data pribadi kepada pengiklan, pialang data, atau penjual informasi. 
+                Data Anda hanya digunakan semata-mata untuk operasional Aplikasi Qr Meja Pesan sebagaimana dijelaskan dalam kebijakan ini.
+            </p>
+        </div>
+
+        <!-- 7. Berbagi Data -->
+        <div class="section">
+            <h2><span class="icon">🤝</span> Berbagi Informasi dengan Pihak Ketiga</h2>
+            <p>Kami hanya dapat membagikan informasi Anda dalam situasi terbatas berikut:</p>
+            <ul>
+                <li><strong>Penyedia Layanan:</strong> Kami bekerja sama dengan penyedia layanan tepercaya seperti penyedia hosting server dan layanan payment gateway (misalnya Midtrans) yang membantu kami menjalankan layanan. Pihak-pihak ini terikat kontrak untuk melindungi data Anda dan hanya memproses data sesuai instruksi kami.</li>
+                <li><strong>Kewajiban Hukum:</strong> Kami dapat mengungkapkan informasi Anda jika diwajibkan oleh hukum, proses hukum, atau permintaan pemerintah yang sah.</li>
+                <li><strong>Perlindungan Hak:</strong> Untuk melindungi hak, properti, atau keselamatan Kasir Mobile-Q, pengguna kami, atau publik.</li>
+            </ul>
+        </div>
+
+        <!-- 8. Keamanan Data -->
+        <div class="section">
+            <h2><span class="icon">🛡️</span> Keamanan Data</h2>
+            <p>Kami menerapkan langkah-langkah keamanan teknis dan organisasi yang dirancang untuk melindungi data Anda, termasuk:</p>
+            <ul>
+                <li><strong>Enkripsi Transmisi:</strong> Semua komunikasi data antara Aplikasi dan server kami menggunakan protokol HTTPS/TLS untuk mencegah penyadapan.</li>
+                <li><strong>Network Security Config:</strong> Aplikasi dikonfigurasi untuk menolak koneksi cleartext (tidak terenkripsi) guna memastikan keamanan jaringan.</li>
+                <li><strong>Pencadangan Terbatas:</strong> Fitur auto-backup perangkat dinonaktifkan (<code>allowBackup=false</code>) untuk mencegah data sensitif tersimpan dalam cadangan perangkat yang tidak terenkripsi.</li>
+                <li><strong>Autentikasi:</strong> Akses ke data akun Anda dilindungi oleh sistem autentikasi yang aman.</li>
+            </ul>
+            <p>
+                Meskipun kami berusaha keras untuk melindungi data Anda, tidak ada metode transmisi melalui internet atau metode penyimpanan elektronik yang 100% aman. 
+                Kami tidak dapat menjamin keamanan absolut informasi Anda.
+            </p>
+        </div>
+
+        <!-- 9. Penyimpanan Data -->
+        <div class="section">
+            <h2><span class="icon">💾</span> Penyimpanan &amp; Retensi Data</h2>
+            <p>
+                Kami menyimpan data Anda selama diperlukan untuk menyediakan layanan Aplikasi kepada Anda, memenuhi kewajiban hukum, menyelesaikan sengketa, dan menegakkan perjanjian kami.
+            </p>
+            <ul>
+                <li><strong>Data Transaksi:</strong> Disimpan sesuai dengan kebutuhan operasional dan kewajiban perpajakan/akuntansi yang berlaku.</li>
+                <li><strong>Data Akun:</strong> Disimpan selama akun Anda aktif. Jika Anda meminta penghapusan akun, data Anda akan dihapus dalam waktu 30 hari kerja, kecuali ada kewajiban hukum untuk menyimpannya lebih lama.</li>
+            </ul>
+        </div>
+
+        <!-- 10. Hak Pengguna -->
+        <div class="section">
+            <h2><span class="icon">👤</span> Hak-Hak Anda</h2>
+            <p>Anda memiliki hak-hak berikut terkait data pribadi Anda:</p>
+            <ul>
+                <li><strong>Hak Akses:</strong> Anda berhak meminta salinan data pribadi yang kami miliki tentang Anda.</li>
+                <li><strong>Hak Koreksi:</strong> Anda berhak meminta perbaikan data yang tidak akurat atau tidak lengkap.</li>
+                <li><strong>Hak Penghapusan:</strong> Anda berhak meminta penghapusan data pribadi Anda, dengan mempertimbangkan kewajiban hukum yang berlaku.</li>
+                <li><strong>Hak Penarikan Persetujuan:</strong> Anda dapat menarik persetujuan Anda kapan saja dengan menonaktifkan izin aplikasi melalui Pengaturan Perangkat Android Anda.</li>
+                <li><strong>Hak Kontrol Notifikasi:</strong> Anda dapat mengaktifkan atau menonaktifkan notifikasi melalui pengaturan perangkat Anda kapan saja.</li>
+            </ul>
+            <p>
+                Untuk menggunakan hak-hak Anda, silakan hubungi kami menggunakan informasi kontak yang tertera di bagian bawah kebijakan ini.
+            </p>
+        </div>
+
+        <!-- 11. Privasi Anak -->
+        <div class="section">
+            <h2><span class="icon">🧒</span> Privasi Anak-Anak</h2>
+            <p>
+                Aplikasi Qr Meja Pesan ditujukan untuk pengguna bisnis dan <strong>tidak dirancang untuk digunakan oleh anak-anak di bawah usia 13 tahun</strong>. 
+                Kami tidak dengan sengaja mengumpulkan informasi pribadi dari anak-anak di bawah 13 tahun. 
+                Jika kami mengetahui bahwa kami telah mengumpulkan data dari anak di bawah usia tersebut, kami akan segera menghapusnya.
+            </p>
+        </div>
+
+        <!-- 12. Perubahan Kebijakan -->
+        <div class="section">
+            <h2><span class="icon">📝</span> Perubahan pada Kebijakan Privasi</h2>
+            <p>
+                Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu untuk mencerminkan perubahan pada praktik kami atau karena alasan operasional, hukum, atau peraturan lainnya.
+            </p>
+            <p>
+                Kami akan memberi tahu Anda tentang perubahan signifikan melalui notifikasi dalam Aplikasi atau melalui pembaruan tanggal "Berlaku sejak" di bagian atas halaman ini. 
+                Kami mendorong Anda untuk meninjau Kebijakan Privasi ini secara berkala.
+            </p>
+        </div>
+
+        <!-- 13. Kontak -->
+        <div class="section">
+            <h2><span class="icon">📬</span> Hubungi Kami</h2>
+            <p>
+                Jika Anda memiliki pertanyaan, kekhawatiran, atau permintaan terkait Kebijakan Privasi ini atau penanganan data pribadi Anda, silakan hubungi kami melalui:
+            </p>
+            <ul>
+                <li><strong>Nama Aplikasi:</strong> Qr Meja Pesan</li>
+                <li><strong>Email:</strong> <a href="mailto:fserdtfc@gmail.com" style="color: #2C3E50; text-decoration: none; font-weight: 500;">fserdtfc@gmail.com</a></li>
+            </ul>
+            <p>
+                Kami akan berusaha merespons permintaan Anda dalam waktu 14 hari kerja.
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>&copy; 2026 Qr Meja Pesan. Semua hak dilindungi undang-undang.</p>
+            <p style="margin-top: 8px;">Kebijakan Privasi ini terakhir diperbarui pada <strong>19 Maret 2026</strong>.</p>
+        </div>
+    </div>
+</body>
+</html>

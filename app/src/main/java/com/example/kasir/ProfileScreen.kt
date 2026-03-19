@@ -1765,6 +1765,19 @@ fun FooterActions(onNavigate: (String) -> Unit) {
     }
     
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(vertical=24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Privacy Policy Button
+        OutlinedButton(
+            onClick = { onNavigate("privacy_policy") },
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Navy),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Navy.copy(alpha=0.3f))
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = Navy, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Kebijakan Privasi", color = Navy, fontWeight = FontWeight.Bold)
+        }
+
         // Logout Button
         Button(
             onClick = { showLogoutDialog = true },
