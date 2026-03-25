@@ -142,6 +142,34 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    fun updateKasirQrVerification(isEnabled: Boolean) {
+        val oldState = _storeState.value
+        _storeState.value = oldState?.copy(isKasirQrVerificationEnabled = isEnabled)
+        com.example.kasir.utils.LocalEventBus.emitSettingsUpdate(isEnabled)
+
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.updateStore(com.example.kasir.data.model.StoreUpdateRequest(isKasirQrVerificationEnabled = isEnabled))
+                if (response.success && response.data != null) {
+                    _storeState.value = response.data
+                } else {
+                    _storeState.value = oldState
+                    _errorMessage.value = "Gagal update pengaturan verifikasi Kasir"
+                }
+            } catch (e: retrofit2.HttpException) {
+                _storeState.value = oldState
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal update pengaturan: ${e.message()}" }
+                _errorMessage.value = errorMsg
+            } catch (e: Exception) {
+                _storeState.value = oldState
+                _errorMessage.value = "Gagal update pengaturan: ${e.localizedMessage}"
+            }
+        }
+    }
+
     private val _balance = MutableStateFlow<Int>(0)
     val balance: StateFlow<Int> = _balance
 

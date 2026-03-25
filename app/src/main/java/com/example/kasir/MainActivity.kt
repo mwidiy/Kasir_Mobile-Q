@@ -1,5 +1,10 @@
 package com.example.kasir
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,6 +55,9 @@ class MainActivity : ComponentActivity() {
         
         // --- REQUEST POST_NOTIFICATIONS PERMISSION ---
         requestNotificationPermission()
+
+        // --- CREATE NOTIFICATION CHANNEL WITH CUSTOM SOUND ---
+        createOrderNotificationChannel()
 
         // --- FETCH FCM TOKEN ---
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -164,6 +172,33 @@ class MainActivity : ComponentActivity() {
             }
         }
     
+    // --- NOTIFICATION CHANNEL WITH CUSTOM SOUND ---
+    private fun createOrderNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelId = "pesanan_baru"
+            val channelName = "Pesanan Baru"
+            val channelDesc = "Notifikasi untuk pesanan masuk"
+            val importance = NotificationManager.IMPORTANCE_HIGH
+
+            val soundUri = Uri.parse("android.resource://${packageName}/${R.raw.sound_pesanan}")
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+
+            val channel = NotificationChannel(channelId, channelName, importance).apply {
+                description = channelDesc
+                setSound(soundUri, audioAttributes)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 300, 200, 300)
+            }
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+            Log.d("MainActivity", "NotificationChannel '$channelId' created with custom sound")
+        }
+    }
+
     // --- NATIVE PERMISSION HANDLING ---
 
     private fun requestNotificationPermission() {

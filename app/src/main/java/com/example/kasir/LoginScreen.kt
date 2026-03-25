@@ -101,9 +101,39 @@ fun LoginScreen(
                              if (loginResponse != null && loginResponse.success) {
                                 val token = loginResponse.token
                                 val user = loginResponse.user
-                                // SessionManager.saveSession expects (Context, String, User)
-                                // Make sure 'user' matches what saveSession expects or map it if needed
                                 SessionManager.saveSession(context, token, user)
+
+                                // --- SEND FCM TOKEN IMMEDIATELY AFTER LOGIN ---
+                                try {
+                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                                        .addOnCompleteListener { fcmTask ->
+                                            if (fcmTask.isSuccessful) {
+                                                val fcmToken = fcmTask.result
+                                                Log.d("LoginScreen", "FCM Token obtained: ${fcmToken?.take(20)}...")
+                                                val userId = user.id?.toString()
+                                                if (userId != null && fcmToken != null) {
+                                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                                        try {
+                                                            val fcmRequest = com.example.kasir.data.network.FcmTokenRequest(userId, fcmToken)
+                                                            val fcmResponse = RetrofitClient.instance.updateFcmToken(fcmRequest)
+                                                            if (fcmResponse.isSuccessful) {
+                                                                Log.d("LoginScreen", "✅ FCM Token sent to backend after login!")
+                                                            } else {
+                                                                Log.e("LoginScreen", "❌ FCM Token send failed: ${fcmResponse.code()}")
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            Log.e("LoginScreen", "❌ FCM Token send exception", e)
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                Log.w("LoginScreen", "FCM token fetch failed", fcmTask.exception)
+                                            }
+                                        }
+                                } catch (e: Exception) {
+                                    Log.e("LoginScreen", "FCM setup error", e)
+                                }
+
                                 onLoginSuccess()
                              } else {
                                 errorMessage = "Invalid Server Response"

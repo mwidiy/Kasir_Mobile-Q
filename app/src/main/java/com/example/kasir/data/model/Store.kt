@@ -14,7 +14,8 @@ data class Store(
     val ewalletType: String?,
     val ewalletNumber: String?,
     val ewalletName: String?,
-    val whatsappNumber: String? // NEW
+    val whatsappNumber: String?, // NEW
+    val isKasirQrVerificationEnabled: Boolean? = false // NEW
 )
 
 data class StoreResponse(
@@ -31,5 +32,6 @@ data class StoreUpdateRequest(
     val ewalletType: String? = null,
     val ewalletNumber: String? = null,
     val ewalletName: String? = null,
-    val whatsappNumber: String? = null
+    val whatsappNumber: String? = null,
+    val isKasirQrVerificationEnabled: Boolean? = null
 )

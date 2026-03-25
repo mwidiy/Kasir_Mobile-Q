@@ -51,13 +51,36 @@ class RiwayatViewModel : ViewModel() {
     private val historyMutex = Mutex()
     private val gson = Gson()
 
+    private val _isKasirQrVerificationEnabled = MutableStateFlow(false)
+
     init {
         initSocket()
         initLocalEventBus() // TAHAP 33: True Local Optimistic Sync
+        fetchStoreSettings() // NEW
         fetchHistory()
     }
 
+    private fun fetchStoreSettings() {
+        viewModelScope.launch {
+            try {
+                val response = apiService.getStore()
+                if (response.success && response.data != null) {
+                    _isKasirQrVerificationEnabled.value = response.data.isKasirQrVerificationEnabled ?: false
+                    applyFilters()
+                }
+            } catch (e: Exception) {
+                // Konfigurasi biarkan default (false) jika gagal memuat.
+            }
+        }
+    }
+
     private fun initLocalEventBus() {
+        viewModelScope.launch {
+            LocalEventBus.settingsUpdateFlow.collect { isEnabled ->
+                _isKasirQrVerificationEnabled.value = isEnabled
+                applyFilters()
+            }
+        }
         viewModelScope.launch {
             LocalEventBus.orderUpdateFlow.collect { order ->
                 historyMutex.withLock {
@@ -211,8 +234,15 @@ class RiwayatViewModel : ViewModel() {
         }
 
         // 5. GLOBAL SAFETY FILTER: Hide WaitingPayment unless Paid
-        result = result.filter { 
-            !it.status.equals("WaitingPayment", ignoreCase = true) || it.paymentStatus.equals("Paid", ignoreCase = true)
+        val kasirQrEnabled = _isKasirQrVerificationEnabled.value
+        result = result.filter { order ->
+            if (kasirQrEnabled && order.paymentMethod.equals("Kasir", ignoreCase = true)) {
+                 // Kasir payments MUST be Paid to enter Riwayat if feature is ON
+                 order.paymentStatus.equals("Paid", ignoreCase = true)
+            } else {
+                 // Normal behavior: Hide WaitingPayment unless Paid
+                 !order.status.equals("WaitingPayment", ignoreCase = true) || order.paymentStatus.equals("Paid", ignoreCase = true)
+            }
         }
         
         _displayedOrders.value = result

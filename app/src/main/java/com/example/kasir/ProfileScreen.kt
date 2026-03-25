@@ -1469,6 +1469,43 @@ fun RestaurantIdentitySection(
             initialNumber = viewModel.storeState.collectAsState().value?.whatsappNumber ?: "",
             onSave = { newNumber -> viewModel.updateWhatsApp(newNumber) }
         )
+
+        // NEW: Kasir QR Verification Toggle
+        val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                    Text(
+                        text = "Verifikasi Kasir QR",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                    )
+                    Text(
+                        text = "Wajibkan scan QR oleh kasir sebelum pesanan selesai",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = isKasirQrEnabled,
+                    onCheckedChange = { viewModel.updateKasirQrVerification(it) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF10B981), // Green
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.LightGray
+                    )
+                )
+            }
+        }
     }
 }
 

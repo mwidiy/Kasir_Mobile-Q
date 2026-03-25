@@ -1,96 +1,94 @@
 package com.example.kasir.service
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.media.RingtoneManager
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.kasir.MainActivity
 import com.example.kasir.R
-import com.example.kasir.utils.AppLifecycleObserver
+import com.example.kasir.utils.SessionManager
+import com.example.kasir.data.network.FcmTokenRequest
+import com.example.kasir.data.network.RetrofitClient
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class FCMNotificationService : FirebaseMessagingService() {
 
-    private val CHANNEL_ID = "order_notifications_v2"
+    private val CHANNEL_ID = "pesanan_baru"
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCMService", "New FCM Token obtained: $token")
-        // TODO: Send this new token to your backend API to register this device
+        // Auto-send refreshed token to backend
+        if (SessionManager.isLoggedIn()) {
+            val userId = SessionManager.currentUser?.id?.toString()
+            if (userId != null) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val request = FcmTokenRequest(userId, token)
+                        val response = RetrofitClient.instance.updateFcmToken(request)
+                        if (response.isSuccessful) {
+                            Log.d("FCMService", "Refreshed FCM token sent to backend successfully.")
+                        } else {
+                            Log.e("FCMService", "Failed to send refreshed token. Code: ${response.code()}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FCMService", "Exception sending refreshed FCM token", e)
+                    }
+                }
+            }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        
-        // Extract data payload sent by the server
-        val transactionCode = message.data["transactionCode"] ?: message.notification?.title ?: "Pesanan Baru"
-        val customerName = message.data["customerName"] ?: message.notification?.body ?: "Pelanggan"
 
-        Log.d("FCMService", "New Order Received via FCM: $transactionCode")
-        
-        showOrderNotification(transactionCode, customerName)
+        // Data-only message: always triggers onMessageReceived (foreground + background)
+        val data = message.data
+        val title = data["title"] ?: "Pesanan Baru"
+        val body = data["body"] ?: "Ada pesanan masuk!"
+        val transactionCode = data["transactionCode"] ?: ""
+
+        Log.d("FCMService", "FCM Data Message Received: $title | $body | code=$transactionCode")
+
+        // ALWAYS show notification with sound (foreground & background)
+        showOrderNotification(title, body)
     }
 
-    private fun showOrderNotification(code: String, name: String) {
-        // --- LOGIC: Cek Foreground ---
-        if (AppLifecycleObserver.isAppInForeground) {
-            Log.d("FCMService", "App in foreground, skipping notification")
-            return
-        }
-
+    private fun showOrderNotification(title: String, body: String) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
             this, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
-        
-        // Custom Sound Logic reuse
-        val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.sound_pesanan)
 
-        createNotificationChannel(soundUri)
+        // Custom Sound URI (channel already created in MainActivity with this sound)
+        val soundUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.sound_pesanan)
 
+        // Build notification using the channel created in MainActivity
+        // Channel 'pesanan_baru' already has custom sound configured
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_round) 
-            .setContentTitle("📦 Pesanan Baru Masuk!")
-            .setContentText("$name - $code")
+            .setSmallIcon(R.mipmap.ic_launcher_round)
+            .setContentTitle(title)
+            .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setSound(soundUri)
-            .setVibrate(longArrayOf(0, 500, 200, 500))
+            .setVibrate(longArrayOf(0, 300, 200, 300))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
     }
-
-    private fun createNotificationChannel(soundUri: android.net.Uri) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val orderChannel = NotificationChannel(
-                CHANNEL_ID,
-                "Notifikasi Pesanan",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifikasi saat ada pesanan baru masuk"
-                enableVibration(true)
-                
-                // Custom Sound Setup for Channel
-                val audioAttributes = android.media.AudioAttributes.Builder()
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-                    .build()
-                setSound(soundUri, audioAttributes)
-            }
-
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(orderChannel)
-        }
-    }
 }
+

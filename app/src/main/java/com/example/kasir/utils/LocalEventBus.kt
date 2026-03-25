@@ -9,7 +9,14 @@ object LocalEventBus {
     private val _orderUpdateFlow = MutableSharedFlow<OrderResponse>(replay = 0, extraBufferCapacity = 1)
     val orderUpdateFlow = _orderUpdateFlow.asSharedFlow()
 
+    private val _settingsUpdateFlow = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+    val settingsUpdateFlow = _settingsUpdateFlow.asSharedFlow()
+
     suspend fun emitOrderUpdate(order: OrderResponse) {
         _orderUpdateFlow.emit(order)
+    }
+
+    fun emitSettingsUpdate(isEnabled: Boolean) {
+        _settingsUpdateFlow.tryEmit(isEnabled)
     }
 }
