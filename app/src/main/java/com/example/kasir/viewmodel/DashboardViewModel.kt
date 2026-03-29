@@ -94,6 +94,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun fetchOrders() {
         viewModelScope.launch {
+            // Safety: Jangan fetch jika belum login (token belum ada)
+            if (!com.example.kasir.utils.SessionManager.isLoggedIn()) {
+                Log.w("DashboardViewModel", "fetchOrders() skipped: not logged in yet")
+                return@launch
+            }
+            
             // ANTI-BOUNCE GATEKEEPER: Stop socket & auto-refresh from messing up UI during checkout Queue
             if (_orders.value.isNotEmpty() && pendingTogglesCount.value > 0) {
                 return@launch

@@ -18,11 +18,14 @@ fun SplashScreen(onNavigate: (String) -> Unit) {
     // Logic-only Splash Screen (Visuals handled by MainActivity Overlay)
     LaunchedEffect(isChecking) {
         if (isChecking) {
+            // KRITIS: Load session DULUAN sebelum delay animasi
+            // Supaya token sudah siap saat navigasi ke dashboard
+            com.example.kasir.utils.SessionManager.loadSession(context)
+            
             delay(2500) // Wait for Logo Animation in MainActivity (approx 2s) + buffer
             
             if (com.example.kasir.utils.NetworkUtils.isNetworkAvailable(context)) {
-                // Online -> Proceed
-                com.example.kasir.utils.SessionManager.loadSession(context)
+                // Online -> Proceed (session sudah ter-load di atas)
                 if (com.example.kasir.utils.SessionManager.isLoggedIn()) {
                     onNavigate("dashboard")
                 } else {

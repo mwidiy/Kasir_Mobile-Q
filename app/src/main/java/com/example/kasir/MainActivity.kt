@@ -50,6 +50,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // --- KRITIS: Load session SEBELUM semua logic yang butuh auth ---
+        // Ini memastikan jwtToken tersedia untuk FCM check & auth interceptor
+        kotlinx.coroutines.runBlocking {
+            com.example.kasir.utils.SessionManager.loadSession(this@MainActivity)
+        }
+
         // --- LIFECYCLE OBSERVER ---
         ProcessLifecycleOwner.get().lifecycle.addObserver(com.example.kasir.utils.AppLifecycleObserver)
         
