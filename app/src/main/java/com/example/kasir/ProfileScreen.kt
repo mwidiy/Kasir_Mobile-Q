@@ -227,6 +227,31 @@ fun ProfileScreen(
         topBar = {
             ProfileTopBar(onBack = { onNavigate("dashboard") })
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    val storeName = storeState?.name ?: "Restoran"
+                    val message = "Halo Tim CS QuackXel, saya dari resto $storeName. Saya butuh bantuan terkait aplikasi kasir."
+                    val url = "whatsapp://send?phone=6285113267327&text=${android.net.Uri.encode(message)}"
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                    intent.data = android.net.Uri.parse(url)
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "WhatsApp tidak terinstall", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                containerColor = Color(0xFF25D366),
+                contentColor = Color.White,
+                shape = CircleShape
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_whatsapp),
+                    contentDescription = "CS WhatsApp",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
         containerColor = BackgroundLight
     ) { paddingValues ->
         if (isLoading && storeState == null) {
@@ -1470,40 +1495,137 @@ fun RestaurantIdentitySection(
             onSave = { newNumber -> viewModel.updateWhatsApp(newNumber) }
         )
 
-        // NEW: Kasir QR Verification Toggle
-        val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
+        // NEW: Cash Payment Mode Selector (PRE/POST)
+        val cashMode = viewModel.storeState.collectAsState().value?.cashPaymentMode ?: "post"
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                    Text(
-                        text = "Verifikasi Kasir QR",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Mode Pembayaran Cash",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                )
+                Text(
+                    text = "Atur kapan pelanggan harus membayar tunai",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+
+                // POST Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (cashMode == "post") Color(0xFFFEFCE8) else Color(0xFFF9FAFB))
+                        .border(
+                            1.dp,
+                            if (cashMode == "post") QuackYellowDark else Color(0xFFE5E7EB),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable { viewModel.updateCashPaymentMode("post") }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RadioButton(
+                        selected = cashMode == "post",
+                        onClick = { viewModel.updateCashPaymentMode("post") },
+                        colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                            selectedColor = QuackYellowDark,
+                            unselectedColor = Color.Gray
+                        )
                     )
-                    Text(
-                        text = "Wajibkan scan QR oleh kasir sebelum pesanan selesai",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Post-Order (Bayar Nanti)",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                        )
+                        Text(
+                            text = "Pesanan masuk dulu, bayar belakangan",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                // PRE Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (cashMode == "pre") Color(0xFFFEFCE8) else Color(0xFFF9FAFB))
+                        .border(
+                            1.dp,
+                            if (cashMode == "pre") QuackYellowDark else Color(0xFFE5E7EB),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable { viewModel.updateCashPaymentMode("pre") }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RadioButton(
+                        selected = cashMode == "pre",
+                        onClick = { viewModel.updateCashPaymentMode("pre") },
+                        colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                            selectedColor = QuackYellowDark,
+                            unselectedColor = Color.Gray
+                        )
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Pre-Order (Bayar Dulu)",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                        )
+                        Text(
+                            text = "Bayar tunai dulu, baru pesanan dibuat",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+
+        // Kasir QR Verification Toggle — Only show when POST mode (not relevant for PRE)
+        if (cashMode == "post") {
+            val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Verifikasi QR Untuk Cash",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                        )
+                        Text(
+                            text = "Wajibkan scan QR oleh kasir sebelum untuk pembayaran cash",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = isKasirQrEnabled,
+                        onCheckedChange = { viewModel.updateKasirQrVerification(it) },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF10B981), // Green
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color.LightGray
+                        )
                     )
                 }
-                androidx.compose.material3.Switch(
-                    checked = isKasirQrEnabled,
-                    onCheckedChange = { viewModel.updateKasirQrVerification(it) },
-                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF10B981), // Green
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.LightGray
-                    )
-                )
             }
         }
     }
