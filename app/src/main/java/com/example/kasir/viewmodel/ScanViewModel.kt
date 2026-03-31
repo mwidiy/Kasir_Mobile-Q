@@ -32,13 +32,32 @@ class ScanViewModel : ViewModel() {
     private val _refundSuccess = MutableStateFlow(false)
     val refundSuccess: StateFlow<Boolean> = _refundSuccess.asStateFlow()
 
-    fun fetchOrderByCode(code: String) {
+    fun fetchOrderByCode(rawPayload: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             _scannedOrder.value = null 
             try {
-                val response = apiService.getOrderByCode(code)
+                var codeToFetch = rawPayload
+
+                // --- SECURITY FIX: CROSS-STORE QR VALIDATION ---
+                // Format: STORE:12|TRX-2024ABCD...
+                if (rawPayload.startsWith("STORE:")) {
+                    val parts = rawPayload.substringAfter("STORE:").split("|", limit = 2)
+                    if (parts.size == 2) {
+                        val qrStoreId = parts[0].toIntOrNull()
+                        val myStoreId = com.example.kasir.utils.SessionManager.currentUser?.store?.id
+                        
+                        if (qrStoreId != null && myStoreId != null && qrStoreId != myStoreId) {
+                            _error.value = "⛔ Barcode Bukan Milik Toko Anda!"
+                            _isLoading.value = false
+                            return@launch
+                        }
+                        codeToFetch = parts[1]
+                    }
+                }
+
+                val response = apiService.getOrderByCode(codeToFetch)
                 if (response.isSuccessful && response.body()?.success == true) {
                     val order = response.body()?.data
                     if (order != null) {
