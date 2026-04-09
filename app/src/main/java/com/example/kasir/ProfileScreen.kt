@@ -88,9 +88,10 @@ val bankLogos = mapOf(
 
 val ewalletLogos = mapOf(
     "ShopeePay" to LogoSource.Resource(R.drawable.ewallet_shopeepay),
-    "DANA" to LogoSource.Resource(R.drawable.ewallet_dana),
+    "Dana" to LogoSource.Resource(R.drawable.ewallet_dana),
     "OVO" to LogoSource.Resource(R.drawable.ewallet_ovo),
-    "GoPay" to LogoSource.Resource(R.drawable.ewallet_gopay)
+    "Gopay" to LogoSource.Resource(R.drawable.ewallet_gopay),
+    "LinkAja" to LogoSource.Generated("LA", Color(0xFFE52D27))
 )
 
 @Composable
@@ -732,7 +733,7 @@ fun WithdrawalSettingsSection(
                             )
                         } else {
                             // E-Wallet Inputs
-                            val ewallets = listOf("ShopeePay", "DANA", "OVO", "GoPay")
+                            val ewallets = listOf("ShopeePay", "Dana", "OVO", "Gopay", "LinkAja")
                             var expanded by remember { mutableStateOf(false) }
 
                             ExposedDropdownMenuBox(

@@ -132,7 +132,6 @@ class BannerViewModel : ViewModel() {
             _errorMessage.value = null
             var tempFile: java.io.File? = null
             var optimisticImageUrl: String? = null
-            _isLoading.value = true
             
             val originalBanners = _banners.value.toList()
 
@@ -164,10 +163,12 @@ class BannerViewModel : ViewModel() {
                 }
             }
             
-            // TAHAP 63: Save to interceptor map so fetchBanners doesn't overwrite it with Cloudinary URL
             if (optimisticImageUrl != null) {
                 optimisticImagesMap[title] = optimisticImageUrl
             }
+
+            // TAHAP 63: Fire-and-Forget Navigation
+            onSuccess()
             
             try {
                 val titlePart = createPartFromString(title)
@@ -197,7 +198,6 @@ class BannerViewModel : ViewModel() {
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
                         fetchBanners(isSilent = true) // Silent sync to remove skeleton
-                        onSuccess() // Trigger navigation
                     } else {
                         _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal menambah banner"
@@ -213,7 +213,6 @@ class BannerViewModel : ViewModel() {
                     if (response.isSuccessful && response.body()?.success == true) {
                         selectedImageUri = null
                         fetchBanners(isSilent = true) // Silent sync
-                        onSuccess() // Trigger navigation
                     } else {
                         _banners.value = originalBanners // Rollback
                         _errorMessage.value = response.body()?.message ?: "Gagal update banner"
