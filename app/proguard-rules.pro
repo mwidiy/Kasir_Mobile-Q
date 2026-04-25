@@ -1,21 +1,36 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# --- Retrofit & OkHttp ---
+-keepattributes Signature, InnerClasses, AnnotationDefault
+-keepclassmembers,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**
+-dontwarn okio.**
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- Gson (Keep Data Models) ---
+# VERY IMPORTANT: Keep your models package so Gson can find fields
+-keep class id.quacxel.mejapesan.data.model.** { *; }
+-keep class id.quacxel.mejapesan.data.network.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Socket.io ---
+-keep class io.socket.** { *; }
+-keep class okhttp3.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Firebase ---
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# --- Coil (Image Loading) ---
+-keep class coil.** { *; }
+
+# --- AndroidX Security Crypto ---
+-keep class androidx.security.crypto.** { *; }
+
+# Preserve line numbers for better error reporting in Play Console
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.kasir"
+    namespace = "id.quacxel.mejapesan"
     compileSdk = 34
 
     val localProperties = Properties()
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.kasir"
+        applicationId = "id.quacxel.mejapesan"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
