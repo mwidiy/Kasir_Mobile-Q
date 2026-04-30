@@ -514,11 +514,7 @@ fun FilterBar(
 
 @Composable
 fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
-    val date = try {
-         val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-         val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
-         parser.parse(item.createdAt)?.let { formatter.format(it) } ?: "-"
-    } catch (e: Exception) { "-" }
+    val date = id.quacxel.mejapesan.utils.DateTimeUtils.formatTimeOnly(item.createdAt)
 
     val fmt = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
     val totalStr = fmt.format(item.totalAmount).replace("Rp", "Rp ").replace(",00", "")
@@ -671,11 +667,7 @@ fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 5. Metadata Grid
-                val dateStr = try {
-                     val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                     val formatter = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
-                     parser.parse(data.createdAt)?.let { formatter.format(it) } ?: "-"
-                } catch (e: Exception) { "-" }
+                val dateStr = id.quacxel.mejapesan.utils.DateTimeUtils.formatToWIB(data.createdAt)
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(horizontalAlignment = Alignment.Start) {

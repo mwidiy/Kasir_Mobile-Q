@@ -1034,8 +1034,8 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                     value = text, 
                     onValueChange = { input -> 
                         // Strict Regex for XSS/SQLi prevention
-                        // Allow only letters, numbers, spaces, and hyphens. Max 50 chars.
-                        if (input.length <= 50) {
+                        // Allow only letters, numbers, spaces, and hyphens. Max 20 chars.
+                        if (input.length <= 20) {
                             text = input.replace(Regex("[^a-zA-Z0-9 -]"), "")
                         }
                     }, 
@@ -1048,6 +1048,12 @@ fun InputModal(title: String, label: String, placeholder: String = "", initialVa
                         focusedBorderColor = Color(0xFF1F2937),
                         unfocusedBorderColor = Color.LightGray
                     )
+                )
+                Text(
+                    text = "${text.length}/20",
+                    color = if (text.length >= 20) Color.Red else Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                 )
                  Spacer(modifier = Modifier.height(24.dp))
                  Button(

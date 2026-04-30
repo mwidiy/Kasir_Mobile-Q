@@ -130,8 +130,8 @@ fun AddEditProductScreen(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { input -> 
-                            // Sanitize: Alphanumeric and spaces/hyphens only. Max 100 chars
-                            if (input.length <= 100) {
+                            // Sanitize: Alphanumeric and spaces/hyphens only. Max 20 chars
+                            if (input.length <= 20) {
                                 name = input.replace(Regex("[^a-zA-Z0-9 -]"), "")
                             }
                         },
@@ -148,6 +148,12 @@ fun AddEditProductScreen(
                         ),
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         singleLine = true
+                    )
+                    Text(
+                        text = "${name.length}/20",
+                        color = if (name.length >= 20) Color.Red else Color.Gray,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -227,8 +233,8 @@ fun AddEditProductScreen(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { input -> 
-                            // Sanitize: Alphanumeric, spaces, basic punctuation allowed. Stop scripts/SQLi
-                            if (input.length <= 500) {
+                            // Sanitize: Alphanumeric, spaces, basic punctuation allowed. Stop scripts/SQLi. Max 100 chars
+                            if (input.length <= 100) {
                                 description = input.replace(Regex("[^a-zA-Z0-9 .,!()\\n-]"), "")
                             }
                         },
@@ -244,6 +250,12 @@ fun AddEditProductScreen(
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         minLines = 3,
                         maxLines = 5
+                    )
+                    Text(
+                        text = "${description.length}/100",
+                        color = if (description.length >= 100) Color.Red else Color.Gray,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))

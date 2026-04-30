@@ -7,11 +7,30 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 fun playOrderSound(context: Context) {
     CoroutineScope(Dispatchers.Main).launch {
         try {
-            // Updated to use the new Sound_Pesanan.mp3
+            // 1. Check for custom sound from SessionManager (now a content:// URI)
+            val customPath = SessionManager.getCustomSoundPath(context).first()
+            if (!customPath.isNullOrEmpty()) {
+                try {
+                    val uri = android.net.Uri.parse(customPath)
+                    val mediaPlayer = MediaPlayer().apply {
+                        setDataSource(context, uri)
+                        prepare()
+                        setOnCompletionListener { it.release() }
+                    }
+                    mediaPlayer.start()
+                    return@launch
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // Fall through to default sound
+                }
+            }
+
+            // 2. Fallback to default sound_pesanan
             val soundId = context.resources.getIdentifier("sound_pesanan", "raw", context.packageName)
             if (soundId != 0) {
                 val mediaPlayer = MediaPlayer.create(context, soundId)
@@ -20,7 +39,6 @@ fun playOrderSound(context: Context) {
                 }
                 mediaPlayer.start()
             } else {
-                // Fallback if sound_pesanan not found (start with ding)
                 playCancellationSound(context)
             }
         } catch (e: Exception) {

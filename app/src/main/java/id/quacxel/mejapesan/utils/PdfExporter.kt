@@ -66,7 +66,9 @@ object PdfExporter {
         val dateRange = if (startDate != null && endDate != null) "$startDate - $endDate" else "Semua Waktu"
         canvas.drawText("Periode: $dateRange", pageWidth / 2f, yPos, paint)
         yPos += 15
-        val generatedDate = SimpleDateFormat("dd MMMM yyyy HH:mm", Locale("id", "ID")).format(Date())
+        val generatedDate = SimpleDateFormat("dd MMMM yyyy HH:mm", Locale("id", "ID")).apply {
+            timeZone = java.util.TimeZone.getTimeZone("GMT+7")
+        }.format(Date())
         canvas.drawText("Generated: $generatedDate", pageWidth / 2f, yPos, paint)
 
         // 2. Summary Box
@@ -149,13 +151,7 @@ object PdfExporter {
             val customer = if (order.customerName.length > 15) order.customerName.take(15) + "..." else order.customerName
             
             // Parse Date safely
-            var dateStr = "-"
-            try {
-                 // Try parsing ISO first via VM logic or Helper, but here raw text
-                 // order.createdAt is ISO string. Simple strip or basic formatting.
-                 // Ideally use a helper, but let's try basic sub string if format is consistent "2024-..."
-                 dateStr = order.createdAt.take(16).replace("T", " ")
-            } catch (e: Exception) {}
+            val dateStr = DateTimeUtils.formatToWIB(order.createdAt).replace(", ", " ").take(16)
 
             val status = order.status
             val total = fmt.format(order.totalAmount).replace("Rp", "Rp ").replace(",00", "")

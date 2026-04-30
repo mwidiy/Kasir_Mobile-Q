@@ -451,10 +451,10 @@ fun BannerFormScreen(
                 }
 
                 // XSS, SQLi & Buffer Overflow Protection applied directly on Input
-                BannerInputField("Judul Utama", "Contoh: Paket Hemat", bannerTitle, maxLength = 50) { 
+                BannerInputField("Judul Utama", "Contoh: Paket Hemat", bannerTitle, maxLength = 20) { 
                     bannerTitle = it.replace(Regex("[^a-zA-Z0-9 %!.,&#-]"), "")
                 }
-                BannerInputField("Sub-judul", "Contoh: Nasi + Ayam", bannerDesc, maxLength = 50) { 
+                BannerInputField("Sub-judul", "Contoh: Nasi + Ayam", bannerDesc, maxLength = 20) { 
                     bannerDesc = it.replace(Regex("[^a-zA-Z0-9 %!.,&#-]"), "")
                 }
                 BannerInputField("Teks Promo (Highlight Kuning)", "Contoh: 30% OFF", bannerPromo, maxLength = 20) { 
@@ -530,6 +530,12 @@ fun BannerInputField(label: String, placeholder: String, value: String, maxLengt
                 focusedTextColor = Color.Black,
                 unfocusedTextColor = Color.Black
             )
+        )
+        Text(
+            text = "${value.length}/$maxLength",
+            color = if (value.length >= maxLength) Color.Red else Color.Gray,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
         )
     }
 }

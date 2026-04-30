@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.first
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -423,6 +424,46 @@ class ProfileViewModel : ViewModel() {
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    private val _customSoundPath = MutableStateFlow<String?>(null)
+    val customSoundPath: StateFlow<String?> = _customSoundPath
+
+    fun loadCustomSound(context: Context) {
+        viewModelScope.launch {
+            _customSoundPath.value = id.quacxel.mejapesan.utils.SessionManager.getCustomSoundPath(context).first()
+        }
+    }
+
+    fun updateCustomSound(uri: Uri, context: Context) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                val path = id.quacxel.mejapesan.utils.FileUtils.saveCustomAudio(context, uri)
+                if (path != null) {
+                    id.quacxel.mejapesan.utils.SessionManager.setCustomSoundPath(context, path)
+                    _customSoundPath.value = path
+                    
+                    // Force refresh notification channel to apply new sound
+                    id.quacxel.mejapesan.utils.NotificationUtils.createOrderChannel(context, path)
+                    
+                    _errorMessage.value = "Nada notifikasi berhasil diubah!"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Gagal mengubah nada notifikasi"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun resetCustomSound(context: Context) {
+        viewModelScope.launch {
+            id.quacxel.mejapesan.utils.SessionManager.setCustomSoundPath(context, null)
+            _customSoundPath.value = null
+            id.quacxel.mejapesan.utils.NotificationUtils.createOrderChannel(context, null)
+            _errorMessage.value = "Nada notifikasi dikembalikan ke default"
         }
     }
 }

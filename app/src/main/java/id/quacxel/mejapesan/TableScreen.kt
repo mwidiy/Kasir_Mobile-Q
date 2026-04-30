@@ -1386,8 +1386,8 @@ fun AddTableDialog(
                 OutlinedTextField(
                     value = name, 
                     onValueChange = { newValue -> 
-                        // Sanitasi XSS & Max Length 30 (Alphanumeric + Space/Dash)
-                        if (newValue.length <= 30) {
+                        // Sanitasi XSS & Max Length 20 (Alphanumeric + Space/Dash)
+                        if (newValue.length <= 20) {
                             name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
                         }
                     }, 
@@ -1402,6 +1402,12 @@ fun AddTableDialog(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
                     )
+                )
+                Text(
+                    text = "${name.length}/20",
+                    color = if (name.length >= 20) Color.Red else Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1506,8 +1512,8 @@ fun AddLocationDialog(
                 OutlinedTextField(
                     value = name, 
                     onValueChange = { newValue -> 
-                        // Sanitasi XSS & Max Length 50 (Lokasi butuh slightly longer misal "Lantai 2 - Samping Kaca")
-                        if (newValue.length <= 50) {
+                        // Sanitasi XSS & Max Length 20
+                        if (newValue.length <= 20) {
                             name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
                         }
                     }, 
@@ -1522,6 +1528,12 @@ fun AddLocationDialog(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
                     )
+                )
+                Text(
+                    text = "${name.length}/20",
+                    color = if (name.length >= 20) Color.Red else Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1567,7 +1579,7 @@ fun EditLocationDialog(
                 OutlinedTextField(
                     value = name, 
                     onValueChange = { newValue -> 
-                        if (newValue.length <= 50) {
+                        if (newValue.length <= 20) {
                             name = newValue.replace(Regex("[^a-zA-Z0-9 -]"), "")
                         }
                     }, 
@@ -1575,6 +1587,12 @@ fun EditLocationDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true
+                )
+                Text(
+                    text = "${name.length}/20",
+                    color = if (name.length >= 20) Color.Red else Color.Gray,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))

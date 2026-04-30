@@ -4,13 +4,13 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.RingtoneManager
 import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import id.quacxel.mejapesan.MainActivity
 import id.quacxel.mejapesan.R
 import id.quacxel.mejapesan.utils.SessionManager
+import id.quacxel.mejapesan.utils.NotificationUtils
 import id.quacxel.mejapesan.data.network.FcmTokenRequest
 import id.quacxel.mejapesan.data.network.RetrofitClient
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -21,8 +21,6 @@ import kotlinx.coroutines.launch
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class FCMNotificationService : FirebaseMessagingService() {
-
-    private val CHANNEL_ID = "pesanan_baru"
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -71,19 +69,25 @@ class FCMNotificationService : FirebaseMessagingService() {
             this, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Custom Sound URI (channel already created in MainActivity with this sound)
-        val soundUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.sound_pesanan)
+        // 1. Read custom sound URI from SharedPreferences (SYNCHRONOUS - works even when app is killed)
+        val customSoundUri = SessionManager.getCustomSoundPathSync(this)
+        Log.d("FCMService", "Custom sound URI from SharedPrefs: ${customSoundUri ?: "NULL (using default)"}")
+        
+        // 2. Ensure channel exists with the correct sound
+        NotificationUtils.createOrderChannel(this, customSoundUri)
+        
+        // 3. Get the active channel ID (saved by NotificationUtils to SharedPreferences)
+        val channelId = NotificationUtils.getActiveChannelId(this)
+        Log.d("FCMService", "Using channel ID: $channelId")
 
-        // Build notification using the channel created in MainActivity
-        // Channel 'pesanan_baru' already has custom sound configured
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+        // 4. Build notification (on Android 8+, sound is determined by Channel, not Builder)
+        val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher_round)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .setSound(soundUri)
             .setVibrate(longArrayOf(0, 300, 200, 300))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
@@ -91,4 +95,3 @@ class FCMNotificationService : FirebaseMessagingService() {
         notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
     }
 }
-

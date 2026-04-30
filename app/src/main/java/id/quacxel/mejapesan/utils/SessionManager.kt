@@ -118,6 +118,32 @@ object SessionManager {
     }
 
     private val ALWAYS_ON_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("always_on_enabled")
+    private val CUSTOM_SOUND_PATH_KEY = stringPreferencesKey("custom_sound_path")
+
+    // Observe Custom Sound Path
+    fun getCustomSoundPath(context: Context): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[CUSTOM_SOUND_PATH_KEY]
+        }
+    }
+
+    suspend fun setCustomSoundPath(context: Context, path: String?) {
+        context.dataStore.edit { preferences ->
+            if (path == null) preferences.remove(CUSTOM_SOUND_PATH_KEY)
+            else preferences[CUSTOM_SOUND_PATH_KEY] = path
+        }
+        // ALSO save to SharedPreferences for instant synchronous read by FCM service
+        val prefs = context.getSharedPreferences("mejapesan_sound", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            if (path == null) remove("custom_sound_uri") else putString("custom_sound_uri", path)
+        }.apply()
+    }
+
+    // Synchronous read for FCM service (when app is killed, DataStore is too slow)
+    fun getCustomSoundPathSync(context: Context): String? {
+        val prefs = context.getSharedPreferences("mejapesan_sound", Context.MODE_PRIVATE)
+        return prefs.getString("custom_sound_uri", null)
+    }
 
     // Observe Always On state
     fun getAlwaysOn(context: Context): Flow<Boolean> {

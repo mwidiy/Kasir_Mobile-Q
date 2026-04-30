@@ -2,6 +2,7 @@ package id.quacxel.mejapesan
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
+import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -91,7 +92,6 @@ val ewalletLogos = mapOf(
     "Dana" to LogoSource.Resource(R.drawable.ewallet_dana),
     "OVO" to LogoSource.Resource(R.drawable.ewallet_ovo),
     "Gopay" to LogoSource.Resource(R.drawable.ewallet_gopay),
-    "LinkAja" to LogoSource.Generated("LA", Color(0xFFE52D27))
 )
 
 @Composable
@@ -743,7 +743,7 @@ fun WithdrawalSettingsSection(
                             )
                         } else {
                             // E-Wallet Inputs
-                            val ewallets = listOf("ShopeePay", "Dana", "OVO", "Gopay", "LinkAja")
+                            val ewallets = listOf("ShopeePay", "Dana", "OVO", "Gopay")
                             var expanded by remember { mutableStateOf(false) }
 
                             ExposedDropdownMenuBox(
@@ -1429,6 +1429,17 @@ fun RestaurantIdentitySection(
     viewModel: ProfileViewModel
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCustomSound(context)
+    }
+
+    val audioLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.updateCustomSound(it, context) }
+    }
 
     if (showProfileDialog) {
         ProfilePictureDialog(
@@ -1707,6 +1718,63 @@ fun RestaurantIdentitySection(
                         )
                     }
                 }
+            }
+        }
+
+        // --- NOTIFIKASI & SUARA ---
+        val customSoundPath by viewModel.customSoundPath.collectAsState()
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Nada Notifikasi Pesanan",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                        )
+                        Text(
+                            text = if (customSoundPath == null) "Default (Suara MejaPesan)" else "Custom: ${customSoundPath?.substringAfterLast("/")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (customSoundPath == null) Color.Gray else Color(0xFF10B981)
+                        )
+                    }
+                    
+                    IconButton(
+                        onClick = { audioLauncher.launch("audio/*") },
+                        modifier = Modifier.background(Navy.copy(alpha=0.05f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Ubah Nada",
+                            tint = Navy
+                        )
+                    }
+                }
+
+                if (customSoundPath != null) {
+                    OutlinedButton(
+                        onClick = { viewModel.resetCustomSound(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha=0.3f))
+                    ) {
+                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Kembalikan ke Default", fontSize = 12.sp)
+                    }
+                } // Added missing brace here
             }
         }
     }
