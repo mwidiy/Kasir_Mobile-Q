@@ -16,10 +16,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.quacxel.mejapesan.TextMain
 import id.quacxel.mejapesan.TextMuted
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 @Composable
 fun CustomBottomNavigation(
@@ -52,6 +54,8 @@ fun CustomBottomNavigation(
                 .height(100.dp)
         ) {
             // White Background Bar
+            val adaptive = LocalAdaptiveValues.current
+            val navMaxWidth = adaptive.bottomNavMaxWidth
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -60,15 +64,25 @@ fun CustomBottomNavigation(
                     .shadow(elevation = 20.dp),
                 color = Color.White
             ) {
-                Row(
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.Center
                 ) {
-                    NavItem(Icons.Filled.Dashboard, "Dasbor", currentScreen == "dashboard", Modifier.weight(1f)) { onNavigate("dashboard") }
-                    NavItem(Icons.Filled.ListAlt, "Riwayat", currentScreen == "riwayat", Modifier.weight(1f)) { onNavigate("riwayat") }
-                    Spacer(modifier = Modifier.weight(1f)) // Middle Space
-                    NavItem(Icons.Filled.MenuBook, "Menu", currentScreen == "menu", Modifier.weight(1f)) { onNavigate("menu") }
-                    NavItem(Icons.Filled.QrCode, "Meja", currentScreen == "meja", Modifier.weight(1f)) { onNavigate("meja") }
+                    Row(
+                        modifier = Modifier
+                            .then(
+                                if (navMaxWidth != Dp.Unspecified) Modifier.widthIn(max = navMaxWidth)
+                                else Modifier.fillMaxWidth()
+                            )
+                            .fillMaxHeight(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NavItem(Icons.Filled.Dashboard, "Dasbor", currentScreen == "dashboard", Modifier.weight(1f)) { onNavigate("dashboard") }
+                        NavItem(Icons.Filled.ListAlt, "Riwayat", currentScreen == "riwayat", Modifier.weight(1f)) { onNavigate("riwayat") }
+                        Spacer(modifier = Modifier.weight(1f)) // Middle Space
+                        NavItem(Icons.Filled.MenuBook, "Menu", currentScreen == "menu", Modifier.weight(1f)) { onNavigate("menu") }
+                        NavItem(Icons.Filled.QrCode, "Meja", currentScreen == "meja", Modifier.weight(1f)) { onNavigate("meja") }
+                    }
                 }
             }
 

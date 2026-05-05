@@ -63,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 // --- COLORS ---
 private val ScanPrimaryBtn = Color(0xFF2C3E50)
@@ -307,10 +308,11 @@ fun ScanScreen(
 
 @Composable
 fun ScanOverlay(modifier: Modifier = Modifier) {
+    val adaptive = LocalAdaptiveValues.current
     Canvas(modifier = modifier) {
         val canvasWidth = size.width
         val canvasHeight = size.height
-        val scanSize = 280.dp.toPx()
+        val scanSize = adaptive.scanAreaSize.toPx()
         val scanLeft = (canvasWidth - scanSize) / 2
         val scanTop = (canvasHeight - scanSize) / 2
         val cornerLength = 30.dp.toPx()

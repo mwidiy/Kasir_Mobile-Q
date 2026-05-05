@@ -42,6 +42,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
 import android.util.Log
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 // --- COLORS ---
 val PrimaryBlue = Color(0xFF1E3A5F)
@@ -179,14 +180,19 @@ fun LoginScreen(
             .background(Color.White)
     ) {
         SpaceFloatingBackground()
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        
+        val adaptive = LocalAdaptiveValues.current
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .then(
+                        if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                        else Modifier.fillMaxWidth()
+                    )
+                    .padding(40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
             
             Image(
                 painter = painterResource(id = R.drawable.logo),
@@ -237,6 +243,7 @@ fun LoginScreen(
                     }
                  )
             }
+        }
         }
     }
 }

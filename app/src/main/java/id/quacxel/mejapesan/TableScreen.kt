@@ -71,6 +71,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.scale
 import kotlinx.coroutines.async
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 
 private val BASE_PWA_URL = BuildConfig.PWA_BASE_URL.removeSuffix("/")
@@ -211,8 +212,19 @@ fun TableScreen(
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            Column(modifier = Modifier.fillMaxSize()) {
+        val adaptive = LocalAdaptiveValues.current
+        Box(
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .then(
+                        if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                        else Modifier.fillMaxWidth()
+                    )
+                    .fillMaxHeight()
+            ) {
 
             if (isLoading && tables.isEmpty()) {
                 // SHIMMER SKELETON UI LOADING
@@ -262,7 +274,7 @@ fun TableScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 ) {
                     // Table Grid
-                    items(filteredTables.chunked(2)) { rowItems ->
+                    items(filteredTables.chunked(adaptive.tableGridColumns)) { rowItems ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -282,8 +294,11 @@ fun TableScreen(
                                     )
                                 }
                             }
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
+                            if (rowItems.size < adaptive.tableGridColumns) {
+                                val emptySlots = adaptive.tableGridColumns - rowItems.size
+                                repeat(emptySlots) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))

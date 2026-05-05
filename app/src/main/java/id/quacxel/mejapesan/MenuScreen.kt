@@ -79,6 +79,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import id.quacxel.mejapesan.viewmodel.MenuViewModel
 import id.quacxel.mejapesan.viewmodel.BannerViewModel
 import id.quacxel.mejapesan.ui.banner.BannerListScreen
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 // --- COLORS ---
 private val MenuBg = Color(0xFFF3F4F6)
@@ -244,7 +245,19 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                 containerColor = Color.Transparent
             ) { paddingValues ->
-                Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                val adaptive = LocalAdaptiveValues.current
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                Column(modifier = Modifier
+                    .then(
+                        if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                        else Modifier.fillMaxWidth()
+                    )
+                    .fillMaxHeight()
+                    .padding(paddingValues)
+                ) {
             // Only show Header and Tabs if in List mode for both Tabs AND NOT SEARCHING
             if (bannerScreenState == "list" && currentScreen == "menu_list" && !isSearchFocused) {
                 // Header (Shared)
@@ -515,6 +528,7 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
             }
                 }
             } // End of Scaffold Column
+            } // End of Box
             } // End of Scaffold
 
         // Floating Action Button (FAB) Area

@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
+import id.quacxel.mejapesan.utils.adaptiveContentWidth
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.util.Locale

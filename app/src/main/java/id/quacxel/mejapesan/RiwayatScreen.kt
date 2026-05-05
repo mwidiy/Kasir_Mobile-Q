@@ -49,6 +49,7 @@ import id.quacxel.mejapesan.data.model.OrderItemResponse // Import OrderItemResp
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.text.NumberFormat
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 // --- COLORS (From Source) ---
 val RiwayatBgBody = Color(0xFFF8F9FA)
@@ -207,52 +208,61 @@ fun RiwayatScreen(onNavigate: (String) -> Unit, viewModel: RiwayatViewModel = vi
             },
             bottomBar = { /* Custom Bottom Nav via Box */ }
         ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp) else Modifier) // FIX: Add padding when focused
-                    .padding(bottom = 100.dp) // Space for bottom nav
+            val adaptive = LocalAdaptiveValues.current
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // SUMMARY CARD (Bound to Analysis)
-                AnimatedVisibility(visible = !isSearchFocused) {
-                    SummarySection(
-                        selectedTabIdx = selectedTab, 
-                        totalIncome = analysis.totalIncome, 
-                        transactionCount = analysis.transactionCount, 
-                        avgIncome = analysis.avgIncome,
-                        onTabSelect = { index -> 
-                             selectedTab = index 
-                             viewModel.setTabFilter(index)
-                        }
+                Column(
+                    modifier = Modifier
+                        .then(
+                            if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                            else Modifier.fillMaxWidth()
+                        )
+                        .padding(paddingValues)
+                        .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp) else Modifier) // FIX: Add padding when focused
+                        .padding(bottom = 100.dp) // Space for bottom nav
+                ) {
+                    // SUMMARY CARD (Bound to Analysis)
+                    AnimatedVisibility(visible = !isSearchFocused) {
+                        SummarySection(
+                            selectedTabIdx = selectedTab, 
+                            totalIncome = analysis.totalIncome, 
+                            transactionCount = analysis.transactionCount, 
+                            avgIncome = analysis.avgIncome,
+                            onTabSelect = { index -> 
+                                 selectedTab = index 
+                                 viewModel.setTabFilter(index)
+                            }
+                        )
+                    }
+
+                    // FILTER BAR (Bound to Search)
+                    FilterBar(
+                        query = searchQuery, 
+                        onFilterClick = { showFilterDialog = true }, 
+                        onQueryChange = { rawQuery -> 
+                            // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
+                            val sanitized = rawQuery.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
+                            searchQuery = sanitized 
+                        },
+                        isFocused = isSearchFocused,
+                        onBack = { isSearchFocused = false },
+                        onFocusTrigger = { isSearchFocused = true },
+                        focusRequester = focusRequester
                     )
-                }
 
-                // FILTER BAR (Bound to Search)
-                FilterBar(
-                    query = searchQuery, 
-                    onFilterClick = { showFilterDialog = true }, 
-                    onQueryChange = { rawQuery -> 
-                        // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
-                        val sanitized = rawQuery.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
-                        searchQuery = sanitized 
-                    },
-                    isFocused = isSearchFocused,
-                    onBack = { isSearchFocused = false },
-                    onFocusTrigger = { isSearchFocused = true },
-                    focusRequester = focusRequester
-                )
-
-                // TRANSACTION LIST
-                 if (isLoading && transactions.isEmpty()) {
-                     RiwayatSkeletonLoading()
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(transactions) { item ->
-                            TransactionItem(item) { selectedTransaction = item }
+                    // TRANSACTION LIST
+                     if (isLoading && transactions.isEmpty()) {
+                         RiwayatSkeletonLoading()
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 180.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(transactions) { item ->
+                                TransactionItem(item) { selectedTransaction = item }
+                            }
                         }
                     }
                 }
@@ -582,11 +592,16 @@ fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
 
 @Composable
 fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
+    val adaptive = LocalAdaptiveValues.current
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
+                .then(
+                    if (adaptive.isTablet) Modifier.widthIn(max = adaptive.dialogMaxWidth)
+                    else Modifier.fillMaxWidth()
+                )
                 .fillMaxWidth()
                 .padding(vertical = 24.dp), 
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)

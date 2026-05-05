@@ -14,17 +14,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Dialog
 import id.quacxel.mejapesan.R
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
+import id.quacxel.mejapesan.utils.adaptiveDialogWidth
 
 @Composable
 fun NoInternetDialog(
     onRetry: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val adaptive = LocalAdaptiveValues.current
     Dialog(onDismissRequest = {}) { // Prevent dismissal by clicking outside
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
+                .adaptiveDialogWidth(adaptive)
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {

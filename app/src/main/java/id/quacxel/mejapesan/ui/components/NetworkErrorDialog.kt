@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
+import id.quacxel.mejapesan.utils.adaptiveDialogWidth
 
 @Composable
 fun NetworkErrorDialog(isVisible: Boolean) {
@@ -33,6 +35,7 @@ fun NetworkErrorDialog(isVisible: Boolean) {
         enter = fadeIn(),
         exit = fadeOut()
     ) {
+        val adaptive = LocalAdaptiveValues.current
         Dialog(
             onDismissRequest = { /* Tidak bisa di-dismiss secara manual */ },
             properties = DialogProperties(
@@ -45,6 +48,7 @@ fun NetworkErrorDialog(isVisible: Boolean) {
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 modifier = Modifier
+                    .adaptiveDialogWidth(adaptive)
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {

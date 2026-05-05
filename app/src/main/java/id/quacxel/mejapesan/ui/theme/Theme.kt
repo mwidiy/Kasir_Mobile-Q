@@ -9,7 +9,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
+import id.quacxel.mejapesan.utils.LocalWindowType
+import id.quacxel.mejapesan.utils.rememberAdaptiveValues
+import id.quacxel.mejapesan.utils.rememberWindowType
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -50,9 +55,18 @@ fun MejaPesanTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // Adaptive layout system: detect window size and provide values
+    val windowType = rememberWindowType()
+    val adaptiveValues = rememberAdaptiveValues(windowType)
+
+    CompositionLocalProvider(
+        LocalWindowType provides windowType,
+        LocalAdaptiveValues provides adaptiveValues
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

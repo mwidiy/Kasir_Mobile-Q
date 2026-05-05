@@ -15,6 +15,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
+import id.quacxel.mejapesan.utils.adaptiveDialogWidth
 
 @Composable
 fun FilterHistoryDialog(
@@ -26,11 +28,12 @@ fun FilterHistoryDialog(
     var selectedStatus by remember { mutableStateOf(initialStatus) }
     var selectedType by remember { mutableStateOf(initialType) }
 
+    val adaptive = LocalAdaptiveValues.current
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
+            modifier = Modifier.adaptiveDialogWidth(adaptive).fillMaxWidth().padding(16.dp)
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(

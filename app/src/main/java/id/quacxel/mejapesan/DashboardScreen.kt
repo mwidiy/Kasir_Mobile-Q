@@ -47,6 +47,7 @@ import id.quacxel.mejapesan.ui.components.PaymentSuccessDialog
 import id.quacxel.mejapesan.ui.components.CancellationReviewDialog
 import id.quacxel.mejapesan.ui.components.ForceCancelDialog
 import id.quacxel.mejapesan.viewmodel.DashboardViewModel
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -371,49 +372,59 @@ fun DashboardScreenContent(
             },
             bottomBar = { /* Use custom overlay below */ }
         ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp, start = 16.dp, end = 16.dp) else Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp)),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            val adaptive = LocalAdaptiveValues.current
+            val hPad = adaptive.horizontalPadding
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // Search Bar (With Sanitization)
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { rawInput -> 
-                        // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
-                        val sanitized = rawInput.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
-                        searchQuery = sanitized
-                    },
-                    isFocused = isSearchFocused,
-                    onBack = { isSearchFocused = false },
-                    onFocusTrigger = { isSearchFocused = true },
-                    focusRequester = focusRequester
-                )
+                Column(
+                    modifier = Modifier
+                        .then(
+                            if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                            else Modifier.fillMaxWidth()
+                        )
+                        .padding(paddingValues)
+                        .then(if (isSearchFocused) Modifier.statusBarsPadding().padding(top = 16.dp, start = hPad, end = hPad) else Modifier.padding(start = hPad, end = hPad, top = 16.dp, bottom = 0.dp)),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Search Bar (With Sanitization)
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = { rawInput -> 
+                            // Sanitasi Level 1: Limit 50 Karakter, buang karakter aneh (Pencegahan performa & injeksi sederhana)
+                            val sanitized = rawInput.take(50).replace(Regex("[^a-zA-Z0-9 -]"), "")
+                            searchQuery = sanitized
+                        },
+                        isFocused = isSearchFocused,
+                        onBack = { isSearchFocused = false },
+                        onFocusTrigger = { isSearchFocused = true },
+                        focusRequester = focusRequester
+                    )
 
-                // Filter Chips (Hide when Focused)
-                AnimatedVisibility(visible = !isSearchFocused) {
-                    FilterSection(selectedFilter) { selectedFilter = it }
-                }
+                    // Filter Chips (Hide when Focused)
+                    AnimatedVisibility(visible = !isSearchFocused) {
+                        FilterSection(selectedFilter) { selectedFilter = it }
+                    }
 
-                if (isLoading && filteredOrders.isEmpty()) {
-                    // Tampilkan Shimmer Loading Profesional
-                    DashboardSkeletonLoading()
-                } else if (filteredOrders.isEmpty()) {
-                    EmptyState()
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(bottom = 120.dp) // Space for Floating Bottom Nav
-                    ) {
-                        items(filteredOrders, key = { it.id }) { order ->
-                            KitchenOrderCard(
-                                order = order, 
-                                onUpdateStatus = onUpdateStatus,
-                                onReviewCancellation = onReviewCancellation,
-                                onForceCancel = onForceCancel
-                            )
+                    if (isLoading && filteredOrders.isEmpty()) {
+                        // Tampilkan Shimmer Loading Profesional
+                        DashboardSkeletonLoading()
+                    } else if (filteredOrders.isEmpty()) {
+                        EmptyState()
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(bottom = 120.dp) // Space for Floating Bottom Nav
+                        ) {
+                            items(filteredOrders, key = { it.id }) { order ->
+                                KitchenOrderCard(
+                                    order = order, 
+                                    onUpdateStatus = onUpdateStatus,
+                                    onReviewCancellation = onReviewCancellation,
+                                    onForceCancel = onForceCancel
+                                )
+                            }
                         }
                     }
                 }

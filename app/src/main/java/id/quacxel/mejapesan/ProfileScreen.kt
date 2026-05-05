@@ -53,6 +53,7 @@ import id.quacxel.mejapesan.utils.FileUtils
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import id.quacxel.mejapesan.R
+import id.quacxel.mejapesan.utils.LocalAdaptiveValues
 
 // --- COLORS ---
 // --- COLORS ---
@@ -268,12 +269,20 @@ fun ProfileScreen(
         },
         containerColor = BackgroundLight
     ) { paddingValues ->
+        val adaptive = LocalAdaptiveValues.current
         if (isLoading && storeState == null) {
              SettingSkeletonLoading(paddingValues)
         } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
              Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .then(
+                        if (adaptive.isTablet) Modifier.widthIn(max = adaptive.contentMaxWidth)
+                        else Modifier.fillMaxWidth()
+                    )
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
                     .padding(20.dp),
@@ -316,6 +325,7 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.weight(1f)) // Push to bottom if content is short
                 FooterActions(onNavigate)
             }
+            } // Close the adaptive Box
         }
     }
 }
