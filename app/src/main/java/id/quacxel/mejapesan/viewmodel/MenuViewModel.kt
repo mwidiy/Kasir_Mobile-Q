@@ -120,15 +120,15 @@ class MenuViewModel : ViewModel() {
         }
     }
 
-    fun addCategory(name: String) {
+    fun addCategory(name: String, defaultPrepTime: Int = 10) {
         viewModelScope.launch {
             // OPTIMISTIC UI: Instant add to state with dummy ID
             val dummyId = -(System.currentTimeMillis().toInt()) // Ensure uniqueness
-            val optimisticCategory = Category(id = dummyId, name = name)
+            val optimisticCategory = Category(id = dummyId, name = name, defaultPrepTime = defaultPrepTime)
             _categories.value = _categories.value + optimisticCategory
 
             try {
-                val response = RetrofitClient.instance.addCategory(mapOf("name" to name))
+                val response = RetrofitClient.instance.addCategory(mapOf("name" to name, "defaultPrepTime" to defaultPrepTime))
                 if (response.success) {
                     fetchCategories() // Silently fetch real ID from server
                 } else {
@@ -144,16 +144,16 @@ class MenuViewModel : ViewModel() {
         }
     }
 
-    fun updateCategory(id: Int, name: String) {
+    fun updateCategory(id: Int, name: String, defaultPrepTime: Int) {
         viewModelScope.launch {
             // OPTIMISTIC UI: Instant update in state
             val originalCategories = _categories.value.toList()
             _categories.value = _categories.value.map {
-                if (it.id == id) it.copy(name = name) else it
+                if (it.id == id) it.copy(name = name, defaultPrepTime = defaultPrepTime) else it
             }
 
             try {
-                val response = RetrofitClient.instance.updateCategory(id, mapOf("name" to name))
+                val response = RetrofitClient.instance.updateCategory(id, mapOf("name" to name, "defaultPrepTime" to defaultPrepTime))
                 if (response.success) {
                     fetchCategories() // Silent sync
                 } else {

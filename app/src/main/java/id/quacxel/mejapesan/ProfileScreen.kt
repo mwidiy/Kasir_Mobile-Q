@@ -1598,8 +1598,9 @@ fun RestaurantIdentitySection(
         // NEW: Cash Payment Mode Selector (PRE/POST) - Only show if Cash Active
         if (isCashActive) {
             val cashMode = viewModel.storeState.collectAsState().value?.cashPaymentMode ?: "post"
+            
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
@@ -1691,11 +1692,11 @@ fun RestaurantIdentitySection(
                 }
             }
 
-            // Kasir QR Verification Toggle — Only show when POST mode (not relevant for PRE)
+            // Kasir QR Verification Toggle — Only show when POST mode
             if (cashMode == "post") {
                 val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
@@ -1730,6 +1731,41 @@ fun RestaurantIdentitySection(
                 }
             }
         }
+
+        // --- NEW: SERVICE METHODS TOGGLES (Dine-in, Takeaway, Delivery) ---
+        Text(
+            text = "Layanan Restoran",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy),
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
+        )
+
+        val isDineInActive = viewModel.storeState.collectAsState().value?.isDineInActive ?: true
+        val isTakeawayActive = viewModel.storeState.collectAsState().value?.isTakeawayActive ?: true
+        val isDeliveryActive = viewModel.storeState.collectAsState().value?.isDeliveryActive ?: true
+
+        ServiceMethodToggle(
+            title = "Makan di Sini (Dine-in)",
+            description = "Aktifkan jika restoran melayani makan di tempat",
+            icon = Icons.Default.Info,
+            isActive = isDineInActive,
+            onCheckedChange = { viewModel.updateOrderMethodActive("dinein", it) }
+        )
+
+        ServiceMethodToggle(
+            title = "Bungkus (Takeaway)",
+            description = "Aktifkan jika pelanggan bisa pesan untuk dibawa pulang",
+            icon = Icons.Default.List,
+            isActive = isTakeawayActive,
+            onCheckedChange = { viewModel.updateOrderMethodActive("takeaway", it) }
+        )
+
+        ServiceMethodToggle(
+            title = "Antar (Delivery)",
+            description = "Aktifkan jika restoran melayani pengiriman pesanan",
+            icon = Icons.Default.Share,
+            isActive = isDeliveryActive,
+            onCheckedChange = { viewModel.updateOrderMethodActive("delivery", it) }
+        )
 
         // --- NOTIFIKASI & SUARA ---
         val customSoundPath by viewModel.customSoundPath.collectAsState()
@@ -2295,6 +2331,50 @@ fun FriendlyInfoDialog(
                     Text("Mengerti", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ServiceMethodToggle(
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isActive: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = isActive,
+                onCheckedChange = onCheckedChange,
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF10B981), // Green
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color.LightGray
+                )
+            )
         }
     }
 }

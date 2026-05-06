@@ -229,6 +229,40 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    fun updateOrderMethodActive(type: String, isActive: Boolean) {
+        val oldState = _storeState.value
+        val newState = when (type) {
+            "dinein" -> oldState?.copy(isDineInActive = isActive)
+            "takeaway" -> oldState?.copy(isTakeawayActive = isActive)
+            "delivery" -> oldState?.copy(isDeliveryActive = isActive)
+            else -> oldState
+        }
+        _storeState.value = newState
+
+        viewModelScope.launch {
+            try {
+                val request = when (type) {
+                    "dinein" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isDineInActive = isActive)
+                    "takeaway" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isTakeawayActive = isActive)
+                    "delivery" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isDeliveryActive = isActive)
+                    else -> null
+                }
+                if (request != null) {
+                    val response = RetrofitClient.instance.updateStore(request)
+                    if (response.success && response.data != null) {
+                        _storeState.value = response.data
+                    } else {
+                        _storeState.value = oldState
+                        _errorMessage.value = "Maaf, pengaturan layanan belum bisa diubah."
+                    }
+                }
+            } catch (e: Exception) {
+                _storeState.value = oldState
+                _errorMessage.value = "Gagal update layanan: ${e.localizedMessage}"
+            }
+        }
+    }
+
     private val _balance = MutableStateFlow<Int>(0)
     val balance: StateFlow<Int> = _balance
 

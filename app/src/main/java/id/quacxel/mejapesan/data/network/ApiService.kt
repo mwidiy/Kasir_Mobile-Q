@@ -33,13 +33,13 @@ interface ApiService {
     suspend fun getCategories(): id.quacxel.mejapesan.data.model.CategoryResponse
 
     @POST("api/categories")
-    suspend fun addCategory(@Body category: Map<String, String>): id.quacxel.mejapesan.data.model.SingleCategoryResponse
+    suspend fun addCategory(@Body category: Map<String, @JvmSuppressWildcards Any>): id.quacxel.mejapesan.data.model.ApiResponse<id.quacxel.mejapesan.data.model.Category>
 
     @PUT("api/categories/{id}")
-    suspend fun updateCategory(@Path("id") id: Int, @Body category: Map<String, String>): id.quacxel.mejapesan.data.model.SingleCategoryResponse
+    suspend fun updateCategory(@Path("id") id: Int, @Body category: Map<String, @JvmSuppressWildcards Any>): id.quacxel.mejapesan.data.model.ApiResponse<id.quacxel.mejapesan.data.model.Category>
 
     @DELETE("api/categories/{id}")
-    suspend fun deleteCategory(@Path("id") id: Int): id.quacxel.mejapesan.data.model.SingleCategoryResponse
+    suspend fun deleteCategory(@Path("id") id: Int): id.quacxel.mejapesan.data.model.ApiResponse<Any?>
 
     @GET("api/ar/assets")
     suspend fun getArAssets(): id.quacxel.mejapesan.data.model.ArAssetResponse

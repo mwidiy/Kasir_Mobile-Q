@@ -17,7 +17,10 @@ data class Store(
     val whatsappNumber: String?, // NEW
     val isKasirQrVerificationEnabled: Boolean? = false, // NEW
     val cashPaymentMode: String? = "post", // NEW: "post" or "pre"
-    val isCashActive: Boolean? = true
+    val isCashActive: Boolean? = true,
+    val isDineInActive: Boolean? = true,
+    val isTakeawayActive: Boolean? = true,
+    val isDeliveryActive: Boolean? = true
 )
 
 data class StoreResponse(
@@ -37,5 +40,8 @@ data class StoreUpdateRequest(
     val whatsappNumber: String? = null,
     val isKasirQrVerificationEnabled: Boolean? = null,
     val cashPaymentMode: String? = null,
-    val isCashActive: Boolean? = null
+    val isCashActive: Boolean? = null,
+    val isDineInActive: Boolean? = null,
+    val isTakeawayActive: Boolean? = null,
+    val isDeliveryActive: Boolean? = null
 )

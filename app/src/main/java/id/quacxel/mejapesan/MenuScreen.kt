@@ -647,12 +647,10 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         }
 
         if (showAddCategoryModal) {
-            InputModal(
+            CategoryModal(
                 title = "Tambah Kategori",
-                label = "Nama Kategori Baru",
-                placeholder = "cth: Manisan, Jus",
-                onSave = { 
-                    viewModel.addCategory(it)
+                onSave = { name, time -> 
+                    viewModel.addCategory(name, time)
                     showAddCategoryModal = false 
                 },
                 onCancel = { showAddCategoryModal = false }
@@ -662,16 +660,14 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         if (showCategoryActionSheet != null) {
             ActionSheetModal(
                 title = "Opsi Kategori: ${showCategoryActionSheet!!.name}",
+                editLabel = "Edit Kategori",
+                deleteLabel = "Hapus Kategori",
                 onEdit = {
                     val cat = showCategoryActionSheet
                     showCategoryActionSheet = null
                     showEditCategoryModal = cat
                 },
-                onEditAr = {
-                     // Category doesn't have AR yet/ever? Just toast or empty
-                     showCategoryActionSheet = null
-                     android.widget.Toast.makeText(context, "Fitur ini hanya untuk Menu", android.widget.Toast.LENGTH_SHORT).show()
-                },
+                onEditAr = null, // Hide AR for categories
                 onDelete = {
                     val cat = showCategoryActionSheet
                     showCategoryActionSheet = null
@@ -682,12 +678,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
         }
 
         if (showEditCategoryModal != null) {
-             InputModal(
+             CategoryModal(
                 title = "Edit Kategori",
-                label = "Nama Kategori",
-                initialValue = showEditCategoryModal!!.name,
-                onSave = { 
-                    viewModel.updateCategory(showEditCategoryModal!!.id, it)
+                initialName = showEditCategoryModal!!.name,
+                initialTime = showEditCategoryModal!!.defaultPrepTime ?: 10,
+                onSave = { name, time -> 
+                    viewModel.updateCategory(showEditCategoryModal!!.id, name, time)
                     showEditCategoryModal = null
                 },
                 onCancel = { showEditCategoryModal = null }
@@ -955,7 +951,16 @@ fun SvgIcon(pathData: String, tint: Color, modifier: Modifier = Modifier, viewpo
 }
 
 @Composable
-fun ActionSheetModal(title: String, onEdit: () -> Unit, onEditAr: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
+fun ActionSheetModal(
+    title: String, 
+    onEdit: () -> Unit, 
+    onEditAr: (() -> Unit)? = null, 
+    onDelete: () -> Unit, 
+    onDismiss: () -> Unit,
+    editLabel: String = "Edit Menu",
+    deleteLabel: String = "Hapus Menu",
+    arLabel: String = "Edit Ar"
+) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -973,20 +978,22 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onEditAr: () -> Unit, on
                         Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Edit Menu", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
+                    Text(editLabel, fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                 }
 
-                Divider(color = Color(0xFFF3F4F6))
+                if (onEditAr != null) {
+                    Divider(color = Color(0xFFF3F4F6))
 
-                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onEditAr() }.padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                         Icon(Icons.Default.ViewInAr, contentDescription = null, tint = Color.White)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onEditAr() }.padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(44.dp).background(Color(0xFF2D3E50), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                             Icon(Icons.Default.ViewInAr, contentDescription = null, tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(arLabel, fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text("Edit Ar", fontWeight = FontWeight.SemiBold, color = Color(0xFF1F2937))
                 }
                 
                 Divider(color = Color(0xFFF3F4F6))
@@ -999,7 +1006,7 @@ fun ActionSheetModal(title: String, onEdit: () -> Unit, onEditAr: () -> Unit, on
                         Icon(Icons.Default.Delete, contentDescription = null, tint = DeleteRed)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Hapus Menu", fontWeight = FontWeight.SemiBold, color = DeleteRed)
+                    Text(deleteLabel, fontWeight = FontWeight.SemiBold, color = DeleteRed)
                 }
             }
         }
@@ -1023,6 +1030,70 @@ fun ConfirmationModal(title: String, desc: String, onConfirm: () -> Unit, onCanc
                      Button(onClick = onCancel, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), modifier = Modifier.weight(1f)) { Text("Batal") }
                      Button(onClick = onConfirm, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = DeleteRed), modifier = Modifier.weight(1f)) { Text("Hapus") }
                  }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryModal(
+    title: String, 
+    initialName: String = "", 
+    initialTime: Int = 10,
+    onSave: (String, Int) -> Unit, 
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var time by remember { mutableStateOf(initialTime.toString()) }
+
+    Dialog(onDismissRequest = onCancel) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.clickable { onCancel() })
+                }
+                
+                Text("Nama Kategori", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF374151))
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { if (it.length <= 20) name = it.replace(Regex("[^a-zA-Z0-9 -]"), "") }, 
+                    placeholder = { Text("cth: Makanan Utama") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, focusedBorderColor = Color(0xFF1F2937), unfocusedBorderColor = Color.LightGray)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Estimasi Masak (Menit)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF374151))
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = time, 
+                    onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 3) time = it }, 
+                    placeholder = { Text("10") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, focusedBorderColor = Color(0xFF1F2937), unfocusedBorderColor = Color.LightGray)
+                )
+                Text("Kategori ini akan muncul di PWA user sebagai estimasi waktu penyajian.", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { onSave(name.trim(), time.toIntOrNull() ?: 10) }, 
+                    shape = RoundedCornerShape(10.dp), 
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D3E50)), 
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = name.trim().isNotEmpty()
+                ) { Text("Simpan", color = Color.White) }
             }
         }
     }
