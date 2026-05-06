@@ -1,6 +1,6 @@
 # --- Retrofit & OkHttp ---
--keepattributes Signature, InnerClasses, AnnotationDefault
--keepclassmembers,allowobfuscation interface * {
+-keepattributes Signature, InnerClasses, AnnotationDefault, EnclosingMethod, *Annotation*
+-keepclassmembers interface * {
     @retrofit2.http.* <methods>;
 }
 -dontwarn okhttp3.**
@@ -10,12 +10,16 @@
 -keep class okhttp3.** { *; }
 
 # --- Gson (Keep Data Models) ---
-# VERY IMPORTANT: Keep your models package so Gson can find fields
 -keep class id.quacxel.mejapesan.data.model.** { *; }
 -keep class id.quacxel.mejapesan.data.network.** { *; }
--keepattributes Signature
--keepattributes *Annotation*
 -keep class com.google.gson.** { *; }
+
+# --- Kotlin Coroutines ---
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepnames class kotlinx.coroutines.android.AndroidExceptionPreHandler {}
+-keepnames class kotlinx.coroutines.android.AndroidDispatcherFactory {}
+-keep class kotlin.coroutines.Continuation { *; }
 
 # --- Socket.io ---
 -keep class io.socket.** { *; }
