@@ -20,7 +20,9 @@ data class Store(
     val isCashActive: Boolean? = true,
     val isDineInActive: Boolean? = true,
     val isTakeawayActive: Boolean? = true,
-    val isDeliveryActive: Boolean? = true
+    val isDeliveryActive: Boolean? = true,
+    val isAiEnabled: Boolean? = false,
+    val isAutoReplyEnabled: Boolean? = false
 )
 
 data class StoreResponse(
@@ -43,5 +45,23 @@ data class StoreUpdateRequest(
     val isCashActive: Boolean? = null,
     val isDineInActive: Boolean? = null,
     val isTakeawayActive: Boolean? = null,
-    val isDeliveryActive: Boolean? = null
+    val isDeliveryActive: Boolean? = null,
+    val isAiEnabled: Boolean? = null,
+    val isAutoReplyEnabled: Boolean? = null
+)
+
+data class PromotionStats(
+    val loyalCount: Int,
+    val churningCount: Int
+)
+
+data class PromotionStatsResponse(
+    val success: Boolean,
+    val data: PromotionStats?
+)
+
+data class PromotionResponse(
+    val success: Boolean,
+    val message: String,
+    val targetCount: Int? = 0
 )

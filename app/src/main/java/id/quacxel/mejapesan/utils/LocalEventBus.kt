@@ -19,4 +19,25 @@ object LocalEventBus {
     fun emitSettingsUpdate(isEnabled: Boolean) {
         _settingsUpdateFlow.tryEmit(isEnabled)
     }
+
+    private val _waQrFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    val waQrFlow = _waQrFlow.asSharedFlow()
+
+    private val _waPairingCodeFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    val waPairingCodeFlow = _waPairingCodeFlow.asSharedFlow()
+
+    private val _waStatusFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    val waStatusFlow = _waStatusFlow.asSharedFlow()
+
+    fun emitWaQr(qr: String) {
+        _waQrFlow.tryEmit(qr)
+    }
+
+    fun emitWaPairingCode(code: String) {
+        _waPairingCodeFlow.tryEmit(code)
+    }
+
+    fun emitWaStatus(status: String) {
+        _waStatusFlow.tryEmit(status)
+    }
 }

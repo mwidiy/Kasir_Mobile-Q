@@ -41,6 +41,9 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import id.quacxel.mejapesan.utils.SocketHandler
+import id.quacxel.mejapesan.utils.LocalEventBus
+import org.json.JSONObject
 
 @androidx.compose.animation.ExperimentalAnimationApi
 class MainActivity : ComponentActivity() {
@@ -100,6 +103,9 @@ class MainActivity : ComponentActivity() {
                 Log.d("MainActivity", "FCM Token not sent: User is not logged in.")
             }
         }
+
+        // --- GLOBAL SOCKET LISTENERS (Always On) ---
+        setupGlobalSocketListeners()
 
         setContent {
             // --- ALWAYS ON LOGIC ---
@@ -200,6 +206,54 @@ class MainActivity : ComponentActivity() {
                     REQUEST_PERMISSION_CODE
                 )
             }
+        }
+    }
+
+    private fun setupGlobalSocketListeners() {
+        try {
+            SocketHandler.setSocket()
+            val socket = SocketHandler.getSocket()
+            
+            // Re-establish if disconnected
+            if (!socket.connected()) {
+                SocketHandler.establishConnection()
+            }
+
+            // --- WhatsApp Bot Global Listeners ---
+            socket.on("wa_qr_code") { args ->
+                try {
+                    val data = args[0] as JSONObject
+                    val qr = data.getString("qr")
+                    Log.d("MainActivity", "Global Socket: wa_qr_code received")
+                    LocalEventBus.emitWaQr(qr)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error parsing global wa_qr_code: ${e.message}")
+                }
+            }
+
+            socket.on("wa_pairing_code") { args ->
+                try {
+                    val data = args[0] as JSONObject
+                    val code = data.getString("code")
+                    Log.d("MainActivity", "Global Socket: wa_pairing_code received -> $code")
+                    LocalEventBus.emitWaPairingCode(code)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error parsing global wa_pairing_code: ${e.message}")
+                }
+            }
+
+            socket.on("wa_status") { args ->
+                try {
+                    val data = args[0] as JSONObject
+                    val status = data.getString("status")
+                    Log.d("MainActivity", "Global Socket: wa_status received -> $status")
+                    LocalEventBus.emitWaStatus(status)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error parsing global wa_status: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to setup global socket listeners: ${e.message}")
         }
     }
 

@@ -65,6 +65,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             SocketHandler.setSocket()
             SocketHandler.establishConnection()
             val socket = SocketHandler.getSocket()
+            
+            // JOIN STORE ROOM (Required to receive targeted events like WhatsApp QR)
+            socket.on(io.socket.client.Socket.EVENT_CONNECT) {
+                id.quacxel.mejapesan.utils.SessionManager.currentUser?.store?.id?.let { storeId ->
+                    Log.d("DashboardViewModel", "Socket Connected: Joining store room -> store_$storeId")
+                    socket.emit("join_store", storeId)
+                }
+            }
+            
+            // Initial join if already connected
+            if (socket.connected()) {
+                id.quacxel.mejapesan.utils.SessionManager.currentUser?.store?.id?.let { storeId ->
+                    Log.d("DashboardViewModel", "Socket already connected: Joining store room -> store_$storeId")
+                    socket.emit("join_store", storeId)
+                }
+            }
 
             // Listen for "new_order" event from backend
             socket.on("new_order") {
@@ -85,6 +101,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     fetchOrders()
                 }
             }
+
+            // --- WhatsApp Bot Socket Listeners (Moved to MainActivity for Global Coverage) ---
             
         } catch (e: Exception) {
             e.printStackTrace()

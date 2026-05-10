@@ -3,6 +3,7 @@ package id.quacxel.mejapesan
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import android.net.Uri
+import android.content.Context
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,6 +24,16 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -32,6 +43,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,8 +118,17 @@ fun ProfileScreen(
     val storeState by viewModel.storeState.collectAsState()
     val history by viewModel.withdrawalHistory.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isSaving = isLoading // Alias for clarity
     val errorMessage by viewModel.errorMessage.collectAsState()
+    
+    // WA Bot State
+    val waStatus by viewModel.waStatus.collectAsState()
+    val waQrCode by viewModel.waQrCode.collectAsState()
+    val waPairingCode by viewModel.waPairingCode.collectAsState()
+    val pairingSuccess by viewModel.pairingSuccess.collectAsState()
+    val promotionStats by viewModel.promotionStats.collectAsState()
+    val isPromoting by viewModel.isPromoting.collectAsState()
+    val promotionMessage by viewModel.promotionMessage.collectAsState()
+    var showWaBotDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
 
@@ -318,15 +339,445 @@ fun ProfileScreen(
                     viewModel = viewModel // Pass VM to handle logic internally
                 )
 
+                // Section 4: WhatsApp Bot (Gatekeeper)
+                WhatsAppBotSection(
+                    status = waStatus,
+                    storeState = storeState,
+                    promotionStats = promotionStats,
+                    isPromoting = isPromoting,
+                    promotionMessage = promotionMessage,
+                    onToggleAutoReply = { viewModel.toggleAutoReply(it) },
+                    onToggleAi = { viewModel.toggleAi(it) },
+                    onStartPromotion = { viewModel.startPromotion(it) },
+                    onClearPromoMessage = { viewModel.clearPromotionMessage() },
+                    onDisconnect = { viewModel.disconnectWhatsApp() },
+                    onClick = { 
+                        showWaBotDialog = true
+                        viewModel.initWhatsApp()
+                    }
+                )
 
-
-
-                // Section 4: Footer Actions
+                // Section 5: Footer Actions
                 Spacer(modifier = Modifier.weight(1f)) // Push to bottom if content is short
                 FooterActions(onNavigate)
             }
             } // Close the adaptive Box
         }
+    }
+
+    if (showWaBotDialog) {
+        val pairingSuccess by viewModel.pairingSuccess.collectAsState()
+        val promotionStats by viewModel.promotionStats.collectAsState()
+        val isPromoting by viewModel.isPromoting.collectAsState()
+        val promotionMessage by viewModel.promotionMessage.collectAsState()
+
+        WhatsAppBotDialog(
+            status = waStatus,
+            qrCode = waQrCode,
+            pairingCode = waPairingCode,
+            pairingSuccess = pairingSuccess,
+            storeState = storeState,
+            promotionStats = promotionStats,
+            isPromoting = isPromoting,
+            promotionMessage = promotionMessage,
+            onDismiss = { showWaBotDialog = false },
+            onDisconnect = { viewModel.disconnectWhatsApp() },
+            onToggleAutoReply = { viewModel.toggleAutoReply(it) },
+            onToggleAi = { viewModel.toggleAi(it) },
+            onStartPromotion = { viewModel.startPromotion(it) },
+            onClearPromoMessage = { viewModel.clearPromotionMessage() }
+        )
+    }
+}
+
+@Composable
+fun WhatsAppBotSection(
+    status: String,
+    storeState: id.quacxel.mejapesan.data.model.Store?,
+    promotionStats: id.quacxel.mejapesan.data.model.PromotionStats?,
+    isPromoting: Boolean,
+    promotionMessage: String?,
+    onToggleAutoReply: (Boolean) -> Unit,
+    onToggleAi: (Boolean) -> Unit,
+    onStartPromotion: (String) -> Unit,
+    onClearPromoMessage: () -> Unit,
+    onDisconnect: () -> Unit,
+    onClick: () -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val isConnected = status == "connected"
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .border(
+                width = 2.dp,
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = if (isConnected) listOf(Color(0xFF25D366).copy(alpha = 0.5f), Color(0xFF10B981).copy(alpha = 0.5f))
+                             else listOf(Color(0xFFF3F4F6), Color(0xFFF3F4F6))
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        if (isConnected) isExpanded = !isExpanded 
+                        else onClick() 
+                    }
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isConnected) Color(0xFF25D366).copy(alpha = 0.1f)
+                            else Color.Gray.copy(alpha = 0.1f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SupportAgent,
+                        contentDescription = null,
+                        tint = if (isConnected) Color(0xFF25D366) else Color.Gray,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Smart Auto-Order Bot",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, color = Navy)
+                    )
+                    Text(
+                        if (isConnected) "Sistem AI Aktif & Berjalan" else "Hubungkan WhatsApp lu bro",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
+                    )
+                }
+
+                if (isConnected) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = Color.Gray
+                    )
+                } else {
+                    // Status Badge with Pulse Effect
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFF3F4F6),
+                    ) {
+                        Text(
+                            text = "OFFLINE",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                color = Color.Gray
+                            )
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isConnected && isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    HorizontalDivider(thickness = 1.dp, color = Color(0xFFF3F4F6))
+                    
+                    // Settings Section
+                    Text(
+                        "Pengaturan Bot",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Navy.copy(alpha=0.6f))
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ServiceMethodToggle(
+                            title = "Auto-Reply Pesan",
+                            description = "Bales otomatis pake link pesenan.",
+                            icon = Icons.Default.Campaign,
+                            isActive = storeState?.isAutoReplyEnabled ?: false,
+                            onCheckedChange = onToggleAutoReply
+                        )
+
+                        val isAutoReplyOn = storeState?.isAutoReplyEnabled ?: false
+                        val isAiCurrentlyOn = storeState?.isAiEnabled ?: false
+                        
+                        Box(modifier = Modifier.alpha(if (isAiCurrentlyOn) 0.8f else 0.6f)) {
+                            ServiceMethodToggle(
+                                title = if (!isAiCurrentlyOn) "Integrasi AI (Segera Hadir)" else "Integrasi AI (Dalam Pengembangan)",
+                                description = if (!isAiCurrentlyOn) "Fitur ini masih dalam tahap pengembangan." else "Matikan jika belum ingin menggunakan AI.",
+                                icon = Icons.Default.SupportAgent,
+                                isActive = isAiCurrentlyOn,
+                                onCheckedChange = { newVal ->
+                                    if (!newVal) {
+                                        onToggleAi(false)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // Customer Booster Section
+                    Text(
+                        "Customer Booster 🚀",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Navy.copy(alpha=0.6f))
+                    )
+                    
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PromotionCard(
+                            title = "Sapa Pelanggan Setia",
+                            subtitle = "${promotionStats?.loyalCount ?: 0} orang sering beli",
+                            icon = Icons.Default.Favorite,
+                            color = Color(0xFFEC4899),
+                            isLoading = isPromoting,
+                            onClick = { onStartPromotion("LOYAL") }
+                        )
+
+                        PromotionCard(
+                            title = "Panggil Pelanggan Lama",
+                            subtitle = "${promotionStats?.churningCount ?: 0} orang sudah lama nggak mampir",
+                            icon = Icons.Default.Notifications,
+                            color = Color(0xFFF59E0B),
+                            isLoading = isPromoting,
+                            onClick = { onStartPromotion("CHURNING") }
+                        )
+                    }
+
+                    if (promotionMessage != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF3F4F6),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = Navy, modifier = Modifier.size(14.dp))
+                                Text(
+                                    promotionMessage!!,
+                                    style = MaterialTheme.typography.labelMedium.copy(color = Navy),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = onClearPromoMessage, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = onDisconnect,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE2E2)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Putuskan Koneksi", fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WhatsAppBotDialog(
+    status: String,
+    qrCode: String?,
+    pairingCode: String?,
+    pairingSuccess: Boolean,
+    storeState: id.quacxel.mejapesan.data.model.Store?,
+    promotionStats: id.quacxel.mejapesan.data.model.PromotionStats?,
+    isPromoting: Boolean,
+    promotionMessage: String?,
+    onDismiss: () -> Unit,
+    onDisconnect: () -> Unit,
+    onToggleAutoReply: (Boolean) -> Unit,
+    onToggleAi: (Boolean) -> Unit,
+    onStartPromotion: (String) -> Unit,
+    onClearPromoMessage: () -> Unit
+) {
+    val context = LocalContext.current
+    
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (pairingSuccess) "Selesai!" else "Koneksi WhatsApp Bot",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                    }
+                }
+
+                if (pairingSuccess) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 32.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981).copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Check, null, tint = Color(0xFF10B981), modifier = Modifier.size(64.dp))
+                        }
+                        Text("Pairing Berhasil!", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black, color = Navy))
+                        Text("Bot lu sekarang udah aktif bro.", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray))
+                    }
+                } else {
+                    // Pairing State (NEW: Pairing Code Display)
+                    if (pairingCode != null) {
+                        var isCopied by remember { mutableStateOf(false) }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Navy.copy(alpha = 0.05f))
+                                    .clickable {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("Pairing Code", pairingCode)
+                                        clipboard.setPrimaryClip(clip)
+                                        isCopied = true
+                                        // Reset "Copied" state after 2 seconds
+                                    }
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Kode Pairing Anda", style = MaterialTheme.typography.labelLarge.copy(color = Color.Gray, fontWeight = FontWeight.Bold))
+                                    
+                                    val formattedCode = if (pairingCode.length == 8) {
+                                        "${pairingCode.substring(0, 4)} - ${pairingCode.substring(4)}"
+                                    } else {
+                                        pairingCode
+                                    }
+
+                                    Text(
+                                        text = formattedCode,
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            fontWeight = FontWeight.Black,
+                                            color = Navy,
+                                            letterSpacing = 2.sp,
+                                            fontSize = 28.sp // Explicit size for guaranteed one-line
+                                        ),
+                                        maxLines = 1
+                                    )
+                                    
+                                    LaunchedEffect(isCopied) {
+                                        if (isCopied) {
+                                            kotlinx.coroutines.delay(2000)
+                                            isCopied = false
+                                        }
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (isCopied) {
+                                            Icon(Icons.Default.Check, null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                            Text("Berhasil Tersalin!", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF10B981), fontWeight = FontWeight.Bold))
+                                        } else {
+                                            Text("Klik kotak untuk menyalin", style = MaterialTheme.typography.labelSmall.copy(color = Navy.copy(alpha=0.4f)))
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BackgroundLight).padding(16.dp)
+                            ) {
+                                Text("Langkah-langkah:", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Navy))
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    PairingStepItem("1", "Buka WhatsApp di HP utama lu")
+                                    PairingStepItem("2", "Klik Perangkat Tertaut > Tautkan Perangkat")
+                                    PairingStepItem("3", "Pilih 'Tautkan dengan nomor telepon saja'")
+                                    PairingStepItem("4", "Masukkan kode di atas")
+                                }
+                            }
+                        }
+                    } else if (qrCode != null) {
+                        Box(modifier = Modifier.size(240.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF3F4F6), RoundedCornerShape(16.dp))) {
+                            id.quacxel.mejapesan.utils.QRCodeImage(content = qrCode, modifier = Modifier.fillMaxSize().padding(24.dp))
+                        }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(vertical = 40.dp)
+                        ) {
+                            CircularProgressIndicator(color = Navy, modifier = Modifier.size(48.dp), strokeWidth = 4.dp)
+                            Text("Menyiapkan Kode...", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray, fontWeight = FontWeight.Bold))
+                        }
+                    }
+                }
+                
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text("Tutup", color = Navy)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PairingStepItem(number: String, text: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(Navy),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(number, color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+        }
+        Text(text, style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray))
     }
 }
 
@@ -1558,269 +2009,240 @@ fun RestaurantIdentitySection(
             onSave = { newNumber -> viewModel.updateWhatsApp(newNumber) }
         )
 
-        // NEW: Cash Payment Active Toggle
+        // --- CASH PAYMENT SECTION (ANIMATED) ---
         val isCashActive = viewModel.storeState.collectAsState().value?.isCashActive ?: true
+        val cashMode = viewModel.storeState.collectAsState().value?.cashPaymentMode ?: "post"
+        val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
+
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = if (isCashActive) Color(0xFF10B981).copy(alpha = 0.3f) else Color(0xFFE5E7EB)
+            )
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                    Text(
-                        text = "Terima Pembayaran Tunai",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
-                    )
-                    Text(
-                        text = "Jika dimatikan, pelanggan hanya bisa membayar via QRIS",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                }
-                androidx.compose.material3.Switch(
-                    checked = isCashActive,
-                    onCheckedChange = { viewModel.updateCashPaymentActive(it) },
-                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF10B981), // Green
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.LightGray
-                    )
-                )
-            }
-        }
-
-        // NEW: Cash Payment Mode Selector (PRE/POST) - Only show if Cash Active
-        if (isCashActive) {
-            val cashMode = viewModel.storeState.collectAsState().value?.cashPaymentMode ?: "post"
-            
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "Mode Pembayaran Cash",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
-                    )
-                    Text(
-                        text = "Atur kapan pelanggan harus membayar tunai",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-
-                    // POST Option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (cashMode == "post") Color(0xFFFEFCE8) else Color(0xFFF9FAFB))
-                            .border(
-                                1.dp,
-                                if (cashMode == "post") QuackYellowDark else Color(0xFFE5E7EB),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { viewModel.updateCashPaymentMode("post") }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = cashMode == "post",
-                            onClick = { viewModel.updateCashPaymentMode("post") },
-                            colors = androidx.compose.material3.RadioButtonDefaults.colors(
-                                selectedColor = QuackYellowDark,
-                                unselectedColor = Color.Gray
-                            )
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Post-Order (Bayar Nanti)",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
-                            )
-                            Text(
-                                text = "Pesanan masuk dulu, bayar belakangan",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-
-                    // PRE Option
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (cashMode == "pre") Color(0xFFFEFCE8) else Color(0xFFF9FAFB))
-                            .border(
-                                1.dp,
-                                if (cashMode == "pre") QuackYellowDark else Color(0xFFE5E7EB),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { viewModel.updateCashPaymentMode("pre") }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = cashMode == "pre",
-                            onClick = { viewModel.updateCashPaymentMode("pre") },
-                            colors = androidx.compose.material3.RadioButtonDefaults.colors(
-                                selectedColor = QuackYellowDark,
-                                unselectedColor = Color.Gray
-                            )
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Pre-Order (Bayar Dulu)",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
-                            )
-                            Text(
-                                text = "Bayar tunai dulu, baru pesanan dibuat",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Kasir QR Verification Toggle — Only show when POST mode
-            if (cashMode == "post") {
-                val isKasirQrEnabled = viewModel.storeState.collectAsState().value?.isKasirQrVerificationEnabled ?: false
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+            Column {
+                // Header: Toggle Row
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        modifier = Modifier.weight(1f).padding(end = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(if (isCashActive) Color(0xFF10B981).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = if (isCashActive) Color(0xFF10B981) else Color.Gray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
                             Text(
-                                text = "Verifikasi QR Untuk Cash",
+                                text = "Terima Pembayaran Tunai",
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
                             )
                             Text(
-                                text = "Wajibkan scan QR oleh kasir sebelum untuk pembayaran cash",
+                                text = if (isCashActive) "Pelanggan bisa bayar Cash" else "Hanya melayani QRIS",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
                         }
-                        androidx.compose.material3.Switch(
-                            checked = isKasirQrEnabled,
-                            onCheckedChange = { viewModel.updateKasirQrVerification(it) },
-                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF10B981), // Green
-                                uncheckedThumbColor = Color.White,
-                                uncheckedTrackColor = Color.LightGray
-                            )
+                    }
+                    
+                    androidx.compose.material3.Switch(
+                        checked = isCashActive,
+                        onCheckedChange = { viewModel.updateCashPaymentActive(it) },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF10B981),
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color.LightGray
                         )
+                    )
+                }
+
+                // Dropdown Content (Animated)
+                AnimatedVisibility(
+                    visible = isCashActive,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFF3F4F6))
+                        
+                        Text(
+                            text = "Mode Pembayaran Tunai",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Navy.copy(alpha=0.6f))
+                        )
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CashModeTile(
+                                selected = cashMode == "post",
+                                title = "Bayar Nanti (Post-Order)",
+                                subtitle = "Pesanan masuk dulu, bayar belakangan",
+                                onClick = { viewModel.updateCashPaymentMode("post") }
+                            )
+                            CashModeTile(
+                                selected = cashMode == "pre",
+                                title = "Bayar Di Awal (Pre-Order)",
+                                subtitle = "Bayar dulu baru pesanan diproses",
+                                onClick = { viewModel.updateCashPaymentMode("pre") }
+                            )
+                        }
+
+                        if (cashMode == "post") {
+                            HorizontalDivider(thickness = 1.dp, color = Color(0xFFF3F4F6))
+                            
+                            ServiceMethodToggle(
+                                title = "Verifikasi QR Kasir",
+                                description = "Wajibkan scan QR kasir sebelum bayar cash",
+                                icon = Icons.Default.Check,
+                                isActive = isKasirQrEnabled,
+                                onCheckedChange = { viewModel.updateKasirQrVerification(it) }
+                            )
+                        }
                     }
                 }
             }
         }
 
         // --- NEW: SERVICE METHODS TOGGLES (Dine-in, Takeaway, Delivery) ---
-        Text(
-            text = "Layanan Restoran",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy),
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
-        )
+        var isServicesExpanded by remember { mutableStateOf(false) }
+        
+        ExpandableSettingCard(
+            title = "Layanan Restoran",
+            subtitle = "Atur metode pemesanan yang tersedia",
+            icon = Icons.Default.Restaurant,
+            isExpanded = isServicesExpanded,
+            onExpandClick = { isServicesExpanded = !isServicesExpanded }
+        ) {
+            val isDineInActive = viewModel.storeState.collectAsState().value?.isDineInActive ?: true
+            val isTakeawayActive = viewModel.storeState.collectAsState().value?.isTakeawayActive ?: true
+            val isDeliveryActive = viewModel.storeState.collectAsState().value?.isDeliveryActive ?: true
 
-        val isDineInActive = viewModel.storeState.collectAsState().value?.isDineInActive ?: true
-        val isTakeawayActive = viewModel.storeState.collectAsState().value?.isTakeawayActive ?: true
-        val isDeliveryActive = viewModel.storeState.collectAsState().value?.isDeliveryActive ?: true
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceMethodToggle(
+                    title = "Makan di Sini (Dine-in)",
+                    description = "Aktifkan jika restoran melayani makan di tempat",
+                    icon = Icons.Default.Restaurant,
+                    isActive = isDineInActive,
+                    onCheckedChange = { viewModel.updateOrderMethodActive("dinein", it) }
+                )
 
-        ServiceMethodToggle(
-            title = "Makan di Sini (Dine-in)",
-            description = "Aktifkan jika restoran melayani makan di tempat",
-            icon = Icons.Default.Info,
-            isActive = isDineInActive,
-            onCheckedChange = { viewModel.updateOrderMethodActive("dinein", it) }
-        )
+                ServiceMethodToggle(
+                    title = "Bungkus (Takeaway)",
+                    description = "Aktifkan jika pelanggan bisa pesan untuk dibawa pulang",
+                    icon = Icons.Default.List,
+                    isActive = isTakeawayActive,
+                    onCheckedChange = { viewModel.updateOrderMethodActive("takeaway", it) }
+                )
 
-        ServiceMethodToggle(
-            title = "Bungkus (Takeaway)",
-            description = "Aktifkan jika pelanggan bisa pesan untuk dibawa pulang",
-            icon = Icons.Default.List,
-            isActive = isTakeawayActive,
-            onCheckedChange = { viewModel.updateOrderMethodActive("takeaway", it) }
-        )
-
-        ServiceMethodToggle(
-            title = "Antar (Delivery)",
-            description = "Aktifkan jika restoran melayani pengiriman pesanan",
-            icon = Icons.Default.Share,
-            isActive = isDeliveryActive,
-            onCheckedChange = { viewModel.updateOrderMethodActive("delivery", it) }
-        )
+                ServiceMethodToggle(
+                    title = "Antar (Delivery)",
+                    description = "Aktifkan jika restoran melayani pengiriman pesanan",
+                    icon = Icons.Default.Share,
+                    isActive = isDeliveryActive,
+                    onCheckedChange = { viewModel.updateOrderMethodActive("delivery", it) }
+                )
+            }
+        }
 
         // --- NOTIFIKASI & SUARA ---
         val customSoundPath by viewModel.customSoundPath.collectAsState()
+        var isNotificationExpanded by remember { mutableStateOf(false) }
         
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+        ExpandableSettingCard(
+            title = "Nada Notifikasi Pesanan",
+            subtitle = if (customSoundPath == null) "Default (MejaPesan Sound)" else "Custom Sound Aktif",
+            icon = Icons.Default.Notifications,
+            isExpanded = isNotificationExpanded,
+            onExpandClick = { isNotificationExpanded = !isNotificationExpanded }
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Navy.copy(alpha = 0.03f))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                        Text(
-                            text = "Nada Notifikasi Pesanan",
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
-                        )
-                        Text(
-                            text = if (customSoundPath == null) "Default (Suara MejaPesan)" else "Custom: ${customSoundPath?.substringAfterLast("/")}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (customSoundPath == null) Color.Gray else Color(0xFF10B981)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Navy.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.VolumeUp, null, tint = Navy, modifier = Modifier.size(20.dp))
                     }
                     
-                    IconButton(
-                        onClick = { audioLauncher.launch("audio/*") },
-                        modifier = Modifier.background(Navy.copy(alpha=0.05f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Ubah Nada",
-                            tint = Navy
+                    Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text(
+                            text = if (customSoundPath == null) "Suara Standar" else customSoundPath!!.substringAfterLast("/"),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
                         )
+                        Text(
+                            text = "Akan berbunyi saat ada pesanan baru",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray
+                        )
+                    }
+
+                    // Test Sound Button
+                    IconButton(
+                        onClick = { 
+                            // Play test sound logic
+                            viewModel.playTestSound(context)
+                        },
+                        modifier = Modifier.background(QuackYellow.copy(alpha = 0.2f), CircleShape).size(36.dp)
+                    ) {
+                        Icon(Icons.Default.VolumeUp, null, tint = QuackYellowDark, modifier = Modifier.size(18.dp))
                     }
                 }
 
-                if (customSoundPath != null) {
-                    OutlinedButton(
-                        onClick = { viewModel.resetCustomSound(context) },
-                        modifier = Modifier.fillMaxWidth(),
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { audioLauncher.launch("audio/*") },
+                        modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha=0.3f))
+                        colors = ButtonDefaults.buttonColors(containerColor = Navy, contentColor = Color.White)
                     ) {
-                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp), tint = Color.White)
                         Spacer(Modifier.width(8.dp))
-                        Text("Kembalikan ke Default", fontSize = 12.sp)
+                        Text("Ganti Suara", fontSize = 12.sp, color = Color.White)
                     }
-                } // Added missing brace here
+
+                    if (customSoundPath != null) {
+                        OutlinedButton(
+                            onClick = { viewModel.resetCustomSound(context) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Danger.copy(alpha = 0.3f))
+                        ) {
+                            Text("Reset", fontSize = 12.sp)
+                        }
+                    }
+                }
             }
         }
     }
@@ -2375,6 +2797,180 @@ fun ServiceMethodToggle(
                     uncheckedTrackColor = Color.LightGray
                 )
             )
+        }
+    }
+}
+
+@Composable
+fun CashModeTile(
+    selected: Boolean,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Color(0xFF10B981).copy(alpha = 0.05f) else Color(0xFFF9FAFB))
+            .border(
+                1.dp,
+                if (selected) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFE5E7EB),
+                RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            colors = RadioButtonDefaults.colors(
+                selectedColor = Color(0xFF10B981),
+                unselectedColor = Color.Gray
+            )
+        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        }
+    }
+}
+
+@Composable
+fun PromotionCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    isLoading: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isLoading) { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = color
+                )
+            } else {
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.LightGray,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ExpandableSettingCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isExpanded: Boolean,
+    onExpandClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .border(1.dp, Color(0xFFF3F4F6), RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandClick() },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Navy.copy(alpha = 0.05f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, tint = Navy, modifier = Modifier.size(20.dp))
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Navy)
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                }
+
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = Color.Gray
+                )
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    content()
+                }
+            }
         }
     }
 }

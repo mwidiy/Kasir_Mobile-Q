@@ -2,6 +2,7 @@ package id.quacxel.mejapesan.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import id.quacxel.mejapesan.data.model.Store
@@ -9,6 +10,7 @@ import id.quacxel.mejapesan.data.model.WithdrawalRequest
 import id.quacxel.mejapesan.data.model.Withdrawal
 import id.quacxel.mejapesan.data.network.RetrofitClient
 import id.quacxel.mejapesan.utils.FileUtils
+import id.quacxel.mejapesan.utils.LocalEventBus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -42,10 +44,161 @@ class ProfileViewModel : ViewModel() {
     private val _withdrawalHistory = MutableStateFlow<List<Withdrawal>>(emptyList())
     val withdrawalHistory: StateFlow<List<Withdrawal>> = _withdrawalHistory
 
+    // WhatsApp Bot State
+    private val _waStatus = MutableStateFlow("disconnected")
+    val waStatus: StateFlow<String> = _waStatus
+
+    private val _waQrCode = MutableStateFlow<String?>(null)
+    val waQrCode: StateFlow<String?> = _waQrCode
+
+    private val _waPairingCode = MutableStateFlow<String?>(null)
+    val waPairingCode: StateFlow<String?> = _waPairingCode
+
+    private val _pairingSuccess = MutableStateFlow(false)
+    val pairingSuccess: StateFlow<Boolean> = _pairingSuccess
+
+    // Promotion State
+    private val _promotionStats = MutableStateFlow<id.quacxel.mejapesan.data.model.PromotionStats?>(null)
+    val promotionStats: StateFlow<id.quacxel.mejapesan.data.model.PromotionStats?> = _promotionStats
+
+    private val _isPromoting = MutableStateFlow(false)
+    val isPromoting: StateFlow<Boolean> = _isPromoting
+
+    private val _promotionMessage = MutableStateFlow<String?>(null)
+    val promotionMessage: StateFlow<String?> = _promotionMessage
+
+    fun setWaStatus(status: String) {
+        val oldStatus = _waStatus.value
+        _waStatus.value = status
+        if (status == "connected") {
+            _waQrCode.value = null
+            _waPairingCode.value = null
+            
+            // TAHAP 40: Trigger Success UX if it was previously disconnected/pairing
+            if (oldStatus != "connected") {
+                viewModelScope.launch {
+                    _pairingSuccess.value = true
+                    kotlinx.coroutines.delay(2000)
+                    _pairingSuccess.value = false
+                }
+            }
+        }
+    }
+
+    fun setWaQrCode(qr: String) {
+        _waQrCode.value = qr
+    }
+
+    fun clearPairingSuccess() {
+        _pairingSuccess.value = false
+    }
+
+    fun initWhatsApp() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.initWhatsApp()
+                if (!response.isSuccessful) {
+                    _errorMessage.value = "Gagal memulai koneksi WhatsApp."
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Terjadi kesalahan: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun fetchWhatsAppStatus() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getWhatsAppStatus()
+                if (response.isSuccessful) {
+                    val data = response.body()
+                    _waStatus.value = data?.status ?: "disconnected"
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
+    }
+
+    fun disconnectWhatsApp() {
+        // TAHAP 40: Optimistic UI - Update locally first for "ASEK" speed
+        _waStatus.value = "disconnected"
+        _waQrCode.value = null
+        _waPairingCode.value = null
+
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.disconnectWhatsApp()
+                if (!response.isSuccessful) {
+                    // Fallback or log if server failed, but usually we keep it disconnected
+                    Log.e("ProfileViewModel", "Server failed to disconnect WA: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Exception disconnecting WA: ${e.message}")
+            }
+        }
+    }
+
+    fun fetchPromotionStats() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getPromotionStats()
+                if (response.success) {
+                    _promotionStats.value = response.data
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
+    }
+
+    fun startPromotion(type: String) {
+        viewModelScope.launch {
+            _isPromoting.value = true
+            _promotionMessage.value = "Memulai promosi..."
+            try {
+                val response = RetrofitClient.instance.startPromotion(mapOf("type" to type))
+                _promotionMessage.value = response.message
+                if (response.success) {
+                    // Refresh stats after starting
+                    fetchPromotionStats()
+                }
+            } catch (e: Exception) {
+                _promotionMessage.value = "Gagal memulai promosi: ${e.localizedMessage}"
+            } finally {
+                kotlinx.coroutines.delay(3000)
+                _isPromoting.value = false
+            }
+        }
+    }
+
+    fun clearPromotionMessage() {
+        _promotionMessage.value = null
+    }
+
     init {
         fetchStore()
         fetchBalance()
         fetchHistory()
+        fetchWhatsAppStatus()
+        fetchPromotionStats()
+
+        // Observe WA Events from LocalEventBus
+        viewModelScope.launch {
+            LocalEventBus.waQrFlow.collect { qr ->
+                _waQrCode.value = qr
+            }
+        }
+        viewModelScope.launch {
+            LocalEventBus.waPairingCodeFlow.collect { code ->
+                _waPairingCode.value = code
+            }
+        }
+        viewModelScope.launch {
+            LocalEventBus.waStatusFlow.collect { status ->
+                setWaStatus(status)
+            }
+        }
     }
 
     fun fetchHistory() {
@@ -143,6 +296,51 @@ class ProfileViewModel : ViewModel() {
             } catch (e: Exception) {
                 _storeState.value = oldState
                 _errorMessage.value = "Gagal update WhatsApp: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun toggleAutoReply(isEnabled: Boolean) {
+        val oldState = _storeState.value
+        // TAHAP AI: If auto-reply is turned OFF, AI must also be OFF
+        val newAiStatus = if (!isEnabled) false else oldState?.isAiEnabled ?: false
+        _storeState.value = oldState?.copy(isAutoReplyEnabled = isEnabled, isAiEnabled = newAiStatus)
+
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.updateStore(
+                    id.quacxel.mejapesan.data.model.StoreUpdateRequest(
+                        isAutoReplyEnabled = isEnabled,
+                        isAiEnabled = newAiStatus
+                    )
+                )
+                if (response.success && response.data != null) {
+                    _storeState.value = response.data
+                } else {
+                    _storeState.value = oldState
+                }
+            } catch (e: Exception) {
+                _storeState.value = oldState
+            }
+        }
+    }
+
+    fun toggleAi(isEnabled: Boolean) {
+        val oldState = _storeState.value
+        _storeState.value = oldState?.copy(isAiEnabled = isEnabled)
+
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.updateStore(
+                    id.quacxel.mejapesan.data.model.StoreUpdateRequest(isAiEnabled = isEnabled)
+                )
+                if (response.success && response.data != null) {
+                    _storeState.value = response.data
+                } else {
+                    _storeState.value = oldState
+                }
+            } catch (e: Exception) {
+                _storeState.value = oldState
             }
         }
     }
@@ -498,6 +696,13 @@ class ProfileViewModel : ViewModel() {
             _customSoundPath.value = null
             id.quacxel.mejapesan.utils.NotificationUtils.createOrderChannel(context, null)
             _errorMessage.value = "Nada notifikasi dikembalikan ke default"
+        }
+    }
+
+    fun playTestSound(context: Context) {
+        viewModelScope.launch {
+            val path = _customSoundPath.value
+            id.quacxel.mejapesan.utils.NotificationUtils.playOrderSound(context, path)
         }
     }
 }

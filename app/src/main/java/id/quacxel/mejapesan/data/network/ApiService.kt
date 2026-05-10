@@ -193,6 +193,23 @@ interface ApiService {
 
     @POST("api/auth/fcm-token")
     suspend fun updateFcmToken(@Body request: FcmTokenRequest): Response<Any>
+
+    // WhatsApp Bot
+    @POST("api/whatsapp/init")
+    suspend fun initWhatsApp(): Response<id.quacxel.mejapesan.data.model.ApiResponse<String>>
+
+    @GET("api/whatsapp/status")
+    suspend fun getWhatsAppStatus(): Response<id.quacxel.mejapesan.data.model.WhatsAppStatusResponse>
+
+    @POST("api/whatsapp/disconnect")
+    suspend fun disconnectWhatsApp(): Response<id.quacxel.mejapesan.data.model.ApiResponse<String>>
+
+    // Promotion
+    @GET("api/whatsapp/promotion/stats")
+    suspend fun getPromotionStats(): id.quacxel.mejapesan.data.model.PromotionStatsResponse
+
+    @POST("api/whatsapp/promotion/start")
+    suspend fun startPromotion(@Body body: Map<String, String>): id.quacxel.mejapesan.data.model.PromotionResponse
 }
 
 data class FcmTokenRequest(

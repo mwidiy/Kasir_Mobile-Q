@@ -62,4 +62,20 @@ object NotificationUtils {
         val prefs = context.getSharedPreferences("mejapesan_sound", Context.MODE_PRIVATE)
         return prefs.getString("active_channel_id", "pesanan_baru_default_v2") ?: "pesanan_baru_default_v2"
     }
+
+    fun playOrderSound(context: Context, customSoundUri: String?) {
+        val soundUri = if (!customSoundUri.isNullOrEmpty()) {
+            Uri.parse(customSoundUri)
+        } else {
+            Uri.parse("android.resource://${context.packageName}/${R.raw.sound_pesanan}")
+        }
+        
+        try {
+            val mediaPlayer = android.media.MediaPlayer.create(context, soundUri)
+            mediaPlayer?.start()
+            mediaPlayer?.setOnCompletionListener { it.release() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }
