@@ -3,6 +3,7 @@ package id.quacxel.mejapesan.utils
 import id.quacxel.mejapesan.data.model.OrderResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
 
 object LocalEventBus {
     // SharedFlow allows multiple subscribers, replay = 0 means it only emits to active subscribers
@@ -20,13 +21,13 @@ object LocalEventBus {
         _settingsUpdateFlow.tryEmit(isEnabled)
     }
 
-    private val _waQrFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    private val _waQrFlow = MutableSharedFlow<String>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val waQrFlow = _waQrFlow.asSharedFlow()
 
-    private val _waPairingCodeFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    private val _waPairingCodeFlow = MutableSharedFlow<String>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val waPairingCodeFlow = _waPairingCodeFlow.asSharedFlow()
 
-    private val _waStatusFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
+    private val _waStatusFlow = MutableSharedFlow<String>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val waStatusFlow = _waStatusFlow.asSharedFlow()
 
     fun emitWaQr(qr: String) {

@@ -64,8 +64,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         try {
             SocketHandler.setSocket()
             SocketHandler.establishConnection()
-            val socket = SocketHandler.getSocket()
+            val socket = SocketHandler.getSocketOrNull()
             
+            if (socket == null) return
+
             // JOIN STORE ROOM (Required to receive targeted events like WhatsApp QR)
             socket.on(io.socket.client.Socket.EVENT_CONNECT) {
                 id.quacxel.mejapesan.utils.SessionManager.currentUser?.store?.id?.let { storeId ->

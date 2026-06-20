@@ -12,6 +12,9 @@ object SocketHandler {
     fun setSocket() {
         if (::mSocket.isInitialized) return // Prevent re-initialization
         try {
+            val url = BuildConfig.API_BASE_URL.trim()
+            android.util.Log.d("SocketHandler", "Initializing Socket for URL: $url")
+            
             // Using the base URL from local.properties
             val options = IO.Options()
             options.transports = arrayOf("websocket", "polling") // Fallback if WebSocket fails
@@ -26,9 +29,16 @@ object SocketHandler {
         }
     }
 
+    fun isInitialized(): Boolean = ::mSocket.isInitialized
+
     @Synchronized
     fun getSocket(): Socket {
         return mSocket
+    }
+
+    @Synchronized
+    fun getSocketOrNull(): Socket? {
+        return if (::mSocket.isInitialized) mSocket else null
     }
 
     @Synchronized

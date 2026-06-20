@@ -219,7 +219,49 @@ class MainActivity : ComponentActivity() {
                 SocketHandler.establishConnection()
             }
 
-            // --- WhatsApp Bot Global Listeners ---
+            // TAHAP 40: GLOBAL AUTO-JOIN (Ensures pairing codes always arrive even after reconnect)
+            socket.on(io.socket.client.Socket.EVENT_CONNECT) {
+                val storeId = id.quacxel.mejapesan.utils.SessionManager.currentUser?.store?.id
+                Log.d("MainActivity", "Socket connected successfully! ID: ${socket.id()}")
+                if (storeId != null) {
+                    Log.d("MainActivity", "Global Socket Connected: Auto-joining store room -> store_$storeId")
+                    socket.emit("join_store", storeId)
+                }
+            }
+
+            socket.on(io.socket.client.Socket.EVENT_CONNECT_ERROR) { args ->
+                val err = if (args.isNotEmpty()) args[0].toString() else "Unknown Error"
+                Log.e("MainActivity", "SOCKET CONNECTION ERROR: $err")
+            }
+
+            socket.on(io.socket.client.Socket.EVENT_DISCONNECT) { args ->
+                val reason = if (args.isNotEmpty()) args[0].toString() else "Unknown Reason"
+                Log.w("MainActivity", "SOCKET DISCONNECTED: $reason")
+            }
+
+            socket.on("connect_timeout") {
+                Log.e("MainActivity", "SOCKET CONNECT TIMEOUT")
+            }
+
+            // Initial join if already connected
+            if (socket.connected()) {
+                val storeId = id.quacxel.mejapesan.utils.SessionManager.currentUser?.store?.id
+                if (storeId != null) {
+                    Log.d("MainActivity", "Global Socket already connected: Joining store room -> store_$storeId")
+                    socket.emit("join_store", storeId)
+                }
+            }
+            socket.on("joined_room") { args ->
+                val data = args[0] as JSONObject
+                Log.d("MainActivity", "Socket joined room successfully: ${data.getString("room")}")
+            }
+
+            socket.on("pong_client") { args ->
+                val data = args[0] as JSONObject
+                Log.d("MainActivity", "PONG received: ${data.getString("message")}")
+                // Optional: Broadcast via EventBus if needed
+            }
+
             socket.on("wa_qr_code") { args ->
                 try {
                     val data = args[0] as JSONObject

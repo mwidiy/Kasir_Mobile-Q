@@ -128,6 +128,8 @@ fun ProfileScreen(
     val promotionStats by viewModel.promotionStats.collectAsState()
     val isPromoting by viewModel.isPromoting.collectAsState()
     val promotionMessage by viewModel.promotionMessage.collectAsState()
+    val isSocketConnected by viewModel.isSocketConnected.collectAsState()
+    val socketDebugMessage by viewModel.socketDebugMessage.collectAsState()
     var showWaBotDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
@@ -167,6 +169,13 @@ fun ProfileScreen(
         } else if (errorMessage != null) {
             infoMessage = errorMessage
             viewModel.clearErrorMessage()
+        }
+    }
+
+    LaunchedEffect(socketDebugMessage) {
+        if (socketDebugMessage != null) {
+            android.widget.Toast.makeText(context, socketDebugMessage, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearSocketDebug()
         }
     }
 
@@ -353,7 +362,7 @@ fun ProfileScreen(
                     onDisconnect = { viewModel.disconnectWhatsApp() },
                     onClick = { 
                         showWaBotDialog = true
-                        viewModel.initWhatsApp()
+                        // viewModel.initWhatsApp() // REMOVED: User must choose type first
                     }
                 )
 
@@ -376,12 +385,19 @@ fun ProfileScreen(
             qrCode = waQrCode,
             pairingCode = waPairingCode,
             pairingSuccess = pairingSuccess,
+            isSocketConnected = isSocketConnected, // NEW
             storeState = storeState,
             promotionStats = promotionStats,
             isPromoting = isPromoting,
             promotionMessage = promotionMessage,
-            onDismiss = { showWaBotDialog = false },
+            onDismiss = { 
+                showWaBotDialog = false 
+                viewModel.fetchWhatsAppStatus()
+                viewModel.clearPairingSuccess() // Clean up state
+            },
             onDisconnect = { viewModel.disconnectWhatsApp() },
+            onConnect = { waType -> viewModel.initWhatsApp(waType) }, // NEW
+            onPing = { viewModel.pingServer() },
             onToggleAutoReply = { viewModel.toggleAutoReply(it) },
             onToggleAi = { viewModel.toggleAi(it) },
             onStartPromotion = { viewModel.startPromotion(it) },
@@ -406,6 +422,9 @@ fun WhatsAppBotSection(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val isConnected = status == "connected"
+    val context = LocalContext.current
+    val whatsappNumber = storeState?.whatsappNumber ?: ""
+    val isNumberEmpty = whatsappNumber.isEmpty()
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -418,6 +437,7 @@ fun WhatsAppBotSection(
                 width = 2.dp,
                 brush = androidx.compose.ui.graphics.Brush.linearGradient(
                     colors = if (isConnected) listOf(Color(0xFF25D366).copy(alpha = 0.5f), Color(0xFF10B981).copy(alpha = 0.5f))
+                             else if (isNumberEmpty) listOf(Color(0xFFFEE2E2), Color(0xFFFEE2E2))
                              else listOf(Color(0xFFF3F4F6), Color(0xFFF3F4F6))
                 ),
                 shape = RoundedCornerShape(20.dp)
@@ -428,8 +448,15 @@ fun WhatsAppBotSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { 
-                        if (isConnected) isExpanded = !isExpanded 
-                        else onClick() 
+                        if (isConnected) {
+                            isExpanded = !isExpanded 
+                        } else {
+                            if (isNumberEmpty) {
+                                android.widget.Toast.makeText(context, "Isi nomor WA di profil dulu bro!", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                onClick()
+                            }
+                        }
                     }
                     .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -602,18 +629,24 @@ fun WhatsAppBotDialog(
     qrCode: String?,
     pairingCode: String?,
     pairingSuccess: Boolean,
+    isSocketConnected: Boolean, // NEW
     storeState: id.quacxel.mejapesan.data.model.Store?,
     promotionStats: id.quacxel.mejapesan.data.model.PromotionStats?,
     isPromoting: Boolean,
     promotionMessage: String?,
     onDismiss: () -> Unit,
     onDisconnect: () -> Unit,
+    onConnect: (String) -> Unit,
+    onPing: () -> Unit, // NEW
     onToggleAutoReply: (Boolean) -> Unit,
     onToggleAi: (Boolean) -> Unit,
     onStartPromotion: (String) -> Unit,
     onClearPromoMessage: () -> Unit
 ) {
     val context = LocalContext.current
+    val isConnected = status == "connected"
+    var selectedWaType by remember { mutableStateOf("standard") }
+    var isInitRequested by remember { mutableStateOf(false) }
     
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -632,12 +665,42 @@ fun WhatsAppBotDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        if (pairingSuccess) "Selesai!" else "Koneksi WhatsApp Bot",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            if (pairingSuccess) "Selesai!" else "Koneksi WhatsApp Bot",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                        )
+                        
+                        // Socket Status Indicator
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isSocketConnected) Color(0xFF10B981) else Color(0xFFEF4444))
+                        )
+                    }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                    }
+                }
+
+                if (!pairingSuccess && !isConnected) {
+                    Surface(
+                        color = Color(0xFFEFF6FF),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp))
+                            Text(
+                                "Bot ini bakal nyambung ke nomor WA Profil lu: *${storeState?.whatsappNumber}*",
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF1E40AF))
+                            )
+                        }
                     }
                 }
 
@@ -742,14 +805,108 @@ fun WhatsAppBotDialog(
                         Box(modifier = Modifier.size(240.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF3F4F6), RoundedCornerShape(16.dp))) {
                             id.quacxel.mejapesan.utils.QRCodeImage(content = qrCode, modifier = Modifier.fillMaxSize().padding(24.dp))
                         }
+                    } else if (!isInitRequested) {
+                        // Choice Screen
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                "Pilih Tipe WhatsApp Lu Bro",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Navy)
+                            )
+                            
+                            // Selection Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Standard Card
+                                Card(
+                                    modifier = Modifier.weight(1f).clickable { selectedWaType = "standard" },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selectedWaType == "standard") Navy.copy(alpha=0.05f) else Color.White
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = if (selectedWaType == "standard") 2.dp else 1.dp,
+                                        color = if (selectedWaType == "standard") Navy else Color(0xFFE5E7EB)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = id.quacxel.mejapesan.R.drawable.ic_whatsapp),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Text("WA Biasa", fontWeight = FontWeight.Bold, color = Navy, fontSize = 12.sp)
+                                    }
+                                }
+
+                                // Business Card
+                                Card(
+                                    modifier = Modifier.weight(1f).clickable { selectedWaType = "business" },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selectedWaType == "business") Color(0xFF25D366).copy(alpha=0.05f) else Color.White
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = if (selectedWaType == "business") 2.dp else 1.dp,
+                                        color = if (selectedWaType == "business") Color(0xFF25D366) else Color(0xFFE5E7EB)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = id.quacxel.mejapesan.R.drawable.ic_whatsapp),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Text("WA Bisnis", fontWeight = FontWeight.Bold, color = Navy, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = { 
+                                    isInitRequested = true
+                                    onConnect(selectedWaType) 
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Navy, contentColor = Color.White)
+                            ) {
+                                Text("Minta Kode Pairing", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
                     } else {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.padding(vertical = 40.dp)
                         ) {
-                            CircularProgressIndicator(color = Navy, modifier = Modifier.size(48.dp), strokeWidth = 4.dp)
-                            Text("Menyiapkan Kode...", style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray, fontWeight = FontWeight.Bold))
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Navy)
+                            Text("Menyiapkan Kode...", style = MaterialTheme.typography.bodyMedium.copy(color = Navy))
+                        }
+                        
+                        // TAHAP 40: Fallback / Debug Action
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = onPing,
+                            modifier = Modifier.fillMaxWidth(),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Navy.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.SupportAgent, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Cek Koneksi Socket", color = Navy)
                         }
                     }
                 }
@@ -2279,9 +2436,10 @@ fun WhatsAppNumberEditor(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { 
-                        // Only allow numbers and limit to 15 digits
-                        if (it.all { char -> char.isDigit() } && it.length <= 15) text = it 
+                    onValueChange = { input -> 
+                        // Sanitize: hanya ambil angka saja (biar bisa paste nomor berformat +, -, atau spasi)
+                        val filtered = input.filter { it.isDigit() }
+                        if (filtered.length <= 15) text = filtered 
                     },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
@@ -2584,7 +2742,7 @@ fun FooterActions(onNavigate: (String) -> Unit) {
             Text("Keluar Akun", color = Danger, fontWeight = FontWeight.Bold)
         }
         
-        Text("Versi Aplikasi 1.0.0", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+        Text("Versi Aplikasi 1.0.3", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
     }
 }
 

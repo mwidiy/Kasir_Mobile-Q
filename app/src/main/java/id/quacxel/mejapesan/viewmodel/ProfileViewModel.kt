@@ -57,6 +57,12 @@ class ProfileViewModel : ViewModel() {
     private val _pairingSuccess = MutableStateFlow(false)
     val pairingSuccess: StateFlow<Boolean> = _pairingSuccess
 
+    private val _isSocketConnected = MutableStateFlow(false)
+    val isSocketConnected: StateFlow<Boolean> = _isSocketConnected
+
+    private val _socketDebugMessage = MutableStateFlow<String?>(null)
+    val socketDebugMessage: StateFlow<String?> = _socketDebugMessage
+
     // Promotion State
     private val _promotionStats = MutableStateFlow<id.quacxel.mejapesan.data.model.PromotionStats?>(null)
     val promotionStats: StateFlow<id.quacxel.mejapesan.data.model.PromotionStats?> = _promotionStats
@@ -93,10 +99,41 @@ class ProfileViewModel : ViewModel() {
         _pairingSuccess.value = false
     }
 
-    fun initWhatsApp() {
+    fun pingServer() {
+        viewModelScope.launch {
+            val socket = id.quacxel.mejapesan.utils.SocketHandler.getSocketOrNull()
+            if (socket != null && socket.connected()) {
+                _socketDebugMessage.value = "Pinging..."
+                socket.emit("ping_server", mapOf("client" to "Android", "time" to System.currentTimeMillis()))
+                
+                // Temporary listener for pong (simplified)
+                socket.once("pong_client") { args ->
+                    val data = args[0] as org.json.JSONObject
+                    _socketDebugMessage.value = data.getString("message")
+                }
+            } else {
+                _socketDebugMessage.value = "Socket tidak terkoneksi!"
+            }
+        }
+    }
+
+    fun clearSocketDebug() {
+        _socketDebugMessage.value = null
+    }
+
+    fun initWhatsApp(waType: String = "standard") {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.instance.initWhatsApp()
+                // TAHAP 40: FORCE RE-JOIN ROOM before requesting code
+                // This ensures we are in the correct room even if socket reconnected recently
+                val socket = id.quacxel.mejapesan.utils.SocketHandler.getSocketOrNull()
+                val storeId = _storeState.value?.id
+                if (socket != null && socket.connected() && storeId != null) {
+                    Log.d("ProfileViewModel", "Forcing room join for store_$storeId before initWhatsApp")
+                    socket.emit("join_store", storeId)
+                }
+
+                val response = RetrofitClient.instance.initWhatsApp(mapOf("waType" to waType))
                 if (!response.isSuccessful) {
                     _errorMessage.value = "Gagal memulai koneksi WhatsApp."
                 }
@@ -191,12 +228,24 @@ class ProfileViewModel : ViewModel() {
         }
         viewModelScope.launch {
             LocalEventBus.waPairingCodeFlow.collect { code ->
+                Log.d("ProfileViewModel", "Received Pairing Code from Bus: $code")
                 _waPairingCode.value = code
             }
         }
         viewModelScope.launch {
             LocalEventBus.waStatusFlow.collect { status ->
                 setWaStatus(status)
+            }
+        }
+
+        // TAHAP 40: Monitor Socket Connection Status
+        viewModelScope.launch {
+            while (true) {
+                try {
+                    val socket = id.quacxel.mejapesan.utils.SocketHandler.getSocketOrNull()
+                    _isSocketConnected.value = socket?.connected() ?: false
+                } catch (e: Exception) {}
+                kotlinx.coroutines.delay(2000) // Polling local status
             }
         }
     }

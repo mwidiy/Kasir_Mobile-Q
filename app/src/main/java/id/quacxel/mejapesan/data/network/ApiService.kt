@@ -196,7 +196,7 @@ interface ApiService {
 
     // WhatsApp Bot
     @POST("api/whatsapp/init")
-    suspend fun initWhatsApp(): Response<id.quacxel.mejapesan.data.model.ApiResponse<String>>
+    suspend fun initWhatsApp(@Body body: Map<String, String>): Response<id.quacxel.mejapesan.data.model.ApiResponse<String>>
 
     @GET("api/whatsapp/status")
     suspend fun getWhatsAppStatus(): Response<id.quacxel.mejapesan.data.model.WhatsAppStatusResponse>
