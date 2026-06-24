@@ -171,6 +171,13 @@ class MenuViewModel : ViewModel() {
 
     fun deleteCategory(id: Int) {
         viewModelScope.launch {
+            // Local Validation: Do not allow deletion if any product uses this category
+            val hasProducts = _products.value.any { it.categoryId == id }
+            if (hasProducts) {
+                _errorMessage.value = "Mohon maaf kategori ini belum bisa di hapus karena masih memiliki menu"
+                return@launch
+            }
+
             // OPTIMISTIC UI: Instant remove from state
             val originalCategories = _categories.value.toList()
             _categories.value = _categories.value.filter { it.id != id }

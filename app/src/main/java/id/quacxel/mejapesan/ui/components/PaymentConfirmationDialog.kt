@@ -203,7 +203,16 @@ private fun PaymentConfirmationContent(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 6. Breakdown
-
+                if (order.shippingFee != null && order.shippingFee > 0) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Subtotal", style = MaterialTheme.typography.bodyMedium.copy(color = ColorTextSecondary))
+                        Text(formatRp.format(subtotal), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = ColorTextPrimary))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Ongkos Kirim", style = MaterialTheme.typography.bodyMedium.copy(color = ColorTextSecondary))
+                        Text(formatRp.format(order.shippingFee), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = ColorTextPrimary))
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Divider(color = ColorDivider, thickness = 1.dp, modifier = Modifier.padding(bottom = 16.dp)) 

@@ -21,6 +21,7 @@ data class Store(
     val isDineInActive: Boolean? = true,
     val isTakeawayActive: Boolean? = true,
     val isDeliveryActive: Boolean? = true,
+    val isWaOrderNotificationActive: Boolean? = false,
     val isAiEnabled: Boolean? = false,
     val isAutoReplyEnabled: Boolean? = false
 )
@@ -46,6 +47,7 @@ data class StoreUpdateRequest(
     val isDineInActive: Boolean? = null,
     val isTakeawayActive: Boolean? = null,
     val isDeliveryActive: Boolean? = null,
+    val isWaOrderNotificationActive: Boolean? = null,
     val isAiEnabled: Boolean? = null,
     val isAutoReplyEnabled: Boolean? = null
 )

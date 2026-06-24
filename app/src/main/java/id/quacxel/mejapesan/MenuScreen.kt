@@ -671,7 +671,12 @@ fun MenuScreen(onNavigate: (String) -> Unit) {
                 onDelete = {
                     val cat = showCategoryActionSheet
                     showCategoryActionSheet = null
-                    showDeleteCategoryConfirm = cat
+                    val hasProducts = products.any { it.categoryId == cat?.id }
+                    if (hasProducts) {
+                        android.widget.Toast.makeText(context, "Mohon maaf kategori ini belum bisa di hapus karena masih memiliki menu", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        showDeleteCategoryConfirm = cat
+                    }
                 },
                 onDismiss = { showCategoryActionSheet = null }
             )

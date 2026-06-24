@@ -120,6 +120,8 @@ fun TableScreen(
     // Location Filter List
     val locationList = listOf(Location(-1, "Semua")) + locations.sortedBy { it.name }
     
+    val currentContext = androidx.compose.ui.platform.LocalContext.current
+    
     // Logic Effects: Force Light Status Bar Icons (White) like Dashboard
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
@@ -316,6 +318,8 @@ fun TableScreen(
         }
 
         // FAB - Refactored for Multi-Action (Matches MenuScreen)
+        val hasLocations = locationList.filter { it.name != "Semua" }.isNotEmpty()
+
         Box(modifier = Modifier.fillMaxSize()) {
             // Overlay
             AnimatedVisibility(
@@ -351,7 +355,7 @@ fun TableScreen(
                     }
                 }
                 AnimatedVisibility(
-                    visible = isFabExpanded,
+                    visible = isFabExpanded && hasLocations,
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut()
                 ) {
@@ -373,7 +377,13 @@ fun TableScreen(
                     .shadow(elevation = 6.dp, shape = CircleShape)
                     .clip(CircleShape)
                     .background(QrPrimaryYellow)
-                    .clickable { isFabExpanded = !isFabExpanded },
+                    .clickable { 
+                        if (hasLocations) {
+                            isFabExpanded = !isFabExpanded
+                        } else {
+                            showAddLocationDialog = true
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -471,9 +481,15 @@ fun TableScreen(
                     showEditLocationDialog = loc
                 },
                 onDelete = {
-                     val loc = showLocationOptions
+                    val loc = showLocationOptions
                     showLocationOptions = null
-                    showDeleteLocationConfirm = loc
+                    
+                    val hasTables = tables.any { it.location?.id == loc?.id }
+                    if (hasTables) {
+                        android.widget.Toast.makeText(currentContext, "Mohon maaf lokasi ini belum bisa di hapus karena masih ada meja yang memakai lokasi ini", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        showDeleteLocationConfirm = loc
+                    }
                 },
                 onDismiss = { showLocationOptions = null }
             )

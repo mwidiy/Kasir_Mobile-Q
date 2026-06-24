@@ -210,6 +210,19 @@ interface ApiService {
 
     @POST("api/whatsapp/promotion/start")
     suspend fun startPromotion(@Body body: Map<String, String>): id.quacxel.mejapesan.data.model.PromotionResponse
+
+    // Shipping Zones
+    @GET("api/shipping-zones")
+    suspend fun getShippingZones(): id.quacxel.mejapesan.data.model.ShippingZoneResponse
+
+    @POST("api/shipping-zones")
+    suspend fun addShippingZone(@Body request: id.quacxel.mejapesan.data.model.ShippingZoneRequest): id.quacxel.mejapesan.data.model.SingleShippingZoneResponse
+
+    @PUT("api/shipping-zones/{id}")
+    suspend fun updateShippingZone(@Path("id") id: Int, @Body request: id.quacxel.mejapesan.data.model.ShippingZoneRequest): id.quacxel.mejapesan.data.model.SingleShippingZoneResponse
+
+    @DELETE("api/shipping-zones/{id}")
+    suspend fun deleteShippingZone(@Path("id") id: Int): id.quacxel.mejapesan.data.model.ApiResponse<Any?>
 }
 
 data class FcmTokenRequest(

@@ -749,6 +749,22 @@ fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
                 HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // 7.5. Breakdown
+                if (data.shippingFee != null && data.shippingFee > 0) {
+                    val subtotal = data.items.sumOf { (it.priceSnapshot ?: 0) * it.quantity }
+                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Subtotal", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280)))
+                        Text(fmt.format(subtotal), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, color = Color(0xFF1F2937)))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Ongkos Kirim", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280)))
+                        Text(fmt.format(data.shippingFee), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, color = Color(0xFF1F2937)))
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = Color(0xFFE5E7EB), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // 8. Payment Method
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Metode Pembayaran", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF6B7280)))

@@ -22,6 +22,7 @@ data class OrderResponse(
     val createdAt: String,
     val note: String?, // Dulu globalNote
     val deliveryAddress: String?, // New field for address
+    val shippingFee: Int?,
     val cancellationStatus: String? = null,
     val cancellationReason: String? = null,
     val refundStatus: String? = null,

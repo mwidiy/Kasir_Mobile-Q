@@ -52,33 +52,36 @@ class TableViewModel : ViewModel() {
             if (!isSilent) _isLoading.value = true
             try {
                 // Optimasi Performa: Jalankan 3 panggilan API secara Paralel
-                val storeDeferred = async { RetrofitClient.instance.getStore() }
-                val tablesDeferred = async { RetrofitClient.instance.getTables() }
-                val locsDeferred = async { RetrofitClient.instance.getLocations() }
+                val storeDeferred = async { 
+                    try { RetrofitClient.instance.getStore() } catch (e: Exception) { null }
+                }
+                val tablesDeferred = async { 
+                    try { RetrofitClient.instance.getTables() } catch (e: Exception) { null }
+                }
+                val locsDeferred = async { 
+                    try { RetrofitClient.instance.getLocations() } catch (e: Exception) { null }
+                }
 
-                // SAFE AWAIT: Each call wrapped individually to prevent one failure from crashing all
-                try {
-                    val storeResponse = storeDeferred.await()
-                    if (storeResponse.success && storeResponse.data != null) {
-                        _isStoreOpen.value = storeResponse.data.isOpen
-                    }
-                } catch (e: Exception) {
+                // SAFE AWAIT: Handle nulls returned from catch blocks
+                val storeResponse = storeDeferred.await()
+                if (storeResponse != null && storeResponse.success && storeResponse.data != null) {
+                    _isStoreOpen.value = storeResponse.data.isOpen
+                } else if (storeResponse == null) {
                     if (!isSilent) _errorMessage.value = "Gagal memuat data toko"
                 }
 
-                try {
-                    val tables = tablesDeferred.await()
+                val tables = tablesDeferred.await()
+                if (tables != null) {
                     _tables.value = tables
-                } catch (e: Exception) {
-                    // JSON parse error (server returned error object instead of array) or network error
+                } else {
                     if (!isSilent) _errorMessage.value = "Gagal memuat data meja"
                     _tables.value = emptyList()
                 }
 
-                try {
-                    val locations = locsDeferred.await()
+                val locations = locsDeferred.await()
+                if (locations != null) {
                     _locations.value = locations
-                } catch (e: Exception) {
+                } else {
                     if (!isSilent) _errorMessage.value = "Gagal memuat lokasi"
                     _locations.value = emptyList()
                 }
@@ -165,6 +168,14 @@ class TableViewModel : ViewModel() {
 
     fun deleteLocation(id: Int, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // Local Validation: Do not allow deletion if any table uses this location
+            val hasTables = _tables.value.any { it.location?.id == id }
+            if (hasTables) {
+                _errorMessage.value = "Mohon maaf lokasi ini belum bisa di hapus karena masih ada meja yang memakai lokasi ini"
+                onComplete(false)
+                return@launch
+            }
+
             try {
                 val response = RetrofitClient.instance.deleteLocation(id)
                 if (response.isSuccessful) {

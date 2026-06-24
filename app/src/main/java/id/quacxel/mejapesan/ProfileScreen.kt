@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
@@ -60,6 +61,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import id.quacxel.mejapesan.ui.profile.PrivacyPolicyScreen
+import id.quacxel.mejapesan.ui.profile.ShippingZonesDialog
 import id.quacxel.mejapesan.viewmodel.ProfileViewModel
 import id.quacxel.mejapesan.utils.FileUtils
 import androidx.compose.ui.platform.LocalContext
@@ -119,6 +122,10 @@ fun ProfileScreen(
     val history by viewModel.withdrawalHistory.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    
+    // Shipping Zones State
+    val shippingZones by viewModel.shippingZones.collectAsState()
+    var showShippingDialog by remember { mutableStateOf(false) }
     
     // WA Bot State
     val waStatus by viewModel.waStatus.collectAsState()
@@ -267,6 +274,17 @@ fun ProfileScreen(
             onDismiss = { showHistoryDialog = false }
         )
     }
+    
+    // Dialog Shipping Zones
+    if (showShippingDialog) {
+        ShippingZonesDialog(
+            shippingZones = shippingZones,
+            onDismiss = { showShippingDialog = false },
+            onAdd = { name, fee -> viewModel.addShippingZone(name, fee) },
+            onUpdate = { id, name, fee, isActive -> viewModel.updateShippingZone(id, name, fee, isActive, isSilentUpdate = true) },
+            onDelete = { id -> viewModel.deleteShippingZone(id) }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -327,7 +345,8 @@ fun ProfileScreen(
                     email = id.quacxel.mejapesan.utils.SessionManager.currentUser?.email,
                     onNameChange = { /* handled in button or on value change */ }, 
                     onLogoClick = { logoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    onOpenShipping = { showShippingDialog = true }
                 )
 
                 // Section 2: Balance Card
@@ -2044,7 +2063,8 @@ fun RestaurantIdentitySection(
     email: String? = null,
     onNameChange: (String) -> Unit,
     onLogoClick: () -> Unit,
-    viewModel: ProfileViewModel
+    viewModel: ProfileViewModel,
+    onOpenShipping: () -> Unit
 ) {
     var showProfileDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -2282,7 +2302,7 @@ fun RestaurantIdentitySection(
         }
 
         // --- NEW: SERVICE METHODS TOGGLES (Dine-in, Takeaway, Delivery) ---
-        var isServicesExpanded by remember { mutableStateOf(false) }
+        var isServicesExpanded by remember { mutableStateOf(true) }
         
         ExpandableSettingCard(
             title = "Layanan Restoran",
@@ -2319,7 +2339,63 @@ fun RestaurantIdentitySection(
                     isActive = isDeliveryActive,
                     onCheckedChange = { viewModel.updateOrderMethodActive("delivery", it) }
                 )
+
+                val isWaOrderNotificationActive = viewModel.storeState.collectAsState().value?.isWaOrderNotificationActive ?: false
+                ServiceMethodToggle(
+                    title = "Dapatkan Notifikasi Pesanan Masuk Lewat WA",
+                    description = "Membuka WhatsApp pelanggan secara otomatis saat pesanan dibuat",
+                    icon = Icons.Default.Call,
+                    isActive = isWaOrderNotificationActive,
+                    onCheckedChange = { viewModel.updateOrderMethodActive("wanotif", it) }
+                )
+
             }
+        }
+
+        // --- SHIPPING ZONES CARD ---
+        val isDeliveryActive = viewModel.storeState.collectAsState().value?.isDeliveryActive ?: true
+        AnimatedVisibility(visible = isDeliveryActive) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenShipping() }
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Navy.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, tint = Navy, modifier = Modifier.size(20.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Zona & Ongkos Kirim",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Navy)
+                    )
+                    Text(
+                        text = "Atur biaya pengiriman ke berbagai area",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Buka",
+                    tint = Color.Gray
+                )
+            }
+        }
         }
 
         // --- NOTIFIKASI & SUARA ---

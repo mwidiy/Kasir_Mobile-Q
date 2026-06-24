@@ -11,6 +11,8 @@ data class Order(
     val status: String,
     val paymentStatus: String,
     val globalNote: String?,
+    val deliveryAddress: String?,
+    val shippingFee: Int?,
     val createdAt: String?,
     val table: OrderTable?,        // Nested Object Level 1
     val items: List<OrderItem>?

@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import id.quacxel.mejapesan.data.model.Store
 import id.quacxel.mejapesan.data.model.WithdrawalRequest
 import id.quacxel.mejapesan.data.model.Withdrawal
+import id.quacxel.mejapesan.data.model.ShippingZone
+import id.quacxel.mejapesan.data.model.ShippingZoneRequest
 import id.quacxel.mejapesan.data.network.RetrofitClient
 import id.quacxel.mejapesan.utils.FileUtils
 import id.quacxel.mejapesan.utils.LocalEventBus
@@ -24,6 +26,9 @@ import okhttp3.RequestBody
 class ProfileViewModel : ViewModel() {
     private val _storeState = MutableStateFlow<Store?>(null)
     val storeState: StateFlow<Store?> = _storeState
+
+    private val _shippingZones = MutableStateFlow<List<ShippingZone>>(emptyList())
+    val shippingZones: StateFlow<List<ShippingZone>> = _shippingZones
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -219,6 +224,7 @@ class ProfileViewModel : ViewModel() {
         fetchHistory()
         fetchWhatsAppStatus()
         fetchPromotionStats()
+        fetchShippingZones()
 
         // Observe WA Events from LocalEventBus
         viewModelScope.launch {
@@ -323,12 +329,20 @@ class ProfileViewModel : ViewModel() {
 
     fun updateWhatsApp(number: String) {
         val oldState = _storeState.value
-        _storeState.value = oldState?.copy(whatsappNumber = number)
+        val shouldDisableWaNotif = number.isBlank() && oldState?.isWaOrderNotificationActive == true
+        
+        _storeState.value = oldState?.copy(
+            whatsappNumber = number,
+            isWaOrderNotificationActive = if (shouldDisableWaNotif) false else oldState.isWaOrderNotificationActive
+        )
 
         viewModelScope.launch {
             try {
-                // Ensure number format (strip + or 62 if needed, but backend/PWA handles it usually. Let's just save as is)
-                val response = RetrofitClient.instance.updateStore(id.quacxel.mejapesan.data.model.StoreUpdateRequest(whatsappNumber = number))
+                val request = id.quacxel.mejapesan.data.model.StoreUpdateRequest(
+                    whatsappNumber = number,
+                    isWaOrderNotificationActive = if (shouldDisableWaNotif) false else null
+                )
+                val response = RetrofitClient.instance.updateStore(request)
                 if (response.success && response.data != null) {
                     _storeState.value = response.data
                 } else {
@@ -482,6 +496,7 @@ class ProfileViewModel : ViewModel() {
             "dinein" -> oldState?.copy(isDineInActive = isActive)
             "takeaway" -> oldState?.copy(isTakeawayActive = isActive)
             "delivery" -> oldState?.copy(isDeliveryActive = isActive)
+            "wanotif" -> oldState?.copy(isWaOrderNotificationActive = isActive)
             else -> oldState
         }
         _storeState.value = newState
@@ -492,6 +507,7 @@ class ProfileViewModel : ViewModel() {
                     "dinein" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isDineInActive = isActive)
                     "takeaway" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isTakeawayActive = isActive)
                     "delivery" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isDeliveryActive = isActive)
+                    "wanotif" -> id.quacxel.mejapesan.data.model.StoreUpdateRequest(isWaOrderNotificationActive = isActive)
                     else -> null
                 }
                 if (request != null) {
@@ -503,6 +519,13 @@ class ProfileViewModel : ViewModel() {
                         _errorMessage.value = "Maaf, pengaturan layanan belum bisa diubah."
                     }
                 }
+            } catch (e: retrofit2.HttpException) {
+                _storeState.value = oldState
+                val errorMsg = try {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    org.json.JSONObject(errorBody!!).getString("error")
+                } catch(ex: Exception) { "Gagal update layanan: ${e.message()}" }
+                _errorMessage.value = errorMsg
             } catch (e: Exception) {
                 _storeState.value = oldState
                 _errorMessage.value = "Gagal update layanan: ${e.localizedMessage}"
@@ -752,6 +775,104 @@ class ProfileViewModel : ViewModel() {
         viewModelScope.launch {
             val path = _customSoundPath.value
             id.quacxel.mejapesan.utils.NotificationUtils.playOrderSound(context, path)
+        }
+    }
+
+    // --- Shipping Zones ---
+    fun fetchShippingZones() {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getShippingZones()
+                if (response.success) {
+                    _shippingZones.value = response.data
+                }
+            } catch (e: Exception) {
+                // Silent fail
+            }
+        }
+    }
+
+    fun addShippingZone(name: String, fee: Int) {
+        val regex = Regex("^[a-zA-Z0-9 .\\-]*$")
+        if (!regex.matches(name)) {
+            _errorMessage.value = "Nama zona mengandung karakter tidak valid"
+            return
+        }
+        if (_shippingZones.value.size >= 3) {
+            _errorMessage.value = "Batas maksimal 3 zona telah tercapai"
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = RetrofitClient.instance.addShippingZone(ShippingZoneRequest(name.trim(), fee, true))
+                if (response.success && response.data != null) {
+                    fetchShippingZones()
+                    _errorMessage.value = "Zona pengiriman berhasil ditambahkan"
+                } else {
+                    _errorMessage.value = response.error ?: "Gagal menambah zona"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Terjadi kesalahan koneksi"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateShippingZone(id: Int, name: String, fee: Int, isActive: Boolean, isSilentUpdate: Boolean = false) {
+        val regex = Regex("^[a-zA-Z0-9 .\\-]*$")
+        if (!regex.matches(name)) {
+            if (!isSilentUpdate) _errorMessage.value = "Nama zona mengandung karakter tidak valid"
+            return
+        }
+
+        // Optimistic UI Update (Update local state instantly)
+        val oldZones = _shippingZones.value
+        _shippingZones.value = oldZones.map { if (it.id == id) it.copy(name = name.trim(), fee = fee, isActive = isActive) else it }
+
+        viewModelScope.launch {
+            // Only show loading if it's not a silent toggle
+            if (!isSilentUpdate) _isLoading.value = true
+            try {
+                val response = RetrofitClient.instance.updateShippingZone(id, ShippingZoneRequest(name.trim(), fee, isActive))
+                if (response.success && response.data != null) {
+                    if (!isSilentUpdate) {
+                        fetchShippingZones()
+                        _errorMessage.value = "Zona pengiriman berhasil diupdate"
+                    }
+                } else {
+                    // Revert state on failure
+                    _shippingZones.value = oldZones
+                    if (!isSilentUpdate) _errorMessage.value = response.error ?: "Gagal update zona"
+                }
+            } catch (e: Exception) {
+                // Revert state on connection error
+                _shippingZones.value = oldZones
+                if (!isSilentUpdate) _errorMessage.value = "Terjadi kesalahan koneksi"
+            } finally {
+                if (!isSilentUpdate) _isLoading.value = false
+            }
+        }
+    }
+
+    fun deleteShippingZone(id: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val response = RetrofitClient.instance.deleteShippingZone(id)
+                if (response.success) {
+                    fetchShippingZones()
+                    _errorMessage.value = "Zona pengiriman berhasil dihapus"
+                } else {
+                    _errorMessage.value = "Gagal menghapus zona"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Terjadi kesalahan koneksi"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 }
