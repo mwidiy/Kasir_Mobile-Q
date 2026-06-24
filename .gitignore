@@ -22,3 +22,6 @@ google-services.json
 # Signing Key
 kasir-release-key.jks
 
+logcat_crash.txt
+
+
