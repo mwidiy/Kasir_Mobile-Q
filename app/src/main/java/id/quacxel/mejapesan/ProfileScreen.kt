@@ -2818,7 +2818,7 @@ fun FooterActions(onNavigate: (String) -> Unit) {
             Text("Keluar Akun", color = Danger, fontWeight = FontWeight.Bold)
         }
         
-        Text("Versi Aplikasi 1.0.3", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+        Text("Versi Aplikasi ${BuildConfig.VERSION_NAME}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
     }
 }
 

@@ -100,11 +100,15 @@ fun EditArScreen(
     
     var isArActive by remember { mutableStateOf(product.isArActive) }
     var selectedModelUrl by remember { mutableStateOf(product.ar3dModel) }
+    var isUpdating by remember { mutableStateOf(false) }
+    var clickTimestamps by remember { mutableStateOf(listOf<Long>()) }
 
-    // Fix Bug 1: Sync local state when product updates (e.g. returning from preview)
+    // Fix Bug 1: Sync local state when product updates (e.g. returning from preview), unless mutating/debouncing
     LaunchedEffect(product) {
-        isArActive = product.isArActive
-        selectedModelUrl = product.ar3dModel
+        if (!isUpdating) {
+            isArActive = product.isArActive
+            selectedModelUrl = product.ar3dModel
+        }
     }
     
     var assets by remember { mutableStateOf<List<ArAsset>>(emptyList()) }
@@ -265,8 +269,8 @@ fun EditArScreen(
             val webBase = if (apiBase.contains("/api/")) apiBase.replace("/api/", "") else apiBase
             val cleanWebBase = if (webBase.endsWith("/")) webBase else "$webBase/"
             
-            // Construct Target
-            val targetUrl = "${cleanWebBase}ar_view.html?src=$encodedModelUrl"
+            // Construct Target with preview flag to disable AR camera trigger
+            val targetUrl = "${cleanWebBase}ar_view.html?src=$encodedModelUrl&preview=true"
             
             // LAUNCH CUSTOM WEBVIEW ACTIVITY (Fake Native)
             val intent = android.content.Intent(context, id.quacxel.mejapesan.ui.ar.ArViewActivity::class.java)
@@ -296,14 +300,12 @@ fun EditArScreen(
             Text("AR Experience", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
         }
                 // ... (UI Content same as before)
-                // Helper to Auto-Save
+                // Helper to Auto-Save with Zero-Bounce locking
                 val saveChanges = { newIsArActive: Boolean, newModelUrl: String? ->
-                    val updatedProduct = product.copy(
-                        isArActive = newIsArActive,
-                        ar3dModel = newModelUrl
-                    )
-                    // Pass null for imageUri/context as we are not updating the product image
-                    viewModel.updateProduct(product.id, updatedProduct, null, context)
+                    isUpdating = true
+                    viewModel.toggleArStatus(product, newIsArActive, newModelUrl) {
+                        isUpdating = false
+                    }
                 }
 
                 // 1. Activation Switch
@@ -333,19 +335,21 @@ fun EditArScreen(
                         Switch(
                             checked = isArActive, 
                             onCheckedChange = { checked ->
-                                if (checked) {
-                                    if (selectedModelUrl.isNullOrEmpty()) {
-                                        Toast.makeText(context, "Pilih model 3D terlebih dahulu!", Toast.LENGTH_SHORT).show()
-                                        isArActive = false
-                                        saveChanges(false, selectedModelUrl) // Ensure sync
-                                    } else {
-                                        isArActive = true
-                                        saveChanges(true, selectedModelUrl) // Auto-save ON
-                                    }
-                                } else {
-                                    isArActive = false
-                                    saveChanges(false, selectedModelUrl) // Auto-save OFF
+                                val currentTime = System.currentTimeMillis()
+                                val recentClicks = clickTimestamps.filter { currentTime - it < 2000 }
+                                if (recentClicks.size >= 3) {
+                                    Toast.makeText(context, "Terlalu cepat! Tunggu sebentar ⏳", Toast.LENGTH_SHORT).show()
+                                    clickTimestamps = recentClicks
+                                    return@Switch
                                 }
+                                clickTimestamps = recentClicks + currentTime
+
+                                if (checked && selectedModelUrl.isNullOrEmpty()) {
+                                    Toast.makeText(context, "Pilih model 3D terlebih dahulu!", Toast.LENGTH_SHORT).show()
+                                    return@Switch
+                                }
+                                isArActive = checked
+                                saveChanges(checked, selectedModelUrl)
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,

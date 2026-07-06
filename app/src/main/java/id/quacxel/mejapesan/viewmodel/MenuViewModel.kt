@@ -206,7 +206,6 @@ class MenuViewModel : ViewModel() {
 
     fun addProduct(product: Product, imageUri: android.net.Uri? = null, context: android.content.Context, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            _isLoading.value = true
             _errorMessage.value = null
             var tempFile: java.io.File? = null
             var optimisticImageUrl: String = ""
@@ -219,13 +218,15 @@ class MenuViewModel : ViewModel() {
                     if (fileSizeInBytes > 5 * 1024 * 1024) {
                         val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
                         _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
-                        _isLoading.value = false
                         tempFile.delete()
                         return@launch
                     }
                     optimisticImageUrl = "file://${tempFile.absolutePath}"
                 }
             }
+
+            // ZERO-LATENCY GOJEK STYLE: Immediately trigger onSuccess to close modal in 0ms!
+            onSuccess()
 
             // 2. OPTIMISTIC LOCAL UI UPDATE (Secure file:// uri)
             val dummyId = -(System.currentTimeMillis().toInt())
@@ -261,7 +262,6 @@ class MenuViewModel : ViewModel() {
                 
                 if (response.success) {
                     fetchProducts(isSilent = true) // Sync to get new ID gracefully
-                    onSuccess() // Callback to close screen
                 } else {
                     _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
@@ -271,8 +271,6 @@ class MenuViewModel : ViewModel() {
                 _products.value = originalProducts // Rollback
                 _errorMessage.value = "Gagal menambah produk: ${e.localizedMessage}"
                 tempFile?.delete()
-            } finally {
-                _isLoading.value = false
             }
         }
     }
@@ -281,7 +279,6 @@ class MenuViewModel : ViewModel() {
 
     fun updateProduct(id: Int, product: Product, imageUri: android.net.Uri? = null, context: android.content.Context? = null, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            _isLoading.value = true
             _errorMessage.value = null
             var tempFile: java.io.File? = null
             var optimisticImageUrl: String? = null
@@ -294,13 +291,15 @@ class MenuViewModel : ViewModel() {
                     if (fileSizeInBytes > 5 * 1024 * 1024) {
                         val fileSizeInMB = fileSizeInBytes / (1024 * 1024)
                         _errorMessage.value = "Ukuran gambar memakan $fileSizeInMB MB. Maksimal hanya 5MB ya! 📸"
-                        _isLoading.value = false
                         tempFile.delete()
                         return@launch
                     }
                     optimisticImageUrl = "file://${tempFile.absolutePath}"
                 }
             }
+
+            // ZERO-LATENCY GOJEK STYLE: Immediately trigger onSuccess to close modal in 0ms!
+            onSuccess()
 
             // 2. OPTIMISTIC LOCAL UI UPDATE (Secure file:// uri or old image)
             val originalProducts = _products.value.toList()
@@ -336,7 +335,6 @@ class MenuViewModel : ViewModel() {
                 
                 if (response.success) {
                     fetchProducts(isSilent = true)
-                    onSuccess()
                 } else {
                     _products.value = originalProducts // Rollback
                     _errorMessage.value = response.message
@@ -389,6 +387,52 @@ class MenuViewModel : ViewModel() {
                  // Network Error -> Full Server Sync
                  fetchProducts(isSilent = false)
                  _errorMessage.value = "Gagal mengubah status: ${e.localizedMessage}"
+                 e.printStackTrace()
+             } finally {
+                 pendingTogglesCount.decrementAndGet() // Unblock socket updates
+                 onComplete() // INFINITE LOCK RELAY: Tell UI it is safe to listen to server again
+             }
+        }
+    }
+
+    fun toggleArStatus(product: Product, newIsArActive: Boolean, newModelUrl: String?, onComplete: () -> Unit = {}) {
+        val updatedProduct = product.copy(isArActive = newIsArActive, ar3dModel = newModelUrl)
+        
+        toggleJobs[product.id]?.cancel()
+        toggleJobs[product.id] = viewModelScope.launch {
+             pendingTogglesCount.incrementAndGet() // Block socket updates & intermediate refreshes globally
+             try {
+                // ZERO-BOUNCE OPTIMISTIC UI: Update instantly outside the Mutex queue!
+                _products.value = _products.value.map {
+                    if (it.id == product.id) updatedProduct else it
+                }
+
+                val name = createPartFromString(updatedProduct.name)
+                val categoryId = createPartFromString(updatedProduct.categoryId?.toString() ?: "0")
+                val price = createPartFromString(updatedProduct.price.toString())
+                val description = createPartFromString(updatedProduct.description ?: "")
+                val isActive = createPartFromString(updatedProduct.isActive.toString())
+                val ar3dModel = if (updatedProduct.ar3dModel != null) createPartFromString(updatedProduct.ar3dModel) else null
+                val isArActivePart = createPartFromString(updatedProduct.isArActive.toString())
+                
+                // WAIT IN LINE: Execute API requests one-by-one via Mutex
+                toggleMutex.withLock {
+                    val response = RetrofitClient.instance.updateProduct(
+                         updatedProduct.id, name, categoryId, price, description, null, isActive, ar3dModel, isArActivePart
+                    )
+                    
+                    if (response.success) {
+                        fetchProducts(isSilent = true) // Final sync
+                    } else {
+                        // Backend Error -> Full Server Sync (Better Rollback)
+                        fetchProducts(isSilent = false)  
+                        _errorMessage.value = response.message
+                    }
+                }
+             } catch (e: Exception) {
+                 // Network Error -> Full Server Sync
+                 fetchProducts(isSilent = false)
+                 _errorMessage.value = "Gagal mengubah status AR: ${e.localizedMessage}"
                  e.printStackTrace()
              } finally {
                  pendingTogglesCount.decrementAndGet() // Unblock socket updates

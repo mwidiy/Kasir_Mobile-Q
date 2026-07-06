@@ -1602,10 +1602,10 @@ fun EditLocationDialog(
     Dialog(onDismissRequest = { if (!isSubmitting) onCancel() }) {
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("Edit Lokasi", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Edit Lokasi", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(20.dp))
                 
-                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Nama Lokasi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, 
@@ -1617,7 +1617,14 @@ fun EditLocationDialog(
                     placeholder = { Text("Contoh: Rooftop") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    )
                 )
                 Text(
                     text = "${name.length}/20",
@@ -1642,7 +1649,7 @@ fun EditLocationDialog(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = name.isNotEmpty() && !isSubmitting
                 ) { 
-                    Text(if (isSubmitting) "Menyimpan..." else "Simpan Perubahan") 
+                    Text(if (isSubmitting) "Menyimpan..." else "Simpan Perubahan", color = Color.White) 
                 }
             }
         }

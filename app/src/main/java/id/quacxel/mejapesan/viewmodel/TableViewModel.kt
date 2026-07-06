@@ -3,6 +3,8 @@ package id.quacxel.mejapesan.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import id.quacxel.mejapesan.data.model.Location
+import id.quacxel.mejapesan.data.model.LocationData
+import id.quacxel.mejapesan.data.model.StoreUpdateRequest
 import id.quacxel.mejapesan.data.model.Table
 import id.quacxel.mejapesan.data.model.TableRequest
 import id.quacxel.mejapesan.data.network.RetrofitClient
@@ -106,7 +108,7 @@ class TableViewModel : ViewModel() {
             
             toggleMutex.withLock {
                 try {
-                    val response = RetrofitClient.instance.updateStore(id.quacxel.mejapesan.data.model.StoreUpdateRequest(isOpen = isOpen))
+                    val response = RetrofitClient.instance.updateStore(StoreUpdateRequest(isOpen = isOpen))
                     if (response.success && response.data != null) {
                         // Success -> no state revert needed
                         refreshData(isSilent = true) // Target refresh tables quietly (safe now with Gatekeeper)
@@ -141,27 +143,41 @@ class TableViewModel : ViewModel() {
 
     fun addLocation(name: String, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val dummyId = -(System.currentTimeMillis().toInt())
+            val optimisticLoc = Location(id = dummyId, name = name)
+            _locations.value = _locations.value + optimisticLoc
+            onComplete(true)
+
             try {
-                // Returns LocationData directly. If successful, valid object returned.
                 RetrofitClient.instance.addLocation(mapOf("name" to name))
                 refreshData(isSilent = true) // Refresh list silently
-                onComplete(true)
             } catch (e: Exception) {
+                _locations.value = _locations.value.filter { it.id != dummyId }
                 _errorMessage.value = "Gagal menambah lokasi: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }
 
     fun updateLocation(id: Int, name: String, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val originalLocations = _locations.value.toList()
+            val originalTables = _tables.value.toList()
+            
+            _locations.value = _locations.value.map { if (it.id == id) it.copy(name = name) else it }
+            _tables.value = _tables.value.map {
+                if (it.location?.id == id) it.copy(location = LocationData(id = id, name = name)) else it
+            }
+            onComplete(true)
+
             try {
                 RetrofitClient.instance.updateLocation(id, mapOf("name" to name))
                 refreshData(isSilent = true)
-                onComplete(true)
             } catch (e: Exception) {
+                _locations.value = originalLocations
+                _tables.value = originalTables
                 _errorMessage.value = "Gagal update lokasi: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }
@@ -176,74 +192,97 @@ class TableViewModel : ViewModel() {
                 return@launch
             }
 
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val originalLocations = _locations.value.toList()
+            _locations.value = _locations.value.filter { it.id != id }
+            onComplete(true)
+
             try {
                 val response = RetrofitClient.instance.deleteLocation(id)
                 if (response.isSuccessful) {
                     refreshData(isSilent = true)
-                    onComplete(true)
                 } else {
+                    _locations.value = originalLocations
                     _errorMessage.value = "Error: ${response.code()}"
-                    onComplete(false)
                 }
             } catch (e: Exception) {
+                _locations.value = originalLocations
                 _errorMessage.value = "Gagal menghapus lokasi: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }
 
     fun addTable(name: String, locationId: Int, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val dummyId = -(System.currentTimeMillis().toInt())
+            val qrCode = "QR-${name}-${System.currentTimeMillis()}"
+            val locObj = _locations.value.find { it.id == locationId }
+            val locData = if (locObj != null) LocationData(locObj.id, locObj.name) else null
+            val optimisticTable = Table(id = dummyId, name = name, location = locData, qrCode = qrCode, isActive = true)
+            
+            _tables.value = _tables.value + optimisticTable
+            onComplete(true)
+
             try {
-                val qrCode = "QR-${name}-${System.currentTimeMillis()}"
                 val request = TableRequest(name, locationId, qrCode, true)
-                // Returns Response<Table> now
                 val response = RetrofitClient.instance.addTable(request)
                 if (response.isSuccessful) {
                     refreshData(isSilent = true)
-                    onComplete(true)
                 } else {
-                     _errorMessage.value = "Gagal menambah meja: ${response.code()}"
-                     onComplete(false)
+                    _tables.value = _tables.value.filter { it.id != dummyId }
+                    _errorMessage.value = "Gagal menambah meja: ${response.code()}"
                 }
             } catch (e: Exception) {
+                _tables.value = _tables.value.filter { it.id != dummyId }
                 _errorMessage.value = "Gagal menambah meja: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }
 
     fun deleteTable(id: Int, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val originalTables = _tables.value.toList()
+            _tables.value = _tables.value.filter { it.id != id }
+            onComplete(true)
+
             try {
                 RetrofitClient.instance.deleteTable(id)
                 refreshData(isSilent = true)
-                onComplete(true)
             } catch (e: Exception) {
+                _tables.value = originalTables
                 _errorMessage.value = "Gagal menghapus meja: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }
 
     fun updateTable(id: Int, name: String, locationId: Int, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // ZERO-LATENCY GOJEK STYLE: Close modal in 0ms & update RAM state!
+            val existingTable = _tables.value.find { it.id == id }
+            val qrCode = existingTable?.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
+            val locObj = _locations.value.find { it.id == locationId }
+            val locData = if (locObj != null) LocationData(locObj.id, locObj.name) else existingTable?.location
+            
+            val originalTables = _tables.value.toList()
+            _tables.value = _tables.value.map {
+                if (it.id == id) it.copy(name = name, location = locData, qrCode = qrCode) else it
+            }
+            onComplete(true)
+
             try {
-                // Find existing qrCode or generate a new placeholder if missing
-                val existingTable = _tables.value.find { it.id == id }
-                val qrCode = existingTable?.qrCode ?: "QR-${name}-${System.currentTimeMillis()}"
                 val request = TableRequest(name, locationId, qrCode, existingTable?.isActive ?: true)
                 val response = RetrofitClient.instance.updateTable(id, request)
                 if (response.isSuccessful) {
                     refreshData(isSilent = true)
-                    onComplete(true)
                 } else {
-                     _errorMessage.value = "Gagal update meja: ${response.code()}"
-                     onComplete(false)
+                    _tables.value = originalTables
+                    _errorMessage.value = "Gagal update meja: ${response.code()}"
                 }
             } catch (e: Exception) {
+                _tables.value = originalTables
                 _errorMessage.value = "Gagal update meja: ${e.localizedMessage}"
-                onComplete(false)
             }
         }
     }

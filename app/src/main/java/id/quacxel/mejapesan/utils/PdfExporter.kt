@@ -148,7 +148,8 @@ object PdfExporter {
             // Prepare Data
             val no = (index + 1).toString()
             val kode = order.transactionCode
-            val customer = if (order.customerName.length > 15) order.customerName.take(15) + "..." else order.customerName
+            val custBase = if (order.customerName.length > 12) order.customerName.take(12) + "..." else order.customerName
+            val customer = if (order.shippingFee != null && order.shippingFee > 0) "$custBase (+Ongkir)" else custBase
             
             // Parse Date safely
             val dateStr = DateTimeUtils.formatToWIB(order.createdAt).replace(", ", " ").take(16)

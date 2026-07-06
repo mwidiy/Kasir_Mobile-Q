@@ -53,7 +53,34 @@ class ArViewActivity : ComponentActivity() {
                     return true
                 }
                 
+                // Block intent:// and AR schemes to prevent ERR_UNKNOWN_URL_SCHEME crash during preview
+                if (url.startsWith("intent://") || url.contains("arvr.google.com") || url.contains("scene-viewer") || url.startsWith("market://") || url.contains("google.ar.core")) {
+                    android.widget.Toast.makeText(this@ArViewActivity, "Mode AR Kamera dinonaktifkan saat pengujian/preview aset 3D", android.widget.Toast.LENGTH_SHORT).show()
+                    return true
+                }
+                
+                // Prevent any other non-HTTP/HTTPS/FILE schemes from crashing the WebView
+                if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file:///")) {
+                    return true
+                }
+                
                 return false
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Inject JS/CSS to disable and hide the AR 3D cube button in preview mode so it cannot be pressed
+                view?.evaluateJavascript("""
+                    (function() {
+                        var style = document.createElement('style');
+                        style.innerHTML = 'model-viewer::part(default-ar-button), [slot="ar-button"], .ar-btn { pointer-events: none !important; opacity: 0.3 !important; display: none !important; }';
+                        document.head.appendChild(style);
+                        var mv = document.querySelector('model-viewer');
+                        if (mv) {
+                            mv.removeAttribute('ar');
+                        }
+                    })();
+                """.trimIndent(), null)
             }
         }
 

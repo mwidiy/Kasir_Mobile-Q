@@ -532,11 +532,13 @@ fun TransactionItem(item: OrderResponse, onClick: () -> Unit) {
     val isSuccess = item.status == "Completed"
     
      // Item Summary (First item + count)
-    val itemSummary = if (item.items.isNotEmpty()) {
+    val baseSummary = if (item.items.isNotEmpty()) {
         val first = item.items[0]
         val others = item.items.size - 1
         "${first.quantity}x ${first.product?.name ?: "-"}" + if (others > 0) ", +$others lainnya" else ""
     } else "No items"
+    val ongkirStr = if (item.shippingFee != null && item.shippingFee > 0) " (+ Ongkir Rp ${fmt.format(item.shippingFee).replace("Rp", "").replace("Rp ", "").replace(",00", "").trim()})" else ""
+    val itemSummary = baseSummary + ongkirStr
 
     Row(
         modifier = Modifier
@@ -701,8 +703,18 @@ fun ReceiptModal(data: OrderResponse, onDismiss: () -> Unit) {
                          Text(data.customerName, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                         Text("Meja", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
-                         Text(data.table?.name ?: "Takeaway", style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                         Text("Meja / Tipe", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                         val typeText = if (data.orderType?.equals("delivery", ignoreCase = true) == true || (data.shippingFee != null && data.shippingFee > 0)) "Delivery" else (data.table?.name ?: "Takeaway")
+                         Text(typeText, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                    }
+                }
+                if (!data.deliveryAddress.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(horizontalAlignment = Alignment.Start) {
+                             Text("Alamat Pengiriman", style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF9CA3AF)))
+                             Text(data.deliveryAddress, style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF374151), fontWeight = FontWeight.Medium))
+                        }
                     }
                 }
 
